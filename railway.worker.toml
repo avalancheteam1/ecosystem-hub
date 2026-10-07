@@ -1,0 +1,18 @@
+# Railway config for the WORKER service (pg-boss job runner).
+# Set the worker service's "Config-as-code file path" to this file — otherwise it
+# inherits railway.toml, whose /api/health check can never pass here (no HTTP).
+
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+# Same image as the web service; only the entrypoint differs.
+startCommand = "node /worker/worker.mjs"
+# No preDeployCommand: the web service runs migrations; pg-boss migrates its own
+# `pgboss` schema at boot. No healthcheck: the worker serves no HTTP.
+
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+
+[deploy.envs]
+NEXT_TELEMETRY_DISABLED = "1"

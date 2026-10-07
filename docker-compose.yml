@@ -1,0 +1,15 @@
+# Local development database only. The app and worker run on the host (pnpm dev / pnpm worker).
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: hub
+      POSTGRES_USER: hub
+      POSTGRES_PASSWORD: hub
+    ports:
+      - "5433:5432"
+    volumes:
+      - hub-pg:/var/lib/postgresql
+
+volumes:
+  hub-pg:

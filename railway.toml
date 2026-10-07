@@ -1,0 +1,20 @@
+# Railway config for the WEB service. https://docs.railway.com/reference/config-as-code
+
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+# Runs once per deploy BEFORE the new version goes live; on failure the deploy is
+# aborted and the old version keeps serving. The standalone image has no prisma
+# CLI, so it runs from /worker (see Dockerfile, worker-deps stage).
+preDeployCommand = "cd /worker && ./node_modules/.bin/prisma migrate deploy"
+
+# Liveness only — deliberately no DB touch (a DB blip must not abort a deploy).
+healthcheckPath = "/api/health"
+healthcheckTimeout = 60
+
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+
+[deploy.envs]
+NEXT_TELEMETRY_DISABLED = "1"

@@ -1,0 +1,16 @@
+// One row per background job execution (see src/lib/jobs). pg-boss keeps its own
+// queue tables in the `pgboss` schema, invisible to Prisma.
+
+model JobRun {
+  id         String    @id @default(cuid())
+  job        String
+  /// running | success | partial | failed
+  status     String
+  summary    Json?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([job, startedAt])
+  @@index([startedAt])
+  @@map("job_runs")
+}

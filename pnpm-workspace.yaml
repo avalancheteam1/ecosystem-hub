@@ -1,0 +1,14 @@
+minimumReleaseAge: 1440 # minutes (1 day) — delay installing freshly published versions
+
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+
+# mysql2 is only an optional peer of better-auth (we use Postgres and never load
+# it), but pin it past known advisories so `pnpm audit` stays clean.
+overrides:
+  mysql2: '>=3.23.1'

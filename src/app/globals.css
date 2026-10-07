@@ -1,0 +1,226 @@
+@import "tailwindcss";
+
+/* Theme is class-based (next-themes puts `dark` on <html>; dark is the default). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * team1 design tokens — source of truth: ~/git/team1/common/brand/brand_guide.md
+ * Dark is the default theme. Ava Red (#e6212f) is brand-only: never use it for
+ * errors (use `destructive` / #dc2626).
+ */
+
+@theme inline {
+  --font-sans: var(--font-kanit), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-kanit), ui-sans-serif, system-ui, sans-serif;
+}
+
+@theme {
+  --color-brand: #e6212f;
+  --color-brand-50: #fdeff0;
+  --color-brand-100: #fbdfe1;
+  --color-brand-200: #f8bdc1;
+  --color-brand-300: #f28f96;
+  --color-brand-400: #ec5a64;
+  --color-brand-500: #e6212f;
+  --color-brand-600: #d11725;
+  --color-brand-700: #b0141f;
+  --color-brand-800: #901019;
+  --color-brand-900: #790e15;
+  --color-brand-950: #47080c;
+
+  --color-ava-blue: #3055b3;
+  --color-ava-blue-hover: #264496;
+  --color-secondary-blue: #058aff;
+
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-info: #2563eb;
+
+  /* Semantic greys — theme-switch via light-dark(), no `dark:` variant needed. */
+  --color-fg-heading: light-dark(#161617, #ffffff);
+  --color-fg-body: light-dark(#3f3f46, #e5e7eb);
+  --color-fg-muted: light-dark(#6c757d, #9ca3af);
+  --color-fg-faint: light-dark(#a1a1aa, #6b7280);
+  --color-line: light-dark(#d8d9dc, rgb(255 255 255 / 0.08));
+
+  /* Surfaces: canvas < sidebar < card. */
+  --color-surface-0: light-dark(#ffffff, #0b0a0f);
+  --color-surface-1: light-dark(#f5f5f9, #121118);
+  --color-surface-2: light-dark(#ffffff, #181720);
+  --color-surface-hover: light-dark(#e8e9ec, #2a2b2c);
+
+  --shadow-glow: 0 4px 24px 0 rgb(230 33 47 / 0.15);
+
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in-up: fade-in-up 400ms var(--ease-entrance) both;
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* shadcn variables, mapped to the team1 palette. */
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #161617;
+  --card: #ffffff;
+  --card-foreground: #161617;
+  --popover: #ffffff;
+  --popover-foreground: #161617;
+  --primary: #e6212f;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f9;
+  --secondary-foreground: #161617;
+  --muted: #f5f5f9;
+  --muted-foreground: #6c757d;
+  --accent: #e8e9ec;
+  --accent-foreground: #161617;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #d8d9dc;
+  --input: #d8d9dc;
+  --ring: #e6212f;
+  --radius: 0.75rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0b0a0f;
+  --foreground: #e5e7eb;
+  --card: #181720;
+  --card-foreground: #e5e7eb;
+  --popover: #181720;
+  --popover-foreground: #e5e7eb;
+  --primary: #e6212f;
+  --primary-foreground: #ffffff;
+  --secondary: #121118;
+  --secondary-foreground: #e5e7eb;
+  --muted: #121118;
+  --muted-foreground: #9ca3af;
+  --accent: #2a2b2c;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.12);
+  --ring: #e6212f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  /* Brand radius: tags 6px, controls 8px, cards 12px. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-weight: 300;
+    line-height: 1.6;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 500;
+    color: var(--color-fg-heading);
+    line-height: 1.2;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  label[for],
+  summary,
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Brand focus ring on keyboard focus. The guide's 10% red glow alone is too
+     faint to see, so it's paired with a visible outline. */
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-brand) 70%, transparent);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgb(230 33 47 / 0.1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1280px;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+}
+
+/* Hero background: red glow top-right, blue bottom-left (brand guide). */
+@utility hero-glow {
+  background:
+    radial-gradient(ellipse at top right, rgb(230 33 47 / 0.15), transparent 55%),
+    radial-gradient(ellipse at bottom left, rgb(48 85 179 / 0.1), transparent 55%);
+}
+
+/* 1px dot grid on 24px. */
+@utility dot-grid {
+  background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Landing: the builder path draws in once (the page's single load moment). */
+@keyframes path-draw {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes path-step-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.path-line {
+  transform-origin: top;
+  animation: path-draw 900ms var(--ease-entrance) 300ms both;
+}
+.path-step {
+  animation: path-step-in 400ms var(--ease-entrance) both;
+}

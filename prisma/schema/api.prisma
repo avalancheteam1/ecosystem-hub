@@ -1,0 +1,17 @@
+// Server-to-server API keys for /api/v1. Only the sha256 of the key is stored.
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  /// The 8-hex segment of hub_<prefix>_<secret>, for display.
+  prefix      String    @unique
+  keyHash     String    @unique
+  scopes      String[]
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("api_keys")
+}
