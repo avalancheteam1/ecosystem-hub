@@ -28,14 +28,15 @@ function Prefixed({ prefix, platform, ...props }: React.ComponentProps<typeof In
 }
 
 // `countries` comes from the server: Intl country names differ between Node and browsers (hydration).
-export function ProfileForm({ userId, initial, next, countries }: { userId: string; initial: ProfileFormValues; next: string | null; countries: { code: string; name: string }[] }) {
+// `onboarding`: the first-visit step — required fields + basics only, the rest comes later.
+export function ProfileForm({ userId, initial, next, countries, onboarding = false }: { userId: string; initial: ProfileFormValues; next: string | null; countries: { code: string; name: string }[]; onboarding?: boolean }) {
   const router = useRouter()
   const [p, setP] = useState(initial)
   const set = <K extends keyof ProfileFormValues>(k: K, v: ProfileFormValues[K]) => setP((x) => ({ ...x, [k]: v }))
   const roles = p.builderRoles as string[]
   const { pending, run } = useActionToast()
   return (
-    <form className="grid gap-6" onSubmit={(e) => { e.preventDefault(); run(() => saveProfile(p), 'Profile saved', () => next && router.push(next)) }}>
+    <form className="grid gap-6" onSubmit={(e) => { e.preventDefault(); run(() => saveProfile(p), onboarding ? 'You’re all set' : 'Profile saved', () => next && router.push(next)) }}>
       <SectionCard title="About you">
         <div className="grid gap-6">
           <ImageUploadField kind="avatar" ownerId={userId} value={p.image ?? null} onChange={(v) => set('image', v)} label="Profile picture" />
@@ -51,6 +52,7 @@ export function ProfileForm({ userId, initial, next, countries }: { userId: stri
           </Field>
           <fieldset className="space-y-3">
             <legend className="text-sm">What roles describe you? <span aria-hidden className="text-destructive">*</span><span className="sr-only">(required, pick at least one)</span></legend>
+            <p className="text-sm text-fg-muted">Pick all that fit — business folks, students and the curious are as welcome as developers.</p>
             <ChipToggle label="Roles" options={BUILDER_ROLES.map((r) => ({ value: r.id, label: r.name }))} value={roles} onChange={(v) => set('builderRoles', v as ProfileFormValues['builderRoles'])} />
             <div className="grid gap-4 sm:grid-cols-2">
               {roles.includes('university') && <Field id="p-inst" label="Institution name"><Input id="p-inst" value={p.institution ?? ''} onChange={(e) => set('institution', e.target.value)} className="h-11" /></Field>}
@@ -65,13 +67,15 @@ export function ProfileForm({ userId, initial, next, countries }: { userId: stri
               )}
             </div>
           </fieldset>
-          <Field id="p-skills" label="Skills & expertise">
-            <TagInput id="p-skills" value={p.skills as string[]} onChange={(v) => set('skills', v)} suggestions={SKILL_SUGGESTIONS} placeholder="Add skill" max={30} />
-          </Field>
+          {!onboarding && (
+            <Field id="p-skills" label="Skills & expertise">
+              <TagInput id="p-skills" value={p.skills as string[]} onChange={(v) => set('skills', v)} suggestions={SKILL_SUGGESTIONS} placeholder="Add skill" max={30} />
+            </Field>
+          )}
         </div>
       </SectionCard>
 
-      <SectionCard title="Socials & wallets">
+      {!onboarding && <SectionCard title="Socials & wallets">
         <div className="grid gap-6 sm:grid-cols-2">
           <Field id="p-gh" label="GitHub"><Prefixed id="p-gh" prefix="github.com/" platform="github" value={p.githubAccount ?? ''} onChange={(e) => set('githubAccount', e.target.value)} placeholder="username" /></Field>
           <Field id="p-x" label="X"><Prefixed id="p-x" prefix="x.com/" platform="x" value={p.xAccount ?? ''} onChange={(e) => set('xAccount', e.target.value)} placeholder="handle" /></Field>
@@ -80,7 +84,7 @@ export function ProfileForm({ userId, initial, next, countries }: { userId: stri
           <Field id="p-other" label="Other socials" hint="Personal site or other links."><ValueListInput id="p-other" value={p.otherSocials as string[]} onChange={(v) => set('otherSocials', v)} placeholder="https://…" max={5} /></Field>
           <Field id="p-wallet" label="Wallets" hint="EVM addresses — the first one is your primary (used for rewards)."><ValueListInput id="p-wallet" type="text" value={p.wallets as string[]} onChange={(v) => set('wallets', v)} placeholder="0x…" max={5} mono validate={(v) => (EVM_ADDRESS.test(v) ? null : WALLET_ERROR)} /></Field>
         </div>
-      </SectionCard>
+      </SectionCard>}
 
       <SectionCard title="Updates">
         <div className="space-y-4 text-sm">
@@ -91,7 +95,7 @@ export function ProfileForm({ userId, initial, next, countries }: { userId: stri
         </div>
       </SectionCard>
 
-      <div><Button type="submit" disabled={pending}>Save profile</Button></div>
+      <div><Button type="submit" size={onboarding ? 'lg' : 'default'} disabled={pending}>{onboarding ? 'Continue' : 'Save profile'}</Button></div>
     </form>
   )
 }

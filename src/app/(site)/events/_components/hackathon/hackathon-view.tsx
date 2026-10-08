@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { Event } from '@prisma/client'
 import { ArrowUpRight, ExternalLink, Trophy } from 'lucide-react'
@@ -18,7 +19,7 @@ const Dot = () => <span className="text-brand">.</span>
 /** The single next step for this viewer, as a button (or a sentence when there's none). */
 function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Mine, now: Date): { href?: string; label: string } {
   const open = h.stages.find((s) => stageState(s, now) === 'open')
-  if (!signedIn) return { href: `/sign-in?next=/events/${event.slug}/join`, label: 'Sign in to register' }
+  if (!signedIn) return { href: `/sign-in?next=/events/${event.slug}/join`, label: 'Register for Hackathon' }
   if (h.joined) {
     if (open) {
       const done = mine.some((m) => m.entries.some((e) => e.stageId === open.id))
@@ -35,7 +36,7 @@ function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Min
   return { href: `/events/${event.slug}/join`, label: 'Register for Hackathon' }
 }
 
-export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine }) {
+export function HackathonView({ event, h, signedIn, mine, share }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine; share: ReactNode }) {
   const now = new Date()
   const step = nextStep(event, h, signedIn, mine, now)
   const results = h.resultsPublishedAt ? h.prizes.filter((p) => p.award && p.award.submission.status === 'active' && p.award.submission.entries[0]) : []
@@ -72,6 +73,7 @@ export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: P
             {h.tagline && <p className="mt-5 max-w-[52ch] text-xl text-fg-body">{h.tagline}</p>}
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
               {step.href ? <Button asChild size="lg"><Link href={step.href}>{step.label}</Link></Button> : <p className="text-fg-body">{step.label}</p>}
+              {share}
               <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="group inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
                 {event.isOnline ? 'Online' : [event.city, event.country].filter(Boolean).join(', ')} — event page on Luma <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden />
               </a>

@@ -17,10 +17,10 @@ import { utcToZoned } from '@/lib/timezones'
 type Stage = { id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean }
 type Criterion = { id: string; name: string; description: string | null; weight: number }
 
-/** `timeZone`: the hackathon's zone — inputs are wall time there, saved as UTC. */
-export function StageDialog({ hackathonId, stage, trigger, timeZone }: { hackathonId: string; stage?: Stage; trigger: React.ReactNode; timeZone: string }) {
+/** `timeZone`: the hackathon's zone — inputs are wall time there, saved as UTC. `defaults` prefill a new stage's window (the event dates). */
+export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }: { hackathonId: string; stage?: Stage; trigger: React.ReactNode; timeZone: string; defaults?: { opensAt: Date; closesAt: Date | null } }) {
   const empty = {
-    name: stage?.name ?? '', descriptionMd: stage?.descriptionMd ?? '', opensAt: utcToZoned(stage?.opensAt, timeZone), closesAt: utcToZoned(stage?.closesAt, timeZone),
+    name: stage?.name ?? '', descriptionMd: stage?.descriptionMd ?? '', opensAt: utcToZoned(stage?.opensAt ?? defaults?.opensAt, timeZone), closesAt: utcToZoned(stage?.closesAt ?? defaults?.closesAt, timeZone),
     reviewMode: (stage?.reviewMode ?? 'all') as 'all' | 'random', judgesPerSubmission: stage?.judgesPerSubmission ? String(stage.judgesPerSubmission) : '2',
     scaleMax: String(stage?.scaleMax ?? 10), showCriteria: stage?.showCriteria ?? true,
   }

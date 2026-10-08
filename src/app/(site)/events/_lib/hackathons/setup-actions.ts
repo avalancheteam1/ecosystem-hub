@@ -64,7 +64,7 @@ export const createHackathon = action(
           name: 'Project submission',
           opensAt,
           closesAt,
-          criteria: { create: [{ name: 'Technical execution', weight: 2, order: 0 }, { name: 'Innovation', weight: 1, order: 1 }, { name: 'Impact', weight: 1, order: 2 }] },
+          criteria: { create: [{ name: 'Technical execution', weight: 2, order: 0 }, { name: 'Innovation', weight: 1, order: 1 }, { name: 'Ecosystem Impact', weight: 1, order: 2 }] },
         },
       },
     },

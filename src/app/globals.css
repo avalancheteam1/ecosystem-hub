@@ -145,6 +145,8 @@
   /* Reserve the scrollbar's space on every page so centred content doesn't jump between long and short pages */
   html {
     scrollbar-gutter: stable;
+    /* the sticky 64px header must not cover what navigation scrolls into view */
+    scroll-padding-top: 4rem;
   }
   /* …so Radix's scroll lock (dialogs, menus) must not add its own scrollbar compensation on top */
   html body[data-scroll-locked] {

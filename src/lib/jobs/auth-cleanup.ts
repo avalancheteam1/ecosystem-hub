@@ -4,6 +4,7 @@ import type { Job } from './index'
 /** Daily: drop expired sessions and spent/expired verification codes. */
 export const authCleanupJob: Job = {
   name: 'auth-cleanup',
+  description: 'Deletes expired sign-in sessions and spent or expired email codes.',
   cron: '0 3 * * *',
   async run() {
     const now = new Date()

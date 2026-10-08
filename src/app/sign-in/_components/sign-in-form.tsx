@@ -60,7 +60,7 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Mail aria-hidden />} Email me a code
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Mail aria-hidden />} Continue with email
           </Button>
         </form>
       ) : (
@@ -72,7 +72,7 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
             run(() => authClient.signIn.emailOtp({ email, otp }), () => router.refresh())
           }}
         >
-          <Label htmlFor="otp">Code sent to {email}</Label>
+          <Label htmlFor="otp">Enter the 6-digit code we sent to {email}</Label>
           <Input
             id="otp"
             inputMode="numeric"
@@ -86,8 +86,9 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
             className="h-11 text-center text-lg tracking-[0.5em]"
           />
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending && <Loader2 className="animate-spin" aria-hidden />} Sign in
+            {pending && <Loader2 className="animate-spin" aria-hidden />} Continue
           </Button>
+          <p className="text-center text-xs text-fg-faint">No email after a minute? Check your spam folder.</p>
           <button type="button" className="w-full text-sm text-fg-muted hover:text-fg-heading" onClick={() => { setStep('email'); setOtp('') }}>
             Use a different email
           </button>

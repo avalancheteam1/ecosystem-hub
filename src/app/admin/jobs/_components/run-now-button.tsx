@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Play } from 'lucide-react'
+import { Play, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { runJobNow } from '../_lib/actions'
@@ -25,6 +25,16 @@ export function RunNowButton({ name }: { name: string }) {
       }
     >
       <Play aria-hidden /> Run now
+    </Button>
+  )
+}
+
+export function RefreshButton() {
+  const [pending, start] = useTransition()
+  const router = useRouter()
+  return (
+    <Button variant="outline" size="sm" disabled={pending} onClick={() => start(() => router.refresh())}>
+      <RefreshCw aria-hidden className={pending ? 'animate-spin' : undefined} /> Refresh
     </Button>
   )
 }

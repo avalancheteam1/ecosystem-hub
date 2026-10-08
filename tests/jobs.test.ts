@@ -11,7 +11,7 @@ beforeEach(() => {
   jobRun.update.mockReset().mockResolvedValue({})
 })
 
-const job = (run: Job['run']): Job => ({ name: 't', cron: '* * * * *', run })
+const job = (run: Job['run']): Job => ({ name: 't', description: 't', cron: '* * * * *', run })
 const lastUpdate = () => jobRun.update.mock.calls.at(-1)![0].data
 
 test('a successful run is recorded with its summary', async () => {

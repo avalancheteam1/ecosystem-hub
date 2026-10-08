@@ -116,7 +116,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 ### Events (`src/app/(site)/events/`, admin `src/app/admin/events/`)
 - The hub's own copy of **Luma** events, fetched from **public data only**: `api.lu.ma/url?url=<slug>` (unofficial web API, no key — `_lib/luma.ts`; description ProseMirror → Markdown in `_lib/prosemirror.ts`). Same `evt-…` ids and Luma CDN cover images as the member portal. Admin picker lists public team1 events from the member portal's anonymous `GET /api/v1/events` (`_lib/portal.ts`, `MEMBER_PORTAL_URL`). Daily `events-refresh` job; failures land in `Event.syncError` and the admin page — never silent. Edit events on Luma, not here.
 - Two sources (`Event.source`): **luma** (a pasted Luma link, public web API) and **portal** — the admin "team1 events" tab, fetched and refreshed from the portal's key-only `GET /api/v1/events/{id}/full` (`MEMBER_PORTAL_API_KEY` needs scope `events:read:all`; `fetchPortalEvent` in `_lib/portal.ts`), never from Luma. That tab and portal imports are for **team1 members only** (stored `PortalProfile.tier` set; re-checked in `importEvent`).
-- `status` draft | published | archived — only published events are public. `events.manage` imports/publishes/refreshes; `hackathons.manage` implies it (`canManageEvents` in `_lib/access.ts`) and alone sees "Set up as hackathon".
+- `status` draft | published | archived — only published events are public. The hourly `events-portal-import` job adds every **public** portal event the hub doesn't have yet as **published** (source portal); it never touches existing rows, so an unpublish/archive sticks. `events.manage` imports/publishes/refreshes; `hackathons.manage` implies it (`canManageEvents` in `_lib/access.ts`) and alone sees "Set up as hackathon".
 - `_lib/sync.ts` has no `server-only` import on purpose: the worker uses it.
 
 ### Projects (`src/app/(app)/projects/`)
@@ -144,6 +144,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 - Visibility: referrers see counts; leads (per-object, `canViewGroup` in `src/lib/groups.ts`) and `referrals.view` see group totals + referrer name/count; nobody sees who was referred. `groups.manage` edits groups.
 
 ## Integrations (planned)
+- **The member portal is read-only for the hub.** The hub only reads from it (GETs, plus lookup POSTs that carry a hash in the body) and never creates, changes or deletes data there. The portal owns members, chapters and events; the hub keeps read-only copies (`PortalProfile`, portal-sourced `Event`s). Never request a portal API key scope that allows writes.
 - **Member portal** (`~/git/team1/member.team1.network`): `POST /api/v1/members/check` (scope `members:check`, body `{ emailHash }`) answers "is this a team1 member" — the intended way to give members extra features. Later also SSO via `genericOAuth`.
 - **Cascade** and others call this hub's `/api/v1` with keys from `/admin/api-keys`.
 - **Luma**: public data only (see Events). Don't add Luma API keys or luma-sync dependencies.

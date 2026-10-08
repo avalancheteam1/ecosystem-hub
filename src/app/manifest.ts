@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'team1 Ecosystem Hub',
+    name: 'Team1 Ecosystem Hub',
     short_name: 'team1 hub',
     start_url: '/',
     display: 'standalone',

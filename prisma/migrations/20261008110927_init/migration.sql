@@ -1,4 +1,170 @@
 -- CreateTable
+CREATE TABLE "roles" (
+    "id" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "description" TEXT,
+    "permissions" TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_roles" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "roleId" TEXT NOT NULL,
+    "grantedById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_roles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_permissions" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "permission" TEXT NOT NULL,
+    "grantedById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_permissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "api_keys" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "prefix" TEXT NOT NULL,
+    "keyHash" TEXT NOT NULL,
+    "scopes" TEXT[],
+    "createdById" TEXT,
+    "revokedAt" TIMESTAMP(3),
+    "lastUsedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "api_keys_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "audit_logs" (
+    "id" TEXT NOT NULL,
+    "actorId" TEXT,
+    "action" TEXT NOT NULL,
+    "entityType" TEXT NOT NULL,
+    "entityId" TEXT,
+    "before" JSONB,
+    "after" JSONB,
+    "ip" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+    "image" TEXT,
+    "bio" TEXT,
+    "country" TEXT,
+    "builderRoles" TEXT[],
+    "institution" TEXT,
+    "companyName" TEXT,
+    "employeeRole" TEXT,
+    "githubAccount" TEXT,
+    "xAccount" TEXT,
+    "linkedinAccount" TEXT,
+    "telegramAccount" TEXT,
+    "otherSocials" TEXT[],
+    "wallets" TEXT[],
+    "skills" TEXT[],
+    "newsletterOptIn" BOOLEAN NOT NULL DEFAULT false,
+    "isSuperAdmin" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sessions" (
+    "id" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "token" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "userId" TEXT NOT NULL,
+
+    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "accounts" (
+    "id" TEXT NOT NULL,
+    "accountId" TEXT NOT NULL,
+    "providerId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "accessToken" TEXT,
+    "refreshToken" TEXT,
+    "idToken" TEXT,
+    "accessTokenExpiresAt" TIMESTAMP(3),
+    "refreshTokenExpiresAt" TIMESTAMP(3),
+    "scope" TEXT,
+    "password" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "accounts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "verifications" (
+    "id" TEXT NOT NULL,
+    "identifier" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "verifications_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "events" (
+    "id" TEXT NOT NULL,
+    "lumaEventId" TEXT NOT NULL,
+    "lumaUrl" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "descriptionMd" TEXT,
+    "startAt" TIMESTAMP(3) NOT NULL,
+    "endAt" TIMESTAMP(3),
+    "timezone" TEXT NOT NULL,
+    "coverUrl" TEXT,
+    "city" TEXT,
+    "country" TEXT,
+    "fullAddress" TEXT,
+    "isOnline" BOOLEAN NOT NULL DEFAULT false,
+    "lumaVisibility" TEXT NOT NULL DEFAULT 'public',
+    "source" TEXT NOT NULL DEFAULT 'luma',
+    "status" TEXT NOT NULL DEFAULT 'draft',
+    "lastSyncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "syncError" TEXT,
+    "createdById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "hackathons" (
     "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
@@ -11,6 +177,11 @@ CREATE TABLE "hackathons" (
     "teamSizeMin" INTEGER NOT NULL DEFAULT 1,
     "teamSizeMax" INTEGER NOT NULL DEFAULT 5,
     "maxParticipants" INTEGER,
+    "allowMultipleSubmissions" BOOLEAN NOT NULL DEFAULT true,
+    "requireApproval" BOOLEAN NOT NULL DEFAULT false,
+    "inviteToken" TEXT,
+    "prizePool" TEXT,
+    "timezone" TEXT NOT NULL DEFAULT 'UTC',
     "status" TEXT NOT NULL DEFAULT 'draft',
     "resultsPublishedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -26,6 +197,7 @@ CREATE TABLE "hackathon_tracks" (
     "name" TEXT NOT NULL,
     "descriptionMd" TEXT,
     "sponsor" TEXT,
+    "sponsorLogoUrl" TEXT,
     "order" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "hackathon_tracks_pkey" PRIMARY KEY ("id")
@@ -114,6 +286,7 @@ CREATE TABLE "hackathon_stages" (
     "judgesPerSubmission" INTEGER,
     "sameTrackOnly" BOOLEAN NOT NULL DEFAULT false,
     "scaleMax" INTEGER NOT NULL DEFAULT 10,
+    "showCriteria" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "hackathon_stages_pkey" PRIMARY KEY ("id")
 );
@@ -152,6 +325,8 @@ CREATE TABLE "hackathon_stage_entries" (
     "projectVersionId" TEXT NOT NULL,
     "answers" JSONB NOT NULL DEFAULT '{}',
     "teamSnapshot" JSONB NOT NULL DEFAULT '[]',
+    "preexistingIdea" BOOLEAN NOT NULL DEFAULT false,
+    "builtDuringEvent" TEXT,
     "submittedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "advancedAt" TIMESTAMP(3),
@@ -197,6 +372,38 @@ CREATE TABLE "hackathon_awards" (
 );
 
 -- CreateTable
+CREATE TABLE "job_runs" (
+    "id" TEXT NOT NULL,
+    "job" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "summary" JSONB,
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "job_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "portal_profiles" (
+    "userId" TEXT NOT NULL,
+    "tier" TEXT,
+    "fetchedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "portal_profiles_pkey" PRIMARY KEY ("userId")
+);
+
+-- CreateTable
+CREATE TABLE "portal_chapter_memberships" (
+    "userId" TEXT NOT NULL,
+    "chapterSlug" TEXT NOT NULL,
+    "chapterName" TEXT NOT NULL,
+    "lead" BOOLEAN NOT NULL DEFAULT false,
+    "primary" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "portal_chapter_memberships_pkey" PRIMARY KEY ("userId","chapterSlug")
+);
+
+-- CreateTable
 CREATE TABLE "projects" (
     "id" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
@@ -215,17 +422,27 @@ CREATE TABLE "project_versions" (
     "projectId" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
-    "tagline" TEXT NOT NULL,
-    "descriptionMd" TEXT NOT NULL,
-    "logoUrl" TEXT,
-    "repoUrl" TEXT,
-    "demoUrl" TEXT,
-    "videoUrl" TEXT,
-    "links" JSONB NOT NULL DEFAULT '[]',
+    "shortDescription" TEXT NOT NULL,
+    "fullDescription" TEXT NOT NULL,
+    "techDescription" TEXT NOT NULL DEFAULT '',
     "techStack" TEXT[],
+    "categories" TEXT[],
+    "maturity" TEXT,
+    "otherCategory" TEXT,
+    "githubRepos" TEXT[],
+    "demoLinks" TEXT[],
+    "videoUrl" TEXT,
+    "logoUrl" TEXT,
+    "coverUrl" TEXT,
+    "screenshots" TEXT[],
+    "deployedAddresses" JSONB NOT NULL DEFAULT '[]',
+    "websites" JSONB NOT NULL DEFAULT '[]',
+    "socials" JSONB NOT NULL DEFAULT '[]',
     "note" TEXT,
     "createdById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sealedAt" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "project_versions_pkey" PRIMARY KEY ("id")
 );
@@ -256,8 +473,118 @@ CREATE TABLE "project_invites" (
     CONSTRAINT "project_invites_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "referral_codes" (
+    "id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "label" TEXT,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "referral_codes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "referrals" (
+    "id" TEXT NOT NULL,
+    "referredUserId" TEXT NOT NULL,
+    "codeId" TEXT NOT NULL,
+    "referrerId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "referrals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "referral_groups" (
+    "referralId" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+
+    CONSTRAINT "referral_groups_pkey" PRIMARY KEY ("referralId","groupId")
+);
+
+-- CreateTable
+CREATE TABLE "groups" (
+    "id" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "portalChapterSlug" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "groups_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "group_members" (
+    "groupId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "isLead" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "group_members_pkey" PRIMARY KEY ("groupId","userId")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "roles_slug_key" ON "roles"("slug");
+
+-- CreateIndex
+CREATE INDEX "user_roles_roleId_idx" ON "user_roles"("roleId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_roles_userId_roleId_key" ON "user_roles"("userId", "roleId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_permissions_userId_permission_key" ON "user_permissions"("userId", "permission");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "api_keys_prefix_key" ON "api_keys"("prefix");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "api_keys_keyHash_key" ON "api_keys"("keyHash");
+
+-- CreateIndex
+CREATE INDEX "audit_logs_entityType_entityId_idx" ON "audit_logs"("entityType", "entityId");
+
+-- CreateIndex
+CREATE INDEX "audit_logs_createdAt_idx" ON "audit_logs"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "sessions_token_key" ON "sessions"("token");
+
+-- CreateIndex
+CREATE INDEX "sessions_userId_idx" ON "sessions"("userId");
+
+-- CreateIndex
+CREATE INDEX "sessions_expiresAt_idx" ON "sessions"("expiresAt");
+
+-- CreateIndex
+CREATE INDEX "accounts_userId_idx" ON "accounts"("userId");
+
+-- CreateIndex
+CREATE INDEX "verifications_identifier_idx" ON "verifications"("identifier");
+
+-- CreateIndex
+CREATE INDEX "verifications_expiresAt_idx" ON "verifications"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "events_lumaEventId_key" ON "events"("lumaEventId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "events_slug_key" ON "events"("slug");
+
+-- CreateIndex
+CREATE INDEX "events_status_startAt_idx" ON "events"("status", "startAt");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "hackathons_eventId_key" ON "hackathons"("eventId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "hackathons_inviteToken_key" ON "hackathons"("inviteToken");
 
 -- CreateIndex
 CREATE INDEX "hackathon_tracks_hackathonId_idx" ON "hackathon_tracks"("hackathonId");
@@ -314,6 +641,15 @@ CREATE UNIQUE INDEX "hackathon_reviews_assignmentId_key" ON "hackathon_reviews"(
 CREATE UNIQUE INDEX "hackathon_awards_prizeId_key" ON "hackathon_awards"("prizeId");
 
 -- CreateIndex
+CREATE INDEX "job_runs_job_startedAt_idx" ON "job_runs"("job", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "job_runs_startedAt_idx" ON "job_runs"("startedAt");
+
+-- CreateIndex
+CREATE INDEX "portal_chapter_memberships_chapterSlug_idx" ON "portal_chapter_memberships"("chapterSlug");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "projects_slug_key" ON "projects"("slug");
 
 -- CreateIndex
@@ -333,6 +669,63 @@ CREATE UNIQUE INDEX "project_invites_tokenHash_key" ON "project_invites"("tokenH
 
 -- CreateIndex
 CREATE INDEX "project_invites_projectId_idx" ON "project_invites"("projectId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "referral_codes_code_key" ON "referral_codes"("code");
+
+-- CreateIndex
+CREATE INDEX "referral_codes_userId_idx" ON "referral_codes"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "referrals_referredUserId_key" ON "referrals"("referredUserId");
+
+-- CreateIndex
+CREATE INDEX "referrals_referrerId_idx" ON "referrals"("referrerId");
+
+-- CreateIndex
+CREATE INDEX "referrals_codeId_idx" ON "referrals"("codeId");
+
+-- CreateIndex
+CREATE INDEX "referral_groups_groupId_idx" ON "referral_groups"("groupId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "groups_slug_key" ON "groups"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "groups_portalChapterSlug_key" ON "groups"("portalChapterSlug");
+
+-- CreateIndex
+CREATE INDEX "group_members_userId_idx" ON "group_members"("userId");
+
+-- AddForeignKey
+ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_grantedById_fkey" FOREIGN KEY ("grantedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_grantedById_fkey" FOREIGN KEY ("grantedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "events" ADD CONSTRAINT "events_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "hackathons" ADD CONSTRAINT "hackathons_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "events"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -407,6 +800,12 @@ ALTER TABLE "hackathon_awards" ADD CONSTRAINT "hackathon_awards_prizeId_fkey" FO
 ALTER TABLE "hackathon_awards" ADD CONSTRAINT "hackathon_awards_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "hackathon_submissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "portal_profiles" ADD CONSTRAINT "portal_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "portal_chapter_memberships" ADD CONSTRAINT "portal_chapter_memberships_userId_fkey" FOREIGN KEY ("userId") REFERENCES "portal_profiles"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "projects" ADD CONSTRAINT "projects_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -429,3 +828,27 @@ ALTER TABLE "project_invites" ADD CONSTRAINT "project_invites_projectId_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "project_invites" ADD CONSTRAINT "project_invites_invitedById_fkey" FOREIGN KEY ("invitedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "referral_codes" ADD CONSTRAINT "referral_codes_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "referrals" ADD CONSTRAINT "referrals_referredUserId_fkey" FOREIGN KEY ("referredUserId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "referrals" ADD CONSTRAINT "referrals_codeId_fkey" FOREIGN KEY ("codeId") REFERENCES "referral_codes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "referrals" ADD CONSTRAINT "referrals_referrerId_fkey" FOREIGN KEY ("referrerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "referral_groups" ADD CONSTRAINT "referral_groups_referralId_fkey" FOREIGN KEY ("referralId") REFERENCES "referrals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "referral_groups" ADD CONSTRAINT "referral_groups_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "group_members" ADD CONSTRAINT "group_members_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "group_members" ADD CONSTRAINT "group_members_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

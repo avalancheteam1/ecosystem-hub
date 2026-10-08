@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "events" ADD COLUMN     "source" TEXT NOT NULL DEFAULT 'luma';

@@ -31,7 +31,7 @@ export default async function AdminEventsPage() {
   ])
   return (
     <>
-      <PageHeader title="Events" description="Imported from Luma or the member portal. Publish an event to show it on the Ecosystem Hub.">
+      <PageHeader title="Events" description="Public member-portal events are added and published automatically (hourly). Unpublish one to hide it; add other events from Luma and publish them.">
         <ImportEventDialog portalEvents={portal.data} portalError={portal.error} importedIds={events.map((e) => e.lumaEventId)} />
       </PageHeader>
       <DataTable

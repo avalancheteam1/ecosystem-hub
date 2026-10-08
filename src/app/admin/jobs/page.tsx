@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
+import { Info } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { prisma } from '@/lib/db'
 import { requireSuperAdmin } from '@/lib/guards'
 import { JOBS } from '@/lib/jobs'
-import { RunNowButton } from './_components/run-now-button'
+import { RefreshButton, RunNowButton } from './_components/run-now-button'
 
 export const metadata: Metadata = { title: 'Jobs' }
 
@@ -30,7 +31,9 @@ export default async function JobsPage() {
 
   return (
     <>
-      <PageHeader title="Jobs" description="Scheduled background jobs, run by the worker service. Times in UTC." />
+      <PageHeader title="Jobs" description="Scheduled background jobs, run by the worker service. Times in UTC.">
+        <RefreshButton />
+      </PageHeader>
       <div className="mb-12 overflow-x-auto rounded-xl border border-line bg-surface-2">
         <Table>
           <TableHeader>
@@ -46,7 +49,14 @@ export default async function JobsPage() {
               const r = last.get(job.name)
               return (
                 <TableRow key={job.name}>
-                  <TableCell className="text-fg-heading">{job.name}</TableCell>
+                  <TableCell className="text-fg-heading">
+                    <span className="flex items-center gap-1.5">
+                      {job.name}
+                      <span title={job.description} aria-label={job.description} role="img" className="cursor-help text-fg-faint hover:text-fg-muted">
+                        <Info className="size-3.5" aria-hidden />
+                      </span>
+                    </span>
+                  </TableCell>
                   <TableCell><code>{job.cron}</code></TableCell>
                   <TableCell>{r ? <span className="flex items-center gap-2"><Status status={r.status} /> {fmt(r.startedAt)}</span> : <span className="text-fg-faint">never</span>}</TableCell>
                   <TableCell className="text-right"><RunNowButton name={job.name} /></TableCell>

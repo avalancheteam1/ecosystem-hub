@@ -22,8 +22,9 @@ function lumaFields(e: LumaEventData) {
   return fields
 }
 
-/** Create the hub event, or update the existing one (import is idempotent; a re-import switches luma → portal, never back). */
-export async function upsertEvent(ref: string, source: EventSource, createdById: string) {
+/** Create the hub event, or update the existing one (import is idempotent; a re-import switches luma → portal, never back).
+ *  `publish` only applies to a newly created event — an existing one keeps its status. */
+export async function upsertEvent(ref: string, source: EventSource, createdById: string | null, publish = false) {
   const data = await fetchers[source](ref)
   const existing = await prisma.event.findUnique({ where: { lumaEventId: data.lumaEventId } })
   if (existing) {
@@ -35,7 +36,14 @@ export async function upsertEvent(ref: string, source: EventSource, createdById:
   for (let attempt = 0; ; attempt++) {
     try {
       const event = await prisma.event.create({
-        data: { ...data, source, slug: withSuffix(slugify(data.name), shortId()), createdById, lastSyncedAt: new Date() },
+        data: {
+          ...data,
+          source,
+          slug: withSuffix(slugify(data.name), shortId()),
+          createdById,
+          lastSyncedAt: new Date(),
+          ...(publish && !blocksPublish({ source, ...data }) ? { status: 'published' } : {}),
+        },
       })
       return { event, created: true }
     } catch (err) {

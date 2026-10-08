@@ -31,7 +31,7 @@ One Docker image, two services in the same Railway project, plus a Railway Postg
 | web | `railway.toml` | `node server.js` | runs `prisma migrate deploy` before each deploy; health check `/api/health`; domain `hub.team1.network` (via Cloudflare) |
 | worker | `railway.worker.toml` (set as "Config-as-code file path") | `node /worker/worker.mjs` | pg-boss; no HTTP |
 
-Both services need the env vars from `.env.example` (the worker only needs `DATABASE_URL`). `NEXT_PUBLIC_*` must also be available at build time (Railway passes service variables as build args).
+The web service needs the env vars from `.env.example`; the worker needs `DATABASE_URL`, `MEMBER_PORTAL_URL` and `MEMBER_PORTAL_API_KEY` (the `events-refresh` job refreshes portal events). `NEXT_PUBLIC_*` and `STORAGE_PUBLIC_BASE_URL` must also be available at build time (Railway passes service variables as build args).
 
 The origin must only be reachable through Cloudflare (client IPs are taken from `cf-connecting-ip`) — don't expose a `*.up.railway.app` domain.
 

@@ -63,7 +63,7 @@ export function ImportEventDialog({ portalEvents, portalError, importedIds }: { 
         {portalEvents === null ? (
           linkForm
         ) : (
-          <Tabs defaultValue="link" className="min-h-0">
+          <Tabs defaultValue="link" className="min-h-0 min-w-0">
             <TabsList className="w-full">
               <TabsTrigger value="link">Luma link</TabsTrigger>
               <TabsTrigger value="portal">team1 events</TabsTrigger>

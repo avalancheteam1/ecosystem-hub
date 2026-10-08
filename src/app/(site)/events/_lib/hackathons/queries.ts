@@ -52,6 +52,14 @@ export const getHackathonRoles = cache(async (userId: string) => {
   return { judge: judge > 0, organizer: organizer > 0 }
 })
 
+/** Event-page links for the viewer: is there a hackathon, and do they organise or judge it? */
+export async function getEventHackathonRoles(eventId: string, userId: string) {
+  return prisma.hackathon.findUnique({
+    where: { eventId },
+    select: { id: true, organizers: { where: { userId }, select: { userId: true } }, judges: { where: { userId }, select: { id: true } } },
+  })
+}
+
 /** Public hackathon for an event page (published only), plus the viewer's participation. */
 export const getPublicHackathon = cache(async (eventId: string, userId: string | null) => {
   const h = await prisma.hackathon.findUnique({

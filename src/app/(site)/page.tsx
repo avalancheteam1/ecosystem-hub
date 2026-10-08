@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { EventCard } from './events/_components/event-card'
-import { listPublicEvents } from './events/_lib/queries'
+import { listPublicEvents, upcomingEventWhere } from './events/_lib/queries'
 import { SectionHeading } from '@/components/section-heading'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session'
@@ -33,7 +33,7 @@ export default async function HomePage() {
   const [user, upcoming, stats] = await Promise.all([
     getCurrentUser(),
     listPublicEvents('upcoming', 3),
-    Promise.all([prisma.event.count({ where: { status: 'published' } }), prisma.user.count(), prisma.project.count({ where: { archivedAt: null } }), prisma.hackathon.count({ where: { status: 'published' } })]),
+    Promise.all([prisma.event.count({ where: { status: 'published', ...upcomingEventWhere() } }), prisma.user.count(), prisma.project.count({ where: { archivedAt: null } }), prisma.hackathon.count({ where: { status: 'published', event: { status: 'published', ...upcomingEventWhere() } } })]),
   ])
   const [events, builders, projects, hackathons] = stats
   return (
@@ -55,7 +55,7 @@ export default async function HomePage() {
               {user ? (
                 <Button asChild size="lg"><Link href="/dashboard">Open your dashboard</Link></Button>
               ) : (
-                <Button asChild size="lg"><Link href="/sign-in">Create your builder account</Link></Button>
+                <Button asChild size="lg"><Link href="/sign-in">Join the Ecosystem Hub — it&apos;s free</Link></Button>
               )}
               <Button asChild size="lg" variant="outline"><a href="https://team1.network">What is team1?</a></Button>
             </div>
@@ -90,8 +90,8 @@ export default async function HomePage() {
           {[
             [builders, 'builders signed up'],
             [projects, 'projects in the making'],
-            [events, 'events'],
-            [hackathons, 'hackathons'],
+            [events, 'upcoming events'],
+            [hackathons, 'upcoming hackathons'],
           ].map(([n, label]) => (
             <div key={label as string} className="flex flex-col-reverse px-4 py-8 first:pl-0 sm:px-8">
               <dt className="meta mt-2">{label}</dt>

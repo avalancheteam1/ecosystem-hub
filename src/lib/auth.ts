@@ -8,6 +8,7 @@ import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
 import { bindInvitesForUser } from '@/app/(site)/events/_lib/hackathons/bind'
 import { attributeReferral } from '@/app/(app)/referrals/_lib/attribute'
+import { ensureReferralCode } from '@/lib/referral-codes'
 import { refreshPortalProfile } from '@/lib/member-portal'
 import { REF_COOKIE } from '@/app/(app)/referrals/_lib/rules'
 
@@ -57,6 +58,7 @@ export const auth = betterAuth({
         after: async (user, ctx) => {
           if (!ctx) return
           await attributeReferral(user.id, ctx.getCookie(REF_COOKIE)).catch((err) => console.error('[auth] referral attribution failed', err))
+          await ensureReferralCode(user.id).catch((err) => console.error('[auth] default referral code failed', err))
           ctx.setCookie(REF_COOKIE, '', { maxAge: 0, path: '/' })
         },
       },

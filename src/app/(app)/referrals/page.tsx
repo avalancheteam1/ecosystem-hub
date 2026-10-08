@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/layout/page-header'
 import { SectionCard } from '@/components/section-card'
 import { requireUser } from '@/lib/guards'
+import { ensureReferralCode } from '@/lib/referral-codes'
 import { getUserGroups } from '@/lib/user-groups'
 import { CodeTable, CreateCodeDialog } from './_components/codes'
 import { MonthBars } from './_components/group-stats'
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: 'Referrals', robots: { index: false }
 
 export default async function ReferralsPage() {
   const user = await requireUser()
+  await ensureReferralCode(user.id)
   const [{ codes, stats }, { counting }] = await Promise.all([getMyReferrals(user.id), getUserGroups(user.id)])
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
   return (

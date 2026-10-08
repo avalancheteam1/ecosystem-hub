@@ -22,7 +22,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-fg-muted">Stages run one after another. Only teams you advance can submit to the next stage.</p>
-        <StageDialog hackathonId={h.id} timeZone={h.timezone} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
+        <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
       </div>
       {h.stages.map((s, i) => {
         const totalWeight = s.criteria.reduce((a, c) => a + c.weight, 0)

@@ -5,6 +5,7 @@ import { refreshEventFromSource } from '../sync'
 /** Daily: re-fetch every non-archived event that hasn't ended more than 30 days ago. */
 export const eventsRefreshJob: Job = {
   name: 'events-refresh',
+  description: 'Re-fetches every non-archived event (ended less than 30 days ago) from Luma or the member portal.',
   cron: '0 4 * * *',
   async run() {
     const since = new Date(Date.now() - 30 * 86_400_000)

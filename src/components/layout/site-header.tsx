@@ -25,9 +25,12 @@ export async function SiteHeader() {
           {user ? (
             <UserMenu user={{ name: user.name, email: user.email, image: user.image, showAdmin: holdsAny(user), showJudging: !!roles?.judge, showManage: !!roles?.organizer || can(user, 'hackathons.manage') }} />
           ) : (
-            <Button asChild size="sm" className="h-10 px-4">
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
+            <>
+              <Link href="/sign-in" className="hidden h-10 items-center px-2 text-sm text-fg-muted transition-colors hover:text-fg-heading sm:flex">Sign in</Link>
+              <Button asChild size="sm" className="h-10 px-4">
+                <Link href="/sign-in">Join</Link>
+              </Button>
+            </>
           )}
         </div>
       </div>
