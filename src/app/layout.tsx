@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
-import { JetBrains_Mono, Kanit } from 'next/font/google'
+import { Kanit } from 'next/font/google'
+import localFont from 'next/font/local'
 import { headers } from 'next/headers'
 import Script from 'next/script'
 import { ThemeProvider } from '@/components/layout/theme-provider'
@@ -8,7 +9,8 @@ import './globals.css'
 
 const kanit = Kanit({ subsets: ['latin', 'latin-ext'], weight: ['300', '400', '500', '600'], variable: '--font-kanit' })
 // Metadata layer only (dates, counts, numbering) — Kanit stays the brand face.
-const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains' })
+// Self-hosted (variable latin woff2, wght 400–500): next/font/google failed for it in the Railway build.
+const mono = localFont({ src: './_fonts/jetbrains-mono-latin.woff2', weight: '400 500', variable: '--font-jetbrains' })
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
