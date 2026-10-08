@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { mapPortalEvent } from '@/app/(site)/events/_lib/portal'
+import { blocksPublish, mapPortalEvent } from '@/app/(site)/events/_lib/portal'
 
 const full = {
   id: 'evt-abc123',
@@ -40,4 +40,11 @@ test('mapPortalEvent rejects unusable payloads', () => {
   assert.equal(mapPortalEvent({ ...full, id: 'abc' }), null)
   assert.equal(mapPortalEvent({ ...full, name: '' }), null)
   assert.equal(mapPortalEvent({ ...full, startAt: 'nope' }), null)
+})
+
+test('blocksPublish: only non-public portal events', () => {
+  assert.equal(blocksPublish({ source: 'portal', lumaVisibility: 'public' }), false)
+  assert.equal(blocksPublish({ source: 'portal', lumaVisibility: 'private' }), true)
+  assert.equal(blocksPublish({ source: 'portal', lumaVisibility: 'hidden' }), true)
+  assert.equal(blocksPublish({ source: 'luma', lumaVisibility: 'private' }), false)
 })

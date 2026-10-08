@@ -6,11 +6,11 @@ import { action, ActionError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { hasCompleteBasicProfile } from '@/lib/profile'
-import { buildAnswersSchema, canJoin } from './rules'
+import { buildAnswersSchema, canJoin, registrationStatus } from './rules'
 
 export const joinHackathon = action(
-  { schema: z.object({ hackathonId: z.string().min(1), answers: z.record(z.string(), z.unknown()), acceptTerms: z.boolean() }), permission: 'user' },
-  async ({ hackathonId, answers, acceptTerms }, user) => {
+  { schema: z.object({ hackathonId: z.string().min(1), answers: z.record(z.string(), z.unknown()), acceptTerms: z.boolean(), invite: z.string().max(100).optional() }), permission: 'user' },
+  async ({ hackathonId, answers, acceptTerms, invite }, user) => {
     const h = await prisma.hackathon.findUnique({ where: { id: hackathonId }, include: { event: { select: { slug: true } }, fields: { where: { stageId: null } } } })
     if (!h) throw new ActionError('Hackathon not found')
     const profile = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true } })
@@ -19,14 +19,17 @@ export const joinHackathon = action(
       prisma.participant.count({ where: { hackathonId, status: 'active' } }),
       prisma.participant.findUnique({ where: { hackathonId_userId: { hackathonId, userId: user.id } } }),
     ])
-    const check = canJoin(h, { now: new Date(), participants, alreadyJoined: mine?.status === 'active', acceptedTerms: acceptTerms })
+    const invited = !!h.inviteToken && invite === h.inviteToken
+    const check = canJoin(h, { now: new Date(), participants, existing: mine?.status ?? null, invited, acceptedTerms: acceptTerms })
     if (!check.ok) throw new ActionError(check.reason)
     const parsed = buildAnswersSchema(h.fields).safeParse(answers)
     if (!parsed.success) throw new ActionError(parsed.error.issues[0]?.message ?? 'Check your answers')
-    const data = { answers: parsed.data as object, status: 'active', termsAcceptedAt: h.termsUrl ? new Date() : null }
+    const status = registrationStatus(h.requireApproval, invited)
+    const data = { answers: parsed.data as object, status, termsAcceptedAt: h.termsUrl ? new Date() : null }
     await prisma.participant.upsert({ where: { hackathonId_userId: { hackathonId, userId: user.id } }, create: { hackathonId, userId: user.id, ...data }, update: data })
-    await recordAudit({ actorId: user.id, action: 'hackathon.join', entityType: 'Hackathon', entityId: hackathonId })
+    await recordAudit({ actorId: user.id, action: 'hackathon.join', entityType: 'Hackathon', entityId: hackathonId, after: { status, invited } })
     revalidatePath(`/events/${h.event.slug}`, 'layout')
+    revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
     return { slug: h.event.slug }
   },
 )

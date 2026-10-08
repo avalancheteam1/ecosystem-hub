@@ -9,7 +9,7 @@ import { getPortalProfile } from '@/lib/member-portal'
 import type { CurrentUser } from '@/lib/session'
 import { canManageEvents } from './access'
 import { LumaError, parseLumaRef } from './luma'
-import { PortalEventError } from './portal'
+import { BLOCKS_PUBLISH_MESSAGE, blocksPublish, PortalEventError } from './portal'
 import { refreshEventFromSource, upsertEvent } from './sync'
 
 // permission 'user' + assertEvents: events.manage OR hackathons.manage (see access.ts).
@@ -44,8 +44,9 @@ export const setEventStatus = action(
   { schema: z.object({ id: z.string().min(1), status: z.enum(['draft', 'published', 'archived']) }), permission: 'user' },
   async ({ id, status }, user) => {
     assertEvents(user)
-    const before = await prisma.event.findUnique({ where: { id }, select: { status: true, slug: true } })
+    const before = await prisma.event.findUnique({ where: { id }, select: { status: true, slug: true, source: true, lumaVisibility: true } })
     if (!before) throw new ActionError('Event not found')
+    if (status === 'published' && blocksPublish(before)) throw new ActionError(BLOCKS_PUBLISH_MESSAGE)
     await prisma.event.update({ where: { id }, data: { status } })
     await recordAudit({ actorId: user.id, action: 'event.status.set', entityType: 'Event', entityId: id, before: { status: before.status }, after: { status } })
     revalidatePath('/admin/events', 'layout')

@@ -35,6 +35,8 @@ model ProjectVersion {
   techDescription   String    @default("")
   techStack         String[]
   categories        String[]
+  /// How far the project is: PROJECT_MATURITY in projects/_lib/rules.ts (null = not set)
+  maturity          String?
   otherCategory     String?
   githubRepos       String[]
   demoLinks         String[]

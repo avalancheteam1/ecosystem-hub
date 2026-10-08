@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Event } from '@prisma/client'
 import { ArrowUpRight, ExternalLink, Trophy } from 'lucide-react'
-import type { getMySubmission, PublicHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
+import type { getMySubmissions, PublicHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
 import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
@@ -12,25 +12,27 @@ import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { formatEventRange, formatShortDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
-type Mine = Awaited<ReturnType<typeof getMySubmission>>
+type Mine = Awaited<ReturnType<typeof getMySubmissions>>
 const Dot = () => <span className="text-brand">.</span>
 
 /** The single next step for this viewer, as a button (or a sentence when there's none). */
 function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Mine, now: Date): { href?: string; label: string } {
   const open = h.stages.find((s) => stageState(s, now) === 'open')
-  if (!signedIn) return { href: `/sign-in?next=/events/${event.slug}/join`, label: 'Sign in to join' }
+  if (!signedIn) return { href: `/sign-in?next=/events/${event.slug}/join`, label: 'Sign in to register' }
   if (h.joined) {
     if (open) {
-      const done = mine?.entries.some((e) => e.stageId === open.id)
+      const done = mine.some((m) => m.entries.some((e) => e.stageId === open.id))
       const single = h.stages.length === 1
-      return { href: `/events/${event.slug}/submit`, label: done ? (single ? 'Update your submission' : `Update your ${open.name} submission`) : single ? 'Submit your project' : `Submit to ${open.name}` }
+      return { href: `/events/${event.slug}/submit`, label: done && h.allowMultipleSubmissions ? 'Submit or update a project' : done ? (single ? 'Update your submission' : `Update your ${open.name} submission`) : single ? 'Submit your project' : `Submit to ${open.name}` }
     }
     if (h.stages.some((s) => stageState(s, now) === 'upcoming')) return { label: 'You’re in. Submissions open with the next stage.' }
     return { label: h.resultsPublishedAt ? 'The hackathon is over — see the winners below.' : 'Submissions are closed. Results are coming.' }
   }
+  if (h.registration === 'pending') return { label: 'Registration received — the organisers will review it. We’ll email you once you’re in.' }
+  if (h.registration === 'rejected') return { label: 'Your registration wasn’t accepted.' }
   if (h.registrationClosesAt && now >= h.registrationClosesAt) return { label: 'Registration is closed.' }
   if (h.maxParticipants != null && h._count.participants >= h.maxParticipants) return { label: 'This hackathon is full.' }
-  return { href: `/events/${event.slug}/join`, label: 'Join the hackathon' }
+  return { href: `/events/${event.slug}/join`, label: 'Register for Hackathon' }
 }
 
 export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine }) {
@@ -95,8 +97,8 @@ export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: P
       </nav>
 
       <div className="container-page space-y-24 py-16 sm:py-24 [&>section]:scroll-mt-32">
-        {mine && (
-          <section aria-label="Your submission" className="border-y border-line py-6">
+        {mine.map((mine) => (
+          <section key={mine.id} aria-label={`Your submission: ${mine.project.currentVersion?.name}`} className="border-y border-line py-6">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-xl">Your team: {mine.project.currentVersion?.name}</h2>
               <Link href={`/projects/${mine.project.slug}`} className="group inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg-heading">Open project <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden /></Link>
@@ -114,7 +116,7 @@ export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: P
               })}
             </ol>
           </section>
-        )}
+        ))}
 
         {results.length > 0 && (
           <section id="results">
@@ -140,7 +142,7 @@ export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: P
           <aside className="self-start border-t border-line lg:sticky lg:top-36">
             <dl className="divide-y divide-line text-sm">
               <div className="flex justify-between gap-4 py-3"><dt className="meta">Teams</dt><dd className="text-fg-heading">{h.teamSizeMin === h.teamSizeMax ? h.teamSizeMin : `${h.teamSizeMin}–${h.teamSizeMax}`} people</dd></div>
-              {h.registrationClosesAt && <div className="flex justify-between gap-4 py-3"><dt className="meta">Join until</dt><dd className="text-right text-fg-heading">{formatEventRange(h.registrationClosesAt, null, h.timezone)}</dd></div>}
+              {h.registrationClosesAt && <div className="flex justify-between gap-4 py-3"><dt className="meta">Register until</dt><dd className="text-right text-fg-heading">{formatEventRange(h.registrationClosesAt, null, h.timezone)}</dd></div>}
               {h.maxParticipants && <div className="flex justify-between gap-4 py-3"><dt className="meta">Spots</dt><dd className="text-fg-heading">{Math.max(h.maxParticipants - h._count.participants, 0)} of {h.maxParticipants} left</dd></div>}
               {h.termsUrl && <div className="py-3"><a href={h.termsUrl} target="_blank" rel="noreferrer" className="group inline-flex items-center gap-1.5 text-fg-body hover:text-fg-heading">Terms <ExternalLink className="size-3.5" aria-hidden /></a></div>}
             </dl>

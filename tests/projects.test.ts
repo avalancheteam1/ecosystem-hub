@@ -4,7 +4,7 @@ import { missingForSubmission, projectFieldsSchema, versionChanged, type Project
 
 const base: ProjectFieldsInput = {
   name: 'Snowpay', shortDescription: 'Pay with AVAX in one tap', fullDescription: 'A wallet-less checkout.', techDescription: 'Next.js + Solidity',
-  techStack: ['Solidity', 'Next.js'], categories: ['DeFi'], otherCategory: '', githubRepos: ['https://github.com/x/snowpay'], demoLinks: [],
+  techStack: ['Solidity', 'Next.js'], categories: ['DeFi'], otherCategory: '', maturity: 'prototype', githubRepos: ['https://github.com/x/snowpay'], demoLinks: [],
   videoUrl: '', logoUrl: null, coverUrl: null, screenshots: [], deployedAddresses: [], websites: [], socials: [],
 }
 const parse = (o: Partial<ProjectFieldsInput>) => projectFieldsSchema.safeParse({ ...base, ...o })
@@ -34,6 +34,14 @@ test('limits from builders-hub: name 60, short 280, 5 screenshots, other categor
   assert.equal(parse({ categories: ['Memes'] as never }).success, false)
 })
 
+test('project stage is required and limited to the known stages', () => {
+  assert.equal(parse({ maturity: undefined }).success, false)
+  assert.equal(parse({ maturity: '' as never }).success, false)
+  assert.equal(projectFieldsSchema.parse({ ...base, maturity: 'mvp' }).maturity, 'mvp')
+  assert.equal(parse({ maturity: 'unicorn' as never }).success, false)
+  assert.equal(versionChanged(projectFieldsSchema.parse(base), projectFieldsSchema.parse({ ...base, maturity: 'live' })), true)
+})
+
 test('versionChanged is false for an identical save and true for any field change', () => {
   const a = projectFieldsSchema.parse(base)
   assert.equal(versionChanged(a, projectFieldsSchema.parse({ ...base, techStack: [...base.techStack!] })), false)
@@ -43,9 +51,9 @@ test('versionChanged is false for an identical save and true for any field chang
 })
 
 test('submission readiness lists what is missing (builders-hub required set)', () => {
-  const v = { fullDescription: '', techDescription: '', techStack: [], githubRepos: [], demoLinks: [] }
-  assert.deepEqual(missingForSubmission(v), ['Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Demo link'])
-  assert.deepEqual(missingForSubmission({ fullDescription: 'x', techDescription: 'y', techStack: ['Solidity'], githubRepos: ['https://github.com/a/b'], demoLinks: ['https://a.io'] }), [])
+  const v = { maturity: null, fullDescription: '', techDescription: '', techStack: [], githubRepos: [], demoLinks: [] }
+  assert.deepEqual(missingForSubmission(v), ['Project stage', 'Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Demo link'])
+  assert.deepEqual(missingForSubmission({ maturity: 'mvp', fullDescription: 'x', techDescription: 'y', techStack: ['Solidity'], githubRepos: ['https://github.com/a/b'], demoLinks: ['https://a.io'] }), [])
 })
 
 test('saving: no-op when unchanged, edit the draft in place, or start a new draft after a sealed version', async () => {

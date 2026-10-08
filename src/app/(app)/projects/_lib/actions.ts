@@ -139,13 +139,14 @@ export const acceptInvite = action({ schema: z.object({ token: z.string().min(20
   if (!me?.emailVerified || me.email.toLowerCase() !== invite.email) {
     throw new ActionError(`This invite is for ${invite.email}. Sign in with that email to accept it.`)
   }
-  // A submitted team can't grow past its hackathon's limit, and nobody may end up on two submissions of one hackathon.
+  // A submitted team can't grow past its hackathon's limit, and (unless allowed) nobody may end up on two submissions of one hackathon.
   const running = await prisma.submission.findMany({
     where: { projectId: invite.projectId, status: 'active', hackathon: { stages: { some: { judgingClosedAt: null } } } },
-    include: { hackathon: { select: { id: true, teamSizeMax: true, event: { select: { name: true } } } }, project: { select: { _count: { select: { members: true } } } } },
+    include: { hackathon: { select: { id: true, teamSizeMax: true, allowMultipleSubmissions: true, event: { select: { name: true } } } }, project: { select: { _count: { select: { members: true } } } } },
   })
   for (const s of running) {
     if (s.project._count.members + 1 > s.hackathon.teamSizeMax) throw new ActionError(`This team is at the ${s.hackathon.event.name} size limit (${s.hackathon.teamSizeMax})`)
+    if (s.hackathon.allowMultipleSubmissions) continue
     const other = await prisma.submission.findFirst({ where: { hackathonId: s.hackathon.id, status: 'active', projectId: { not: invite.projectId }, project: { members: { some: { userId: user.id } } } } })
     if (other) throw new ActionError(`You're already on another team in ${s.hackathon.event.name}`)
   }

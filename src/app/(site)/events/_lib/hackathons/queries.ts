@@ -25,6 +25,15 @@ export const getManagedHackathon = cache(async (id: string, user: CurrentUser) =
 
 export type ManagedHackathon = NonNullable<Awaited<ReturnType<typeof getManagedHackathon>>>
 
+/** Registrations awaiting a decision (pending) and rejected ones (approvable as an undo). */
+export async function listRegistrationRequests(hackathonId: string) {
+  return prisma.participant.findMany({
+    where: { hackathonId, status: { in: ['pending', 'rejected'] } },
+    orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+    include: { user: { select: { name: true, email: true } } },
+  })
+}
+
 /** Hackathons this user organises (or all, for hackathons.manage holders). */
 export async function listManagedHackathons(user: CurrentUser, all: boolean) {
   return prisma.hackathon.findMany({
@@ -47,6 +56,7 @@ export const getHackathonRoles = cache(async (userId: string) => {
 export const getPublicHackathon = cache(async (eventId: string, userId: string | null) => {
   const h = await prisma.hackathon.findUnique({
     where: { eventId },
+    omit: { inviteToken: true },
     include: {
       tracks: { orderBy: { order: 'asc' } },
       prizes: { orderBy: [{ placement: 'asc' }, { order: 'asc' }], include: { award: { include: { submission: { include: { entries: { orderBy: { stage: { order: 'desc' } }, take: 1, include: { projectVersion: { select: { name: true, shortDescription: true } } } } } } } } } },
@@ -57,15 +67,17 @@ export const getPublicHackathon = cache(async (eventId: string, userId: string |
   })
   if (!h || h.status !== 'published') return null
   const participant = userId ? await prisma.participant.findUnique({ where: { hackathonId_userId: { hackathonId: h.id, userId } } }) : null
-  return { ...h, joined: participant?.status === 'active' }
+  // registration: null | active | pending | rejected | withdrawn
+  return { ...h, joined: participant?.status === 'active', registration: participant?.status ?? null }
 })
 
 export type PublicHackathon = NonNullable<Awaited<ReturnType<typeof getPublicHackathon>>>
 
-/** The viewer's team submission in this hackathon (via project membership), with entries and pinned versions. */
-export async function getMySubmission(hackathonId: string, userId: string) {
-  return prisma.submission.findFirst({
+/** The viewer's team submissions in this hackathon (via project membership), with entries and pinned versions. */
+export async function getMySubmissions(hackathonId: string, userId: string) {
+  return prisma.submission.findMany({
     where: { hackathonId, status: { not: 'withdrawn' }, project: { members: { some: { userId } } } },
+    orderBy: { createdAt: 'asc' },
     include: {
       project: { include: { currentVersion: { select: { id: true, number: true, name: true } } } },
       entries: { include: { projectVersion: { select: { number: true } } } },
@@ -92,7 +104,7 @@ export async function listSubmissions(hackathonId: string) {
     orderBy: { createdAt: 'asc' },
     include: {
       project: { include: { currentVersion: { select: { name: true, shortDescription: true } }, members: { include: { user: { select: { name: true, email: true } } } } } },
-      entries: { select: { stageId: true, advancedAt: true, projectVersion: { select: { number: true } } } },
+      entries: { orderBy: { submittedAt: 'asc' }, select: { stageId: true, advancedAt: true, projectVersion: { select: { number: true, maturity: true } } } },
     },
   })
 }

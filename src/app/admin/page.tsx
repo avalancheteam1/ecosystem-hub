@@ -1,10 +1,13 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
 import { requireUser } from '@/lib/guards'
+import { holdsAny } from '@/lib/permissions'
 import { ADMIN_NAV } from './_lib/nav'
 
 export default async function AdminHome() {
   const user = await requireUser()
+  if (!holdsAny(user)) notFound()
   const items = ADMIN_NAV.filter((i) => i.href !== '/admin' && i.show(user))
   return (
     <>

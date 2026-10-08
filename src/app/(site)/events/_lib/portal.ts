@@ -28,6 +28,10 @@ export async function listPortalEvents(opts: { cursor?: string; from?: string } 
 
 export class PortalEventError extends Error {}
 
+/** A private/hidden portal event carries its exact address + description — never publish it on the hub. */
+export const blocksPublish = (e: { source: string; lumaVisibility: string }) => e.source === 'portal' && e.lumaVisibility !== 'public'
+export const BLOCKS_PUBLISH_MESSAGE = 'Not public in the member portal — it can’t be published here'
+
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 const date = (v: unknown): Date | null => {
   const d = typeof v === 'string' ? new Date(v) : null

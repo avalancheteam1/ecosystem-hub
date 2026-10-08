@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { formatEventRange } from '@/lib/dates'
 import { getCurrentUser } from '@/lib/session'
 import { HackathonView } from '../_components/hackathon/hackathon-view'
-import { getMySubmission, getPublicHackathon } from '../_lib/hackathons/queries'
+import { getMySubmissions, getPublicHackathon } from '../_lib/hackathons/queries'
 import { getPublicEvent } from '../_lib/queries'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -28,7 +28,7 @@ export default async function EventPage({ params }: Props) {
   const user = await getCurrentUser()
   const hackathon = await getPublicHackathon(event.id, user?.id ?? null)
   if (hackathon) {
-    const mine = user && hackathon.joined ? await getMySubmission(hackathon.id, user.id) : null
+    const mine = user && hackathon.joined ? await getMySubmissions(hackathon.id, user.id) : []
     return <HackathonView event={event} h={hackathon} signedIn={!!user} mine={mine} />
   }
   const ended = (event.endAt ?? event.startAt) < new Date()

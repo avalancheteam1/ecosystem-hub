@@ -7,7 +7,7 @@ import { Markdown } from '@/components/markdown'
 import { formatEventRange } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { requireUser } from '@/lib/guards'
-import { getMySubmission, getPublicHackathon } from '../../_lib/hackathons/queries'
+import { getMySubmissions, getPublicHackathon } from '../../_lib/hackathons/queries'
 import { stageState } from '../../_lib/hackathons/rules'
 import { getPublicEvent } from '../../_lib/queries'
 import { SubmitForm } from './submit-form'
@@ -24,8 +24,9 @@ function Notice({ title, children, slug }: { title: string; children: React.Reac
   )
 }
 
-export default async function SubmitPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function SubmitPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ project?: string }> }) {
   const { slug } = await params
+  const { project: picked } = await searchParams
   const user = await requireUser()
   const event = await getPublicEvent(slug)
   if (!event) notFound()
@@ -37,28 +38,36 @@ export default async function SubmitPage({ params }: { params: Promise<{ slug: s
   const stage = h.stages[idx]
   if (!stage) return <Notice slug={slug} title="No stage is open">Submissions open with the next stage — see the timeline.</Notice>
 
-  const [projects, mine, fields] = await Promise.all([
+  const [myProjects, mines, fields] = await Promise.all([
     listMyProjects(user.id),
-    getMySubmission(h.id, user.id),
+    getMySubmissions(h.id, user.id),
     prisma.formField.findMany({ where: { stageId: stage.id }, orderBy: { order: 'asc' } }),
   ])
-  const entry = mine?.entries.find((e) => e.stageId === stage.id)
-  if (idx > 0 && !mine?.entries.find((e) => e.stageId === h.stages[idx - 1]!.id)?.advancedAt) {
+  // Which of my projects may be picked: later stages only advanced teams; one submission per person unless multiple are allowed.
+  const advanced = idx > 0 ? mines.filter((m) => m.entries.find((e) => e.stageId === h.stages[idx - 1]!.id)?.advancedAt) : null
+  if (advanced && !advanced.length) {
     return <Notice slug={slug} title={`${stage.name} is for advanced teams`}>Only teams the organisers advanced from {h.stages[idx - 1]!.name} can submit to this stage.</Notice>
   }
+  const only = advanced ?? (!h.allowMultipleSubmissions && mines.length ? mines.slice(0, 1) : null)
+  const projects = only ? myProjects.filter((p) => only.some((m) => m.projectId === p.id)) : myProjects
+  const projectId = projects.find((p) => p.id === picked)?.id ?? projects[0]?.id ?? ''
+  const mine = mines.find((m) => m.projectId === projectId)
+  const entry = mine?.entries.find((e) => e.stageId === stage.id)
   return (
     <div className="container-page max-w-3xl py-14">
-      <p className="text-fg-muted">{event.name}</p>
+      <p><Link href={`/events/${slug}`} className="text-fg-muted underline-offset-4 hover:text-fg-heading hover:underline">{event.name}</Link></p>
       <h1 className="mt-2 text-3xl sm:text-4xl">{h.stages.length === 1 ? 'Submit your project' : `Submit to ${stage.name}`}</h1>
       <p className="mt-2 text-fg-muted">Open until {formatEventRange(stage.closesAt, null, h.timezone)}. You can update your submission until then.</p>
       {stage.descriptionMd && <Markdown className="mt-6">{stage.descriptionMd}</Markdown>}
       <div className="mt-10 rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
         <SubmitForm
+          key={projectId}
           submitPath={`/events/${slug}/submit`}
           hackathonId={h.id}
           stageId={stage.id}
-          projects={projects.map((p) => ({ id: p.id, slug: p.slug, name: p.currentVersion?.name ?? '', tagline: p.currentVersion?.shortDescription ?? '', versionNumber: p.currentVersion?.number ?? 0, sealed: !!p.currentVersion?.sealedAt, members: p._count.members, missing: p.currentVersion ? missingForSubmission(p.currentVersion) : [] }))}
-          lockedProjectId={mine?.projectId ?? null}
+          projects={projects.map((p) => ({ id: p.id, slug: p.slug, name: p.currentVersion?.name ?? '', tagline: p.currentVersion?.shortDescription ?? '', imageUrl: p.currentVersion?.logoUrl ?? p.currentVersion?.coverUrl ?? null, maturity: p.currentVersion?.maturity ?? null, versionNumber: p.currentVersion?.number ?? 0, sealed: !!p.currentVersion?.sealedAt, members: p._count.members, missing: p.currentVersion ? missingForSubmission(p.currentVersion) : [] }))}
+          projectId={projectId}
+          canCreate={!only}
           tracks={h.tracks}
           chooseTracks={idx === 0}
           initialTrackIds={mine?.trackIds ?? []}

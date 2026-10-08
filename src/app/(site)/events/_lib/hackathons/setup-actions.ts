@@ -1,5 +1,6 @@
 'use server'
 
+import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { action, ActionError } from '@/lib/action'
@@ -11,6 +12,7 @@ import { sendMail } from '@/lib/mailer'
 import { isOwnUpload } from '@/lib/storage'
 import { isTimeZone } from '@/lib/timezones'
 import { verifiedUserIdByEmail } from './bind'
+import { judgeEligibility } from './judging'
 import { assertManage } from './manage'
 import { FIELD_TYPES, publishChecklist, validateStages } from './rules'
 
@@ -90,6 +92,7 @@ export const updateOverview = action(
         teamSizeMin: z.coerce.number().int().min(1).max(50),
         teamSizeMax: z.coerce.number().int().min(1).max(50),
         maxParticipants: z.union([z.coerce.number().int().min(1).max(100_000), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
+        allowMultipleSubmissions: z.boolean(),
       })
       .refine((v) => v.teamSizeMin <= v.teamSizeMax, { message: 'Minimum team size can’t be above the maximum', path: ['teamSizeMin'] })
       .refine((v) => !v.registrationOpensAt || !v.registrationClosesAt || v.registrationOpensAt < v.registrationClosesAt, { message: 'Registration must open before it closes' }),
@@ -97,9 +100,9 @@ export const updateOverview = action(
   },
   async ({ hackathonId, ...data }, user) => {
     const h = await assertManage(hackathonId, user)
-    const before = await prisma.hackathon.findUnique({ where: { id: hackathonId }, select: { timezone: true, tagline: true, termsUrl: true, teamSizeMin: true, teamSizeMax: true, maxParticipants: true, registrationOpensAt: true, registrationClosesAt: true } })
+    const before = await prisma.hackathon.findUnique({ where: { id: hackathonId }, select: { timezone: true, tagline: true, termsUrl: true, teamSizeMin: true, teamSizeMax: true, maxParticipants: true, allowMultipleSubmissions: true, registrationOpensAt: true, registrationClosesAt: true } })
     await prisma.hackathon.update({ where: { id: hackathonId }, data })
-    await recordAudit({ actorId: user.id, action: 'hackathon.overview.update', entityType: 'Hackathon', entityId: hackathonId, before, after: { timezone: data.timezone, tagline: data.tagline, termsUrl: data.termsUrl, teamSizeMin: data.teamSizeMin, teamSizeMax: data.teamSizeMax, maxParticipants: data.maxParticipants, registrationOpensAt: data.registrationOpensAt, registrationClosesAt: data.registrationClosesAt } })
+    await recordAudit({ actorId: user.id, action: 'hackathon.overview.update', entityType: 'Hackathon', entityId: hackathonId, before, after: { timezone: data.timezone, tagline: data.tagline, termsUrl: data.termsUrl, teamSizeMin: data.teamSizeMin, teamSizeMax: data.teamSizeMax, maxParticipants: data.maxParticipants, allowMultipleSubmissions: data.allowMultipleSubmissions, registrationOpensAt: data.registrationOpensAt, registrationClosesAt: data.registrationClosesAt } })
     revalidate(h)
     return null
   },
@@ -312,6 +315,53 @@ export const deleteField = action({ schema: z.object({ hackathonId: id, fieldId:
   return null
 })
 
+// ── registration (approval + invite link) ─────────────────────────────────
+
+export const setRequireApproval = action({ schema: z.object({ hackathonId: id, requireApproval: z.boolean() }), permission: 'user' }, async ({ hackathonId, requireApproval }, user) => {
+  const h = await assertManage(hackathonId, user)
+  await prisma.hackathon.update({ where: { id: hackathonId }, data: { requireApproval } })
+  await recordAudit({ actorId: user.id, action: 'hackathon.registration.update', entityType: 'Hackathon', entityId: hackathonId, before: { requireApproval: h.requireApproval }, after: { requireApproval } })
+  revalidate(h)
+  return null
+})
+
+/** enabled: issue a new link (the old one stops working); false: no link. */
+export const setInviteLink = action({ schema: z.object({ hackathonId: id, enabled: z.boolean() }), permission: 'user' }, async ({ hackathonId, enabled }, user) => {
+  const h = await assertManage(hackathonId, user)
+  await prisma.hackathon.update({ where: { id: hackathonId }, data: { inviteToken: enabled ? crypto.randomBytes(16).toString('base64url') : null } })
+  // Never the token itself in the audit log.
+  await recordAudit({ actorId: user.id, action: enabled ? 'hackathon.invite_link.rotate' : 'hackathon.invite_link.disable', entityType: 'Hackathon', entityId: hackathonId })
+  revalidate(h)
+  return null
+})
+
+export const reviewRegistration = action(
+  { schema: z.object({ hackathonId: id, participantId: id, approve: z.boolean() }), permission: 'user' },
+  async ({ hackathonId, participantId, approve }, user) => {
+    const h = await assertManage(hackathonId, user)
+    const p = await prisma.participant.findFirst({ where: { id: participantId, hackathonId }, include: { user: { select: { email: true } } } })
+    // Approve: pending or (undo) rejected. Reject: pending only — active builders may already be on a team.
+    if (!p || !(approve ? ['pending', 'rejected'] : ['pending']).includes(p.status)) throw new ActionError('Registration not found')
+    if (approve && h.maxParticipants != null && (await prisma.participant.count({ where: { hackathonId, status: 'active' } })) >= h.maxParticipants) {
+      throw new ActionError('The hackathon is full — raise the participant limit first')
+    }
+    const status = approve ? 'active' : 'rejected'
+    await prisma.participant.update({ where: { id: p.id }, data: { status } })
+    await recordAudit({ actorId: user.id, action: approve ? 'hackathon.registration.approve' : 'hackathon.registration.reject', entityType: 'Participant', entityId: p.id, before: { status: p.status }, after: { status } })
+    if (approve) {
+      const url = `${siteUrl()}/events/${h.event.slug}`
+      await sendMail({
+        to: p.user.email,
+        subject: `You're in — ${h.event.name}`,
+        text: `Your registration for "${h.event.name}" was approved.\n\n${url}`,
+        html: brandedShell({ preheader: `Your registration for ${h.event.name} was approved`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Your registration for <strong>${esc(h.event.name)}</strong> was approved. Teams form around projects — create one or get invited to one, then submit.</p>${button(url, 'Go to the hackathon')}</td></tr>` }),
+      }).catch((err) => console.error('[hackathons] mail failed', err))
+    }
+    revalidate(h)
+    return null
+  },
+)
+
 // ── people ─────────────────────────────────────────────────────────────────
 
 const email = z.string().trim().toLowerCase().email('Enter a valid email')
@@ -364,9 +414,19 @@ export const saveJudge = action(
     const valid = await prisma.hackathonTrack.findMany({ where: { hackathonId, id: { in: trackIds } }, select: { id: true } })
     if (valid.length !== new Set(trackIds).size) throw new ActionError('Unknown track')
     if (judgeId) {
-      const r = await prisma.hackathonJudge.updateMany({ where: { id: judgeId, hackathonId }, data: { trackIds } })
-      if (!r.count) throw new ActionError('Judge not found')
-      await recordAudit({ actorId: user.id, action: 'hackathon.judge.update', entityType: 'Hackathon', entityId: hackathonId, after: { judgeId, trackIds } })
+      const judge = await prisma.hackathonJudge.findFirst({ where: { id: judgeId, hackathonId } })
+      if (!judge) throw new ActionError('Judge not found')
+      // Narrowed tracks: drop open assignments the judge is no longer eligible for (submitted reviews stay).
+      const open = await prisma.judgeAssignment.findMany({
+        where: { judgeId, entry: { stage: { judgingClosedAt: null } }, OR: [{ review: null }, { review: { submittedAt: null } }] },
+        select: { id: true, entryId: true, entry: { select: { submission: { select: { trackIds: true } } } } },
+      })
+      const stale = open.filter((a) => !judgeEligibility({ ...judge, trackIds }, { id: a.entryId, trackIds: a.entry.submission.trackIds, teamUserIds: [] }, []).ok).map((a) => a.id)
+      await prisma.$transaction([
+        prisma.hackathonJudge.update({ where: { id: judgeId }, data: { trackIds } }),
+        prisma.judgeAssignment.deleteMany({ where: { id: { in: stale } } }),
+      ])
+      await recordAudit({ actorId: user.id, action: 'hackathon.judge.update', entityType: 'Hackathon', entityId: hackathonId, before: { trackIds: judge.trackIds }, after: { judgeId, trackIds, unassigned: stale.length } })
     } else {
       if (!email) throw new ActionError('Enter the judge’s email')
       if (await prisma.hackathonJudge.findUnique({ where: { hackathonId_email: { hackathonId, email } } })) throw new ActionError('Already a judge')

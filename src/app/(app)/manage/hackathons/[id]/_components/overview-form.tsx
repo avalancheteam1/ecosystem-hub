@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { updateOverview } from '@/app/(site)/events/_lib/hackathons/setup-actions'
 import { MarkdownField } from '@/components/markdown-field'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useActionToast } from '@/hooks/use-action-toast'
@@ -17,6 +18,7 @@ type Initial = {
   tagline: string; aboutMd: string; rulesMd: string | null; termsUrl: string | null
   registrationOpensAt: Date | null; registrationClosesAt: Date | null
   teamSizeMin: number; teamSizeMax: number; maxParticipants: number | null
+  allowMultipleSubmissions: boolean
 }
 
 export function OverviewForm({ hackathonId, initial }: { hackathonId: string; initial: Initial }) {
@@ -26,6 +28,7 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
     registrationOpensAt: utcToZoned(initial.registrationOpensAt, initial.timezone), registrationClosesAt: utcToZoned(initial.registrationClosesAt, initial.timezone),
     teamSizeMin: String(initial.teamSizeMin), teamSizeMax: String(initial.teamSizeMax), maxParticipants: initial.maxParticipants ? String(initial.maxParticipants) : '',
   })
+  const [multi, setMulti] = useState(initial.allowMultipleSubmissions)
   const [tz, setTz] = useState(initial.timezone)
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV((p) => ({ ...p, [k]: e.target.value }))
   const { pending, run } = useActionToast()
@@ -34,7 +37,7 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
       className="grid gap-6"
       onSubmit={(e) => {
         e.preventDefault()
-        run(() => updateOverview({ hackathonId, ...v, timezone: tz, registrationOpensAt: toUtcIso(v.registrationOpensAt, tz), registrationClosesAt: toUtcIso(v.registrationClosesAt, tz) }), 'Saved')
+        run(() => updateOverview({ hackathonId, ...v, allowMultipleSubmissions: multi, timezone: tz, registrationOpensAt: toUtcIso(v.registrationOpensAt, tz), registrationClosesAt: toUtcIso(v.registrationClosesAt, tz) }), 'Saved')
       }}
     >
       <div className="space-y-2">
@@ -66,6 +69,10 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
           <Input id="terms" type="url" value={v.termsUrl} onChange={set('termsUrl')} placeholder="https://…" className="h-11" />
           <p className="text-xs text-fg-faint">If set, builders must accept it to join.</p>
         </div>
+      </div>
+      <div className="space-y-2">
+        <label className="flex items-center gap-3 text-sm"><Checkbox checked={multi} onCheckedChange={(c) => setMulti(c === true)} /> Allow multiple submissions</label>
+        <p className="text-xs text-fg-faint">Builders may be on more than one team (project) in this hackathon. Off: one active submission per person.</p>
       </div>
       <div><Button type="submit" disabled={pending}>Save overview</Button></div>
     </form>

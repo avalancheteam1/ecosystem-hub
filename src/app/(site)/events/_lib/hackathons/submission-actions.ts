@@ -42,7 +42,7 @@ export const submitToStage = action(
     const [submission, participants, clash] = await Promise.all([
       prisma.submission.findUnique({ where: { hackathonId_projectId: { hackathonId, projectId } }, include: { entries: { select: { stageId: true, advancedAt: true } } } }),
       prisma.participant.findMany({ where: { hackathonId, status: 'active', userId: { in: team } }, select: { userId: true } }),
-      prisma.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team } } } } }, select: { id: true } }),
+      h.allowMultipleSubmissions ? null : prisma.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team } } } } }, select: { id: true } }),
     ])
     const prev = h.stages[idx - 1]
     const check = canSubmitToStage({
@@ -66,10 +66,12 @@ export const submitToStage = action(
 
     const teamSnapshot = project.members.map((m) => ({ userId: m.userId, name: m.user.name }))
     const entry = await prisma.$transaction(async (tx) => {
-      // Serialise submissions per hackathon so "one active submission per person" holds under concurrency.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${hackathonId}))`
-      const clashNow = await tx.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team } } } } }, select: { id: true } })
-      if (clashNow) throw new ActionError('Someone on this team is already part of another submission in this hackathon')
+      // Unless multiple submissions are allowed, serialise per hackathon so "one active submission per person" holds under concurrency.
+      if (!h.allowMultipleSubmissions) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${hackathonId}))`
+        const clashNow = await tx.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team } } } } }, select: { id: true } })
+        if (clashNow) throw new ActionError('Someone on this team is already part of another submission in this hackathon')
+      }
       // Seal the project's draft (or reuse the latest sealed version if nothing changed since).
       const current = await tx.projectVersion.findUniqueOrThrow({ where: { id: project.currentVersionId! } })
       if (planSeal(current) === 'seal-draft') {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/guards'
 import { initials } from '@/lib/utils'
 import { listMyProjects } from './_lib/queries'
+import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { versionLabel } from './_lib/rules'
 
 export const metadata: Metadata = { title: 'Your projects', robots: { index: false } }
@@ -37,7 +38,7 @@ export default async function ProjectsPage() {
                 <div className="min-w-0">
                   <h2 className="truncate text-lg">{p.currentVersion?.name}</h2>
                   <p className="line-clamp-2 text-sm text-fg-muted">{p.currentVersion?.shortDescription}</p>
-                  <p className="meta mt-3">{p.currentVersion && versionLabel(p.currentVersion)} — {p._count.members} {p._count.members === 1 ? 'member' : 'members'}</p>
+                  <p className="meta mt-3">{p.currentVersion?.maturity && `${PROJECT_MATURITY[p.currentVersion.maturity as ProjectMaturity]?.label} — `}{p.currentVersion && versionLabel(p.currentVersion)} — {p._count.members} {p._count.members === 1 ? 'member' : 'members'}</p>
                 </div>
               </Link>
             </li>

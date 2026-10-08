@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { buildAnswersSchema, canJoin, canManageHackathon, publishChecklist, stageState, validateStages, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
+import { buildAnswersSchema, canJoin, canManageHackathon, publishChecklist, registrationStatus, stageState, validateStages, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
 
 const d = (s: string) => new Date(s)
 const stage = (o: Partial<{ opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; name: string; order: number }> = {}) => ({
@@ -47,14 +47,32 @@ const hack = { status: 'published', registrationOpensAt: d('2026-10-01T00:00Z'),
 
 test('canJoin checks publish state, window, cap, terms and duplicates', () => {
   const now = d('2026-10-15T00:00Z')
-  assert.deepEqual(canJoin(hack, { now, participants: 1, alreadyJoined: false, acceptedTerms: true }), { ok: true })
-  assert.equal(canJoin({ ...hack, status: 'draft' }, { now, participants: 0, alreadyJoined: false, acceptedTerms: true }).ok, false)
-  assert.equal(canJoin(hack, { now: d('2026-10-31T00:00Z'), participants: 0, alreadyJoined: false, acceptedTerms: true }).ok, false)
-  assert.equal(canJoin(hack, { now: d('2026-09-30T00:00Z'), participants: 0, alreadyJoined: false, acceptedTerms: true }).ok, false)
-  assert.equal(canJoin(hack, { now, participants: 2, alreadyJoined: false, acceptedTerms: true }).ok, false)
-  assert.equal(canJoin(hack, { now, participants: 0, alreadyJoined: false, acceptedTerms: false }).ok, false)
-  assert.equal(canJoin(hack, { now, participants: 0, alreadyJoined: true, acceptedTerms: true }).ok, false)
-  assert.equal(canJoin({ ...hack, termsUrl: null, maxParticipants: null, registrationOpensAt: null, registrationClosesAt: null }, { now, participants: 99, alreadyJoined: false, acceptedTerms: false }).ok, true)
+  assert.deepEqual(canJoin(hack, { now, participants: 1, existing: null, invited: false, acceptedTerms: true }), { ok: true })
+  assert.equal(canJoin({ ...hack, status: 'draft' }, { now, participants: 0, existing: null, invited: false, acceptedTerms: true }).ok, false)
+  assert.equal(canJoin(hack, { now: d('2026-10-31T00:00Z'), participants: 0, existing: null, invited: false, acceptedTerms: true }).ok, false)
+  assert.equal(canJoin(hack, { now: d('2026-09-30T00:00Z'), participants: 0, existing: null, invited: false, acceptedTerms: true }).ok, false)
+  assert.equal(canJoin(hack, { now, participants: 2, existing: null, invited: false, acceptedTerms: true }).ok, false)
+  assert.equal(canJoin(hack, { now, participants: 0, existing: null, invited: false, acceptedTerms: false }).ok, false)
+  assert.equal(canJoin(hack, { now, participants: 0, existing: 'active', invited: false, acceptedTerms: true }).ok, false)
+  assert.equal(canJoin({ ...hack, termsUrl: null, maxParticipants: null, registrationOpensAt: null, registrationClosesAt: null }, { now, participants: 99, existing: null, invited: false, acceptedTerms: false }).ok, true)
+})
+
+test('canJoin: pending waits, rejected is final unless invited, withdrawn may re-register', () => {
+  const now = d('2026-10-15T00:00Z')
+  const c = { now, participants: 0, invited: false, acceptedTerms: true }
+  assert.equal(canJoin(hack, { ...c, existing: 'pending' }).ok, false)
+  assert.equal(canJoin(hack, { ...c, existing: 'pending', invited: true }).ok, false)
+  assert.equal(canJoin(hack, { ...c, existing: 'rejected' }).ok, false)
+  assert.equal(canJoin(hack, { ...c, existing: 'rejected', invited: true }).ok, true)
+  assert.equal(canJoin(hack, { ...c, existing: 'withdrawn' }).ok, true)
+  // The invite link skips approval only — not the cap.
+  assert.equal(canJoin(hack, { ...c, participants: 2, existing: null, invited: true }).ok, false)
+})
+
+test('registrationStatus: approval needed unless invited', () => {
+  assert.equal(registrationStatus(false, false), 'active')
+  assert.equal(registrationStatus(true, false), 'pending')
+  assert.equal(registrationStatus(true, true), 'active')
 })
 
 test('canManageHackathon: global permission or bound organiser', () => {

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useActionToast } from '@/hooks/use-action-toast'
 
-export function JoinForm({ hackathonId, fields, termsUrl }: { hackathonId: string; fields: AnswerField[]; termsUrl: string | null }) {
+export function JoinForm({ hackathonId, fields, termsUrl, invite, needsApproval }: { hackathonId: string; fields: AnswerField[]; termsUrl: string | null; invite?: string; needsApproval: boolean }) {
   const router = useRouter()
   const [answers, setAnswers] = useState<Answers>({})
   const [terms, setTerms] = useState(false)
@@ -19,10 +19,10 @@ export function JoinForm({ hackathonId, fields, termsUrl }: { hackathonId: strin
       onSubmit={(e) => {
         e.preventDefault()
         run(async () => {
-          const res = await joinHackathon({ hackathonId, answers, acceptTerms: terms })
+          const res = await joinHackathon({ hackathonId, answers, acceptTerms: terms, invite })
           if (res.ok) router.push(`/events/${res.data.slug}`)
           return res
-        }, "You're in")
+        }, needsApproval ? 'Registration received — waiting for approval' : "You're in")
       }}
     >
       {fields.length > 0 && <AnswerFields fields={fields} value={answers} onChange={setAnswers} />}
@@ -32,7 +32,7 @@ export function JoinForm({ hackathonId, fields, termsUrl }: { hackathonId: strin
           <span>I accept the <a href={termsUrl} target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2">terms of this hackathon</a>.</span>
         </label>
       )}
-      <div><Button type="submit" size="lg" disabled={pending || (!!termsUrl && !terms)}>Join the hackathon</Button></div>
+      <div><Button type="submit" size="lg" disabled={pending || (!!termsUrl && !terms)}>Register for Hackathon</Button></div>
     </form>
   )
 }

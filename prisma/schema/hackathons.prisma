@@ -14,6 +14,12 @@ model Hackathon {
   teamSizeMin          Int       @default(1)
   teamSizeMax          Int       @default(5)
   maxParticipants      Int?
+  /// false = each person may be on only one active submission in this hackathon
+  allowMultipleSubmissions Boolean @default(true)
+  /// true = registrations wait for an organiser's approval (status pending)
+  requireApproval      Boolean   @default(false)
+  /// Secret for the auto-approve registration link (/events/<slug>/join?invite=…); null = no link
+  inviteToken          String?   @unique
   /// Display text, e.g. "$50,000" — shown alongside (or instead of) per-place prizes
   prizePool            String?
   /// IANA zone the organiser enters times in and deadlines are shown in. Times themselves are stored in UTC.
@@ -133,7 +139,7 @@ model Participant {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   answers         Json      @default("{}")
   termsAcceptedAt DateTime?
-  /// active | withdrawn
+  /// active | pending (awaiting approval) | rejected | withdrawn
   status          String    @default("active")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

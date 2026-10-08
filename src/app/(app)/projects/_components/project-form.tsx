@@ -11,15 +11,17 @@ import { TaggedLinksInput, TagInput, ValueListInput } from '@/components/list-in
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { createProject, saveProject } from '../_lib/actions'
 import { CircleCheck, CircleDashed } from 'lucide-react'
+import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { missingForSubmission, PROJECT_CATEGORIES, TECH_STACK_DEFAULTS, type ProjectFields } from '../_lib/rules'
 
 // Field set and copy from builders-hub's project submission (battle-tested).
 
 const EMPTY: ProjectFields = {
-  name: '', shortDescription: '', fullDescription: '', techDescription: '', techStack: [], categories: [], otherCategory: null,
+  name: '', shortDescription: '', fullDescription: '', techDescription: '', techStack: [], categories: [], otherCategory: null, maturity: null as unknown as ProjectFields['maturity'], // must be picked
   githubRepos: [], demoLinks: [], videoUrl: null, logoUrl: null, coverUrl: null, screenshots: [], deployedAddresses: [], websites: [], socials: [],
 }
 
@@ -27,7 +29,7 @@ function Counter({ value, max }: { value: string; max: number }) {
   return <span className={`text-xs tabular-nums ${value.length > max ? 'text-destructive' : 'text-fg-faint'}`}>{value.length}/{max}</span>
 }
 
-const NEEDED = ['Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Demo link'] as const
+const NEEDED = ['Project stage', 'Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Demo link'] as const
 
 /** Live checklist of what hackathon submissions require (builders-hub's "complete" set). */
 function SubmissionReadiness({ f }: { f: ProjectFields }) {
@@ -88,6 +90,12 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel }: { p
             <div className="flex justify-end"><Counter value={f.shortDescription} max={280} /></div>
           </Field>
           <MarkdownField id="full" label="Full description (needed to submit)" hint="The problem, how it works, what's built on Avalanche." value={f.fullDescription} onChange={(t) => set('fullDescription', t)} rows={10} />
+          <Field id="maturity" label="Project stage" hint={f.maturity ? PROJECT_MATURITY[f.maturity].hint : 'How far the project is — from idea to established with users.'}>
+            <NativeSelect id="maturity" required value={f.maturity ?? ''} onChange={(e) => set('maturity', e.target.value as ProjectMaturity)} className="max-w-sm">
+              <option value="" disabled>Pick a stage</option>
+              {Object.entries(PROJECT_MATURITY).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+            </NativeSelect>
+          </Field>
           <fieldset className="space-y-2">
             <legend className="text-sm">Categories</legend>
             <ChipToggle label="Categories" options={PROJECT_CATEGORIES.map((c) => ({ value: c, label: c }))} value={f.categories} onChange={(v) => set('categories', v as ProjectFields['categories'])} />

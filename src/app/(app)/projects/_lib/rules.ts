@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 
 // Project fields — builders-hub's submission fields (battle-tested), stored as
 // real arrays instead of comma-joined strings. Pure. A save creates a new
@@ -43,6 +44,7 @@ export const projectFieldsSchema = z
       .pipe(z.array(z.string().max(30)).max(20, 'At most 20 technologies')),
     categories: z.array(z.enum(PROJECT_CATEGORIES)).max(8).transform((c) => [...new Set(c)]),
     otherCategory: z.string().trim().max(60).nullable().optional().transform((v) => v || null),
+    maturity: z.enum(Object.keys(PROJECT_MATURITY) as [ProjectMaturity, ...ProjectMaturity[]], 'Pick the project stage'),
     githubRepos: linkList(10, 'repository links'),
     demoLinks: linkList(10, 'demo links').refine((a) => !a.some((u) => /youtube\.com|youtu\.be|loom\.com/i.test(u)), 'Put YouTube and Loom links in the demo video field'),
     videoUrl: optionalUrl.refine((u) => !u || VIDEO_HOSTS.test(new URL(u).hostname), 'Use a YouTube, Loom or Vimeo link'),
@@ -58,7 +60,7 @@ export const projectFieldsSchema = z
 export type ProjectFields = z.output<typeof projectFieldsSchema>
 export type ProjectFieldsInput = z.input<typeof projectFieldsSchema>
 
-const KEYS = ['name', 'shortDescription', 'fullDescription', 'techDescription', 'techStack', 'categories', 'otherCategory', 'githubRepos', 'demoLinks', 'videoUrl', 'logoUrl', 'coverUrl', 'screenshots', 'deployedAddresses', 'websites', 'socials'] as const
+const KEYS = ['name', 'shortDescription', 'fullDescription', 'techDescription', 'techStack', 'categories', 'otherCategory', 'maturity', 'githubRepos', 'demoLinks', 'videoUrl', 'logoUrl', 'coverUrl', 'screenshots', 'deployedAddresses', 'websites', 'socials'] as const
 
 /** Does saving `next` on top of `prev` warrant a new version? */
 export function versionChanged(prev: ProjectFields | null, next: ProjectFields): boolean {
@@ -66,9 +68,10 @@ export function versionChanged(prev: ProjectFields | null, next: ProjectFields):
   return KEYS.some((k) => JSON.stringify(prev[k] ?? null) !== JSON.stringify(next[k] ?? null))
 }
 
-/** builders-hub's "complete submission" set (minus tracks, chosen at submit time). */
-export function missingForSubmission(v: { fullDescription: string; techDescription: string; techStack: string[]; githubRepos: string[]; demoLinks: string[] }): string[] {
+/** builders-hub's "complete submission" set (minus tracks, chosen at submit time) + project stage. */
+export function missingForSubmission(v: { maturity: string | null; fullDescription: string; techDescription: string; techStack: string[]; githubRepos: string[]; demoLinks: string[] }): string[] {
   const missing: string[] = []
+  if (!v.maturity) missing.push('Project stage')
   if (!v.fullDescription.trim()) missing.push('Full description')
   if (!v.techDescription.trim()) missing.push('How it’s made')
   if (!v.techStack.length) missing.push('Tech stack')

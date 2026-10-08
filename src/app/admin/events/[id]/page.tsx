@@ -9,6 +9,7 @@ import { Markdown } from '@/components/markdown'
 import { formatEventRange, formatUtc } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { canManageEvents } from '@/app/(site)/events/_lib/access'
+import { BLOCKS_PUBLISH_MESSAGE, blocksPublish } from '@/app/(site)/events/_lib/portal'
 import { requireUser } from '@/lib/guards'
 import { can } from '@/lib/permissions'
 import { EventActions } from '../_components/event-actions'
@@ -31,7 +32,8 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <EventStatusBadge status={event.status} />
-              {event.lumaVisibility !== 'public' && <span className="text-sm text-fg-muted">Not public on Luma</span>}
+              {event.source === 'luma' && event.lumaVisibility !== 'public' && <span className="text-sm text-fg-muted">Not public on Luma</span>}
+              {blocksPublish(event) && <span className="text-sm text-fg-muted">{BLOCKS_PUBLISH_MESSAGE}</span>}
               {event.source === 'portal' && <span className="text-sm text-fg-muted">Synced from the member portal</span>}
             </div>
             <h1 className="mt-3 text-2xl sm:text-3xl">{event.name}</h1>
@@ -42,7 +44,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex flex-wrap gap-2">
             {can(user, 'hackathons.manage') && <HackathonButton eventId={event.id} hackathonId={event.hackathon?.id ?? null} eventStart={event.startAt} eventEnd={event.endAt} eventTimezone={event.timezone} />}
-            <EventActions id={event.id} status={event.status} />
+            <EventActions id={event.id} status={event.status} canPublish={!blocksPublish(event)} />
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">

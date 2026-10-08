@@ -5,6 +5,7 @@ import { Markdown } from '@/components/markdown'
 import { SocialIcon, socialPlatform } from '@/components/social-icon'
 import { Badge } from '@/components/ui/badge'
 import { initials } from '@/lib/utils'
+import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 
 type Tagged = { tag: string; url: string }
 const host = (u: string) => {
@@ -28,6 +29,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
   const websites = (v.websites as Tagged[]) ?? []
   const socials = (v.socials as Tagged[]) ?? []
   const addresses = (v.deployedAddresses as { tag: string; address: string }[]) ?? []
+  const maturity = PROJECT_MATURITY[v.maturity as ProjectMaturity] as (typeof PROJECT_MATURITY)[ProjectMaturity] | undefined
   const categories = v.categories.map((c) => (c === 'Other (Specify)' ? v.otherCategory : c)).filter(Boolean)
   return (
     <article className="space-y-8">
@@ -45,7 +47,12 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
         <div className="min-w-0">
           <h2 className="text-2xl sm:text-3xl">{v.name}</h2>
           <p className="mt-1 text-lg text-fg-muted">{v.shortDescription}</p>
-          {categories.length > 0 && <p className="mt-2 text-sm text-fg-faint">{categories.join(' / ')}</p>}
+          {(maturity || categories.length > 0) && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-fg-faint">
+              {maturity && <Badge variant="outline" title={maturity.hint}>Stage: {maturity.label}</Badge>}
+              {categories.join(' / ')}
+            </p>
+          )}
         </div>
       </header>
 

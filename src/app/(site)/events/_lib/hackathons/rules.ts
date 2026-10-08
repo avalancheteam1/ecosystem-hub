@@ -71,17 +71,26 @@ export function buildAnswersSchema(fields: FieldDef[]) {
 }
 
 type JoinHackathon = { status: string; registrationOpensAt: Date | null; registrationClosesAt: Date | null; maxParticipants: number | null; termsUrl: string | null }
-type JoinCtx = { now: Date; participants: number; alreadyJoined: boolean; acceptedTerms: boolean }
+/** `existing` = the viewer's Participant.status (null = never registered); `invited` = came with the valid invite link. */
+type JoinCtx = { now: Date; participants: number; existing: string | null; invited: boolean; acceptedTerms: boolean }
 export type Check = { ok: true } | { ok: false; reason: string }
 
 export function canJoin(h: JoinHackathon, c: JoinCtx): Check {
   if (h.status !== 'published') return { ok: false, reason: 'This hackathon is not open yet' }
-  if (c.alreadyJoined) return { ok: false, reason: "You've already joined" }
+  if (c.existing === 'active') return { ok: false, reason: "You're already registered" }
+  if (c.existing === 'pending') return { ok: false, reason: 'Your registration is waiting for approval' }
+  // Rejection is final — only the organisers' invite link lets someone back in.
+  if (c.existing === 'rejected' && !c.invited) return { ok: false, reason: "Your registration wasn't accepted" }
   if (h.registrationOpensAt && c.now < h.registrationOpensAt) return { ok: false, reason: 'Registration has not opened yet' }
   if (h.registrationClosesAt && c.now >= h.registrationClosesAt) return { ok: false, reason: 'Registration is closed' }
   if (h.maxParticipants != null && c.participants >= h.maxParticipants) return { ok: false, reason: 'This hackathon is full' }
   if (h.termsUrl && !c.acceptedTerms) return { ok: false, reason: 'Accept the terms to join' }
   return { ok: true }
+}
+
+/** Status of a new registration: the invite link skips approval. */
+export function registrationStatus(requireApproval: boolean, invited: boolean): 'active' | 'pending' {
+  return requireApproval && !invited ? 'pending' : 'active'
 }
 
 /** Organisers (bound invites) or holders of hackathons.manage. */
