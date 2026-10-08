@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { NativeSelect } from '@/components/ui/native-select'
+import { SearchSelect } from '@/components/search-select'
 import { canonicalTimeZone, listTimeZones } from '@/lib/timezones'
 
 /**
@@ -15,10 +15,5 @@ export function TimeZoneSelect({ id, value, onChange, className }: { id: string;
   useEffect(() => setZones(listTimeZones()), [])
   const current = canonicalTimeZone(value)
   const options = zones ?? [{ id: current, label: current }]
-  return (
-    <NativeSelect id={id} value={current} onChange={(e) => onChange(e.target.value)} className={className}>
-      {!options.some((z) => z.id === current) && <option value={current}>{current}</option>}
-      {options.map((z) => <option key={z.id} value={z.id}>{z.label}</option>)}
-    </NativeSelect>
-  )
+  return <SearchSelect id={id} value={current} onChange={onChange} options={options.map((z) => ({ value: z.id, label: z.label }))} searchPlaceholder="Search time zones…" className={className} />
 }

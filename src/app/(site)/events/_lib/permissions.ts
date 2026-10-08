@@ -6,4 +6,8 @@ export const eventPermissions = {
     label: 'Import events and run every hackathon',
     sensitive: "Sees participants' registration answers and all judging scores",
   },
+  'events.manage': {
+    group: 'events',
+    label: 'Add, publish and refresh events (no hackathon access)',
+  },
 } as const satisfies Record<string, PermissionDef>

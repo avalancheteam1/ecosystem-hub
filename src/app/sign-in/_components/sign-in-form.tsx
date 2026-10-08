@@ -38,7 +38,7 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
               variant="outline"
               className="w-full"
               disabled={pending}
-              onClick={() => run(() => authClient.signIn.social({ provider: p, callbackURL: next }), () => {})}
+              onClick={() => run(() => authClient.signIn.social({ provider: p, callbackURL: `/sign-in?next=${encodeURIComponent(next)}` }), () => {})}
             >
               {PROVIDER_LABEL[p]}
             </Button>
@@ -68,10 +68,8 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault()
-            run(() => authClient.signIn.emailOtp({ email, otp }), () => {
-              router.push(next)
-              router.refresh()
-            })
+            // The sign-in page redirects once signed in (to the profile if it's incomplete).
+            run(() => authClient.signIn.emailOtp({ email, otp }), () => router.refresh())
           }}
         >
           <Label htmlFor="otp">Code sent to {email}</Label>

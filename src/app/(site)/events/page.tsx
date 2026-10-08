@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Pager } from '@/components/layout/pager'
 import { SectionHeading } from '@/components/section-heading'
+import { pageParam } from '@/lib/params'
 import { cn } from '@/lib/utils'
 import { EventCard } from './_components/event-card'
 import { listPublicEvents } from './_lib/queries'
@@ -10,9 +12,14 @@ export const metadata: Metadata = {
   description: 'Hackathons, workshops and meetups for builders in the team1 community.',
 }
 
-export default async function EventsPage({ searchParams }: { searchParams: Promise<{ when?: string | string[] }> }) {
-  const when = (await searchParams).when === 'past' ? 'past' : 'upcoming'
-  const events = await listPublicEvents(when)
+const PAGE_SIZE = 24 // divisible by the 2/3/4-column grid
+
+export default async function EventsPage({ searchParams }: { searchParams: Promise<{ when?: string | string[]; page?: string | string[] }> }) {
+  const sp = await searchParams
+  const when = sp.when === 'past' ? 'past' : 'upcoming'
+  const page = pageParam(sp.page)
+  const rows = await listPublicEvents(when, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE)
+  const events = rows.slice(0, PAGE_SIZE)
   return (
     <div className="container-page py-14 sm:py-20">
       <SectionHeading title={<>Events<span className="text-brand">.</span></>}>Hackathons, workshops and meetups for builders in the team1 community. Register on Luma; hackathons run here.</SectionHeading>
@@ -42,6 +49,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
           {when === 'upcoming' ? 'No upcoming events right now — check back soon.' : 'No past events yet.'}
         </p>
       )}
+      <Pager page={page} hasMore={rows.length > PAGE_SIZE} params={{ when: when === 'past' ? 'past' : undefined }} />
     </div>
   )
 }

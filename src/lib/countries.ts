@@ -8,3 +8,6 @@ export const COUNTRIES: { code: string; name: string }[] = CODES.map((code) => (
 
 export const isCountryCode = (c: string) => CODES.includes(c)
 export const countryName = (c: string | null | undefined) => (c ? (COUNTRIES.find((x) => x.code === c)?.name ?? c) : null)
+
+/** ISO-2 code → flag emoji (two regional-indicator letters). */
+export const flagEmoji = (c: string) => String.fromCodePoint(...[...c.toUpperCase()].map((ch) => 0x1f1a5 + ch.charCodeAt(0)))

@@ -2,7 +2,7 @@
 
 `hub.team1.network` — the home for builders in the team1 / Avalanche ecosystem: hackathons & workshops, builder signup and community, public bounties, education (courses, workshops), builder projects (reused to apply for grants and hackathons), an evaluation/scoring backend and a university program. Large parts of `~/git/builders-hub` (notably hackathons) will move here.
 
-**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects** and **hackathons**. Specs live in `docs/superpowers/specs/` — base: `2026-10-07-ecosystem-hub-base-design.md`, events & hackathons: `2026-10-08-hackathons-design.md`.
+**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects**, **hackathons** and **referrals**. Specs live in `docs/superpowers/specs/` — base: `2026-10-07-ecosystem-hub-base-design.md`, events & hackathons: `2026-10-08-hackathons-design.md`, referrals & groups: `2026-10-08-referrals-groups-design.md`.
 
 Several developers work here in parallel, mostly each on one area. The structure below exists so an area's PR touches its own folders — keep it that way.
 
@@ -115,7 +115,8 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 
 ### Events (`src/app/(site)/events/`, admin `src/app/admin/events/`)
 - The hub's own copy of **Luma** events, fetched from **public data only**: `api.lu.ma/url?url=<slug>` (unofficial web API, no key — `_lib/luma.ts`; description ProseMirror → Markdown in `_lib/prosemirror.ts`). Same `evt-…` ids and Luma CDN cover images as the member portal. Admin picker lists public team1 events from the member portal's anonymous `GET /api/v1/events` (`_lib/portal.ts`, `MEMBER_PORTAL_URL`). Daily `events-refresh` job; failures land in `Event.syncError` and the admin page — never silent. Edit events on Luma, not here.
-- `status` draft | published | archived — only published events are public. Permission `hackathons.manage` imports/publishes.
+- Two sources (`Event.source`): **luma** (a pasted Luma link, public web API) and **portal** — the admin "team1 events" tab, fetched and refreshed from the portal's key-only `GET /api/v1/events/{id}/full` (`MEMBER_PORTAL_API_KEY` needs scope `events:read:all`; `fetchPortalEvent` in `_lib/portal.ts`), never from Luma. That tab and portal imports are for **team1 members only** (stored `PortalProfile.tier` set; re-checked in `importEvent`).
+- `status` draft | published | archived — only published events are public. `events.manage` imports/publishes/refreshes; `hackathons.manage` implies it (`canManageEvents` in `_lib/access.ts`) and alone sees "Set up as hackathon".
 - `_lib/sync.ts` has no `server-only` import on purpose: the worker uses it.
 
 ### Projects (`src/app/(app)/projects/`)
@@ -133,6 +134,12 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 - Pure rules, all unit-tested: `rules.ts` (stage state — `closesAt` exclusive, stage validation, answers schema builder, join, publish checklist), `submissions.ts` (who may submit), `judging.ts` (COI, weighted total 0–100, ranking + tie-breaks, `assignRandom` balanced/seeded/keeps reviewed pairs, `assignAll`). Change a rule → change its test.
 - Flow: join (`Participant`) → team = project members, all must have joined, size within limits, one active submission per person per hackathon → submit to the open stage (pins current version + team snapshot; updatable until close) → after close: assign judges (preview → apply, judges mailed) → judges score (blind; only after the window closes; COI never assigned and blocked) → organiser closes judging (scores revealed) → ranking → advance teams (mailed) → next stage … → awards per prize → publish results. CSV export at `/manage/hackathons/[id]/export.csv` (formula-injection safe).
 - Structural edits are locked once judges scored (criteria, scale); stages with entries can't be deleted.
+
+### Referrals & groups (`src/app/(app)/referrals/` — routes `/referrals`, `/groups/[slug]`, admin `/admin/groups`)
+- `?ref=<code>` on any page → `src/proxy.ts` sets a first-wins `ref` cookie (30 days). Better Auth `user.create.after` → `attributeReferral` writes one `Referral` per new user (existing users never count) + a **snapshot** of the referrer's groups (`ReferralGroup`). Never blocks sign-up.
+- Codes: several per user (max 10), always random (`generateCode`, never user-chosen), labelled, deactivate instead of delete. QR per link via `QrCodeDialog` (`src/components/qr-code-dialog.tsx`, builder `src/lib/qr.ts`, ported from the member portal). Rules in `_lib/rules.ts` (tested).
+- Groups: **manual** groups = `GroupMember` rows (members/leads), no chapter link. **Automatic** = chapter groups: one `Group` per portal chapter (`portalChapterSlug`, read-only, created by `ensureChapterGroups`). Members/leads/tier come from a stored read-only copy (`PortalProfile`, `PortalChapterMembership`) refreshed on sign-in and after 24 h (`refreshPortalProfile`, `getPortalProfile` in `src/lib/member-portal.ts`); pages never call the portal. Portal `senior` is reported as `core`. Needs `MEMBER_PORTAL_API_KEY` (scope `members:chapters`). Chapter groups are created only for **live** chapters (`ensureChapterGroups`, on `/admin/groups` load and each refresh). An onboarding counts for the referrer's manual groups + their **primary** chapter group only (`countingGroups`, `getUserGroups().counting`).
+- Visibility: referrers see counts; leads (per-object, `canViewGroup` in `src/lib/groups.ts`) and `referrals.view` see group totals + referrer name/count; nobody sees who was referred. `groups.manage` edits groups.
 
 ## Integrations (planned)
 - **Member portal** (`~/git/team1/member.team1.network`): `POST /api/v1/members/check` (scope `members:check`, body `{ emailHash }`) answers "is this a team1 member" — the intended way to give members extra features. Later also SSO via `genericOAuth`.

@@ -7,7 +7,6 @@ model User {
   emailVerified   Boolean  @default(false)
   image           String?
   // Builder profile (fields from builders-hub; see src/lib/profile.ts)
-  username        String?  @unique
   bio             String?
   /// ISO-2
   country         String?
@@ -45,6 +44,11 @@ model User {
   organizerOf        HackathonOrganizer[] @relation("OrganizerOf")
   judgeOf            HackathonJudge[]     @relation("JudgeOf")
   participations     Participant[]
+  referralCodes      ReferralCode[]
+  referralsMade      Referral[]           @relation("ReferralsMade")
+  referredBy         Referral?            @relation("ReferredBy")
+  groupMemberships   GroupMember[]
+  portalProfile      PortalProfile?
 
   @@map("users")
 }

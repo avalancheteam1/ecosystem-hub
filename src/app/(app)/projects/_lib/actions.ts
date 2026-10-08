@@ -101,7 +101,7 @@ export const inviteMember = action(
     const name = project.currentVersion?.name ?? 'a project'
     await sendMail({
       to: email,
-      subject: `${user.name} invited you to ${name} on the team1 hub`,
+      subject: `${user.name} invited you to ${name} on the team1 Ecosystem Hub`,
       text: `${user.name} invited you to join the team of "${name}" on the team1 Ecosystem Hub.\n\nAccept the invite (sign in with ${email}):\n${siteUrl()}/projects/invite/${token}\n\nThe link expires in ${INVITE_DAYS} days.`,
       html: brandedShell({
         preheader: `${user.name} invited you to ${name}`,
@@ -113,7 +113,7 @@ export const inviteMember = action(
           <p style="${SMALL}">Or copy this link:<br/>${esc(`${siteUrl()}/projects/invite/${token}`)}</p>
         </td></tr>`,
       }),
-    })
+    }).catch((err) => console.error('[projects] invite mail failed', err))
     await recordAudit({ actorId: user.id, action: 'project.invite.create', entityType: 'Project', entityId: projectId, after: { email } })
     revalidatePath(`/projects/${project.slug}`)
     return null

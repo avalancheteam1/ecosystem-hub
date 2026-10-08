@@ -10,7 +10,7 @@ import { requireUser } from '@/lib/guards'
 import { ManageTabs } from './_components/manage-tabs'
 import { PublishButton } from './_components/publish-button'
 
-export const metadata: Metadata = { title: { default: 'Hackathon', template: '%s · Hackathon · team1 hub' }, robots: { index: false } }
+export const metadata: Metadata = { title: { default: 'Hackathon', template: '%s · Hackathon · team1 Ecosystem Hub' }, robots: { index: false } }
 
 export default async function ManageLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const user = await requireUser()

@@ -16,3 +16,10 @@ export function pageParam(v: Param, max = 10_000): number {
   if (n > max) return max
   return Number.isInteger(n) ? n : 1
 }
+
+/** Reads `?sort=&dir=` for a server-sorted `DataTable`; unknown keys fall back to `fallback`. */
+export function sortParams<K extends string>(sp: { sort?: string | string[]; dir?: string | string[] }, keys: readonly K[], fallback: { key: K; dir: 'asc' | 'desc' }): { key: K; dir: 'asc' | 'desc' } {
+  const key = typeof sp.sort === 'string' && (keys as readonly string[]).includes(sp.sort) ? (sp.sort as K) : null
+  if (!key) return fallback
+  return { key, dir: sp.dir === 'asc' ? 'asc' : 'desc' }
+}

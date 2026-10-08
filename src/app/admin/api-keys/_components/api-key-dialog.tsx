@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
+import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -52,9 +52,7 @@ export function ApiKeyDialog({ apiKey, trigger }: { apiKey?: ApiKeyRow; trigger:
             </DialogHeader>
             <div className="flex gap-2">
               <Input readOnly value={created} className="h-11 font-mono text-xs" onFocus={(e) => e.target.select()} aria-label="API key" />
-              <Button variant="outline" size="icon" aria-label="Copy key" onClick={() => navigator.clipboard.writeText(created).then(() => toast.success('Copied'))}>
-                <Copy aria-hidden />
-              </Button>
+              <CopyButton value={created} label="Copy key" variant="outline" size="icon" />
             </div>
           </>
         ) : (

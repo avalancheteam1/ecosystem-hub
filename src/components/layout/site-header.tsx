@@ -12,15 +12,13 @@ export async function SiteHeader() {
   const roles = user ? await getHackathonRoles(user.id) : null
   return (
     <header className="sticky top-0 z-50 h-16 border-b border-line bg-surface-0/80 backdrop-blur-md">
-      <div className="container-page flex h-full items-center justify-between gap-4">
-        <div className="flex items-center gap-5 sm:gap-8">
-          <Logo />
-          <nav aria-label="Main" className="flex items-center gap-6 text-sm">
-            <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
-            {user && <Link href="/projects" className="text-fg-muted transition-colors hover:text-fg-heading">Projects</Link>}
-          </nav>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="container-page grid h-full grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <Logo className="justify-self-start" />
+        <nav aria-label="Main" className="flex items-center gap-6 text-sm">
+          <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
+          {user && <Link href="/projects" className="text-fg-muted transition-colors hover:text-fg-heading">Projects</Link>}
+        </nav>
+        <div className="flex items-center gap-2 justify-self-end">
           <ThemeToggle />
           {user ? (
             <UserMenu user={{ name: user.name, email: user.email, image: user.image, showAdmin: holdsAny(user), showJudging: !!roles?.judge, showManage: !!roles?.organizer || can(user, 'hackathons.manage') }} />

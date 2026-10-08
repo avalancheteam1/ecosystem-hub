@@ -1,0 +1,79 @@
+// Referrals & groups (spec: docs/superpowers/specs/2026-10-08-referrals-groups-design.md).
+// A Referral = one new account created while a valid ?ref cookie was set.
+// GroupMember holds MANUAL members only — automatic ones come live from the
+// member portal (src/lib/user-groups.ts) and are never stored.
+
+model ReferralCode {
+  id        String   @id @default(cuid())
+  /// normalized, see normalizeCode in referrals/_lib/rules.ts
+  code      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  referrals Referral[]
+
+  @@index([userId])
+  @@map("referral_codes")
+}
+
+model Referral {
+  id             String       @id @default(cuid())
+  /// one attribution per person, ever
+  referredUserId String       @unique
+  referredUser   User         @relation("ReferredBy", fields: [referredUserId], references: [id], onDelete: Cascade)
+  codeId         String
+  code           ReferralCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  /// = code.userId, denormalized for per-referrer stats
+  referrerId     String
+  referrer       User         @relation("ReferralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  groups ReferralGroup[]
+
+  @@index([referrerId])
+  @@index([codeId])
+  @@map("referrals")
+}
+
+/// Snapshot of the referrer's groups at sign-up (manual + portal), so stats don't move when people switch groups.
+model ReferralGroup {
+  referralId String
+  referral   Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  groupId    String
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([referralId, groupId])
+  @@index([groupId])
+  @@map("referral_groups")
+}
+
+model Group {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  name              String
+  /// member-portal chapter whose members/leads count as automatic members
+  portalChapterSlug String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  members   GroupMember[]
+  referrals ReferralGroup[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isLead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}

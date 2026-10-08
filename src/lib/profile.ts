@@ -42,14 +42,16 @@ const dedupe = (items: string[]) => {
   return items.map((s) => s.trim()).filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
 }
 
+// Avalanche C-Chain / EVM address. Shared by the schema and the live check in the form.
+export const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/
+export const WALLET_ERROR = 'Not a valid C-Chain address (0x followed by 40 hex characters)'
+
 export const profileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(80),
-  username: z
-    .preprocess(blank, z.string().toLowerCase().regex(/^[a-z0-9_]{3,30}$/, 'Username: 3–30 letters, digits or _').nullable().optional())
-    .transform((v) => v ?? null),
   bio: optText(250).refine((v) => !v || v.length <= 250, 'Bio must not exceed 250 characters'),
-  country: z.preprocess(blank, z.string().refine(isCountryCode, 'Pick a country').nullable().optional()).transform((v) => v ?? null),
-  builderRoles: z.array(z.enum(BUILDER_ROLES.map((r) => r.id) as [BuilderRole, ...BuilderRole[]])).transform((r) => [...new Set(r)]),
+  // Required: name, country and a role are what hasCompleteBasicProfile (joining a hackathon) checks.
+  country: z.string().nullable().refine((c) => !!c && isCountryCode(c), 'Pick a country'),
+  builderRoles: z.array(z.enum(BUILDER_ROLES.map((r) => r.id) as [BuilderRole, ...BuilderRole[]])).min(1, 'Pick at least one role').transform((r) => [...new Set(r)]),
   institution: optText(120),
   companyName: optText(120),
   employeeRole: z.preprocess(blank, z.enum(EMPLOYMENT_ROLES).nullable().optional()).transform((v) => v ?? null),
@@ -58,7 +60,7 @@ export const profileSchema = z.object({
   linkedinAccount: z.preprocess(blank, z.string().regex(LINKEDIN, 'Enter a LinkedIn link like https://www.linkedin.com/in/username').nullable().optional()).transform((v) => v ?? null),
   telegramAccount: handle(TELEGRAM, 'Enter a valid Telegram username (5–32 chars, starts with a letter)'),
   otherSocials: z.array(httpUrl).max(5, 'At most 5 links'),
-  wallets: z.array(z.string().trim().regex(/^0x[a-fA-F0-9]{40}$/, 'Enter an EVM address (0x…)')).max(5).transform(dedupe),
+  wallets: z.array(z.string().trim().regex(EVM_ADDRESS, WALLET_ERROR)).max(5).transform(dedupe),
   skills: z.array(z.string().max(40)).transform(dedupe).pipe(z.array(z.string()).max(30, 'At most 30 skills')),
   newsletterOptIn: z.boolean(),
   image: z.string().url().nullable(),
@@ -75,7 +77,6 @@ export function hasCompleteBasicProfile(p: { name: string | null; country: strin
 /** Client form state (what the profile form edits; profileSchema validates it on save). */
 export type ProfileFormValues = {
   name: string
-  username: string | null
   bio: string | null
   country: string | null
   builderRoles: BuilderRole[]

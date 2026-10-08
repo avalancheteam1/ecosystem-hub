@@ -8,6 +8,7 @@ import { Markdown } from '@/components/markdown'
 import { SectionHeading } from '@/components/section-heading'
 import { StageStateBadge } from '@/components/stage-state-badge'
 import { Button } from '@/components/ui/button'
+import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { formatEventRange, formatShortDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
@@ -143,6 +144,12 @@ export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: P
               {h.maxParticipants && <div className="flex justify-between gap-4 py-3"><dt className="meta">Spots</dt><dd className="text-fg-heading">{Math.max(h.maxParticipants - h._count.participants, 0)} of {h.maxParticipants} left</dd></div>}
               {h.termsUrl && <div className="py-3"><a href={h.termsUrl} target="_blank" rel="noreferrer" className="group inline-flex items-center gap-1.5 text-fg-body hover:text-fg-heading">Terms <ExternalLink className="size-3.5" aria-hidden /></a></div>}
             </dl>
+            <p className="meta mt-8 border-t border-line pt-3">Build with</p>
+            <ul className="mt-1 text-sm">
+              {BUILDER_HUB_LINKS.map((l) => (
+                <li key={l.href}><a href={l.href} target="_blank" rel="noreferrer" className="group inline-flex min-h-9 items-center gap-1.5 text-fg-body hover:text-fg-heading">Avalanche {l.label} <ArrowUpRight className="arrow-nudge size-3.5 text-fg-faint" aria-hidden /></a></li>
+              ))}
+            </ul>
           </aside>
         </section>
 
@@ -205,7 +212,7 @@ export function HackathonView({ event, h, signedIn, mine }: { event: Event; h: P
                 const state = stageState(s, now)
                 const total = s.criteria.reduce((a, x) => a + x.weight, 0)
                 return (
-                  <li key={s.id} className={cn('grid gap-4 border-b border-line py-8 sm:grid-cols-[72px_220px_1fr] sm:gap-8', state === 'open' && 'wash')}>
+                  <li key={s.id} className={cn('grid gap-4 border-b border-line px-4 py-8 sm:grid-cols-[72px_220px_1fr] sm:gap-8', state === 'open' && 'wash')}>
                     <p className={cn('font-heading text-5xl leading-none tabular-nums', state === 'open' ? 'text-brand' : 'text-fg-faint')}>{String(i + 1).padStart(2, '0')}</p>
                     <div>
                       <h3 className="text-xl">{s.name}</h3>

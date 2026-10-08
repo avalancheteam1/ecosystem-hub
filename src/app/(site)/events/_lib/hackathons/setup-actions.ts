@@ -331,7 +331,7 @@ async function sendRoleInvite(to: string, role: 'organiser' | 'judge', h: { id: 
         ${button(url, role === 'judge' ? 'Open judging' : 'Open the hackathon')}
       </td></tr>`,
     }),
-  })
+  }).catch((err) => console.error('[hackathons] invite mail failed', err))
 }
 
 export const inviteOrganizer = action({ schema: z.object({ hackathonId: id, email }), permission: 'user' }, async ({ hackathonId, email }, user) => {

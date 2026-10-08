@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-/** A list of single values (links, addresses): type, press Enter / Add; remove per item. */
-export function ValueListInput({ id, value, onChange, placeholder, max = 10, type = 'url' }: { id: string; value: string[]; onChange: (v: string[]) => void; placeholder: string; max?: number; type?: 'url' | 'text' }) {
+/** A list of single values (links, addresses): type, press Enter / Add; remove per item. `validate` checks as you type and blocks adding. */
+export function ValueListInput({ id, value, onChange, placeholder, max = 10, type = 'url', validate, mono }: { id: string; value: string[]; onChange: (v: string[]) => void; placeholder: string; max?: number; type?: 'url' | 'text'; validate?: (v: string) => string | null; mono?: boolean }) {
   const [draft, setDraft] = useState('')
+  const error = draft.trim() && validate ? validate(draft.trim()) : null
   const add = () => {
     const v = draft.trim()
+    if (error) return
     if (!v || value.some((x) => x.toLowerCase() === v.toLowerCase())) return setDraft('')
     onChange([...value, v])
     setDraft('')
@@ -21,16 +23,19 @@ export function ValueListInput({ id, value, onChange, placeholder, max = 10, typ
         <ul className="space-y-1.5">
           {value.map((v, i) => (
             <li key={v} className="flex items-center gap-2 rounded-lg border border-line bg-surface-1 py-1 pr-1 pl-3 text-sm">
-              <span className="min-w-0 flex-1 truncate">{v}</span>
+              <span className={cn('min-w-0 flex-1 truncate', mono && 'font-mono text-xs')}>{v}</span>
               <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${v}`} onClick={() => onChange(value.filter((_, j) => j !== i))}><X aria-hidden /></Button>
             </li>
           ))}
         </ul>
       )}
       {value.length < max && (
-        <div className="flex gap-2">
-          <Input id={id} type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }} onBlur={add} className="h-11" />
-          <Button type="button" variant="outline" size="icon" aria-label="Add" onClick={add}><Plus aria-hidden /></Button>
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <Input id={id} type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }} onBlur={add} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} spellCheck={validate ? false : undefined} className={cn('h-11', mono && 'font-mono text-xs')} />
+            <Button type="button" variant="outline" size="icon" aria-label="Add" disabled={!!error} onClick={add}><Plus aria-hidden /></Button>
+          </div>
+          {error && <p id={`${id}-error`} className="text-xs text-destructive">{error}</p>}
         </div>
       )}
     </div>

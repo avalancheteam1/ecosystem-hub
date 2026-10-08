@@ -6,7 +6,7 @@ import { ConfirmButton } from '@/components/confirm-button'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
 import { MarkdownField } from '@/components/markdown-field'
-import { NativeSelect } from '@/components/ui/native-select'
+import { SegmentedControl } from '@/components/segmented-control'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -46,11 +46,8 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone }: { hackath
         <Field id="st-close" label="Submissions close"><DateTimeInput id="st-close" required value={v.closesAt} onChange={(w) => setV({ ...v, closesAt: w })} timeZone={timeZone} /></Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="st-mode" label="Who reviews">
-          <NativeSelect id="st-mode" value={v.reviewMode} onChange={(e) => setV({ ...v, reviewMode: e.target.value as 'all' | 'random' })}>
-            <option value="all">Every judge reviews every submission</option>
-            <option value="random">Random judges per submission</option>
-          </NativeSelect>
+        <Field id="st-mode" label="Who reviews" hint={v.reviewMode === 'all' ? 'Every judge reviews every submission.' : 'Random judges per submission.'}>
+          <SegmentedControl label="Who reviews" value={v.reviewMode} onChange={(m) => setV({ ...v, reviewMode: m })} options={[{ value: 'all', label: 'All judges' }, { value: 'random', label: 'Random judges' }]} />
         </Field>
         <Field id="st-scale" label="Score scale" hint="Each criterion is scored 0 to this."><Input id="st-scale" type="number" min={1} max={100} value={v.scaleMax} onChange={(e) => setV({ ...v, scaleMax: e.target.value })} className="h-11" /></Field>
       </div>

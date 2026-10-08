@@ -3,7 +3,7 @@
 // Persisted in ApiKey.scopes: only ever ADD scopes.
 
 export const API_SCOPES = {
-  'users:check': 'Check whether a hashed email belongs to a hub user (yes/no only)',
+  'users:check': 'Check whether a hashed email belongs to an Ecosystem Hub user (yes/no only)',
 } as const
 
 export type ApiScope = keyof typeof API_SCOPES

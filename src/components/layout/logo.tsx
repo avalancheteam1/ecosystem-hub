@@ -9,7 +9,7 @@ export function Logo({ className, href = '/' }: { className?: string; href?: str
       <img src="/logos/Team1_MAIN_WHITE.svg" alt="" className="hidden h-6 w-auto dark:block" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logos/Team1_BLACK_MAIN.svg" alt="" className="block h-6 w-auto dark:hidden" />
-      <span className="border-l border-line pl-2 text-sm font-normal text-fg-muted">hub</span>
+      <span className="border-l border-line pl-2 text-sm font-normal whitespace-nowrap text-fg-muted"><span className="hidden sm:inline">Ecosystem </span>Hub</span>
     </Link>
   )
 }

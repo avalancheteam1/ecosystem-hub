@@ -10,3 +10,10 @@
 #   /src/lib/                          @AvalancheTeam1/hub-core
 #   /src/components/                   @AvalancheTeam1/hub-core
 #   /prisma/schema/base.prisma         @AvalancheTeam1/hub-core
+
+# Referrals & groups
+/src/app/(app)/referrals/          @AvalancheTeam1/hub-core
+/src/app/(app)/groups/             @AvalancheTeam1/hub-core
+/src/app/admin/groups/             @AvalancheTeam1/hub-core
+/prisma/schema/referrals.prisma    @AvalancheTeam1/hub-core
+/prisma/schema/portal.prisma       @AvalancheTeam1/hub-core

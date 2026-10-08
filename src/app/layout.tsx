@@ -15,7 +15,7 @@ const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: { default: 'team1 Ecosystem Hub', template: '%s · team1 hub' },
+  title: { default: 'team1 Ecosystem Hub', template: '%s · team1 Ecosystem Hub' },
   description: 'Hackathons, workshops, bounties and education for builders in the Avalanche ecosystem — by team1.',
   openGraph: { type: 'website', siteName: 'team1 Ecosystem Hub' },
   twitter: { card: 'summary_large_image' },

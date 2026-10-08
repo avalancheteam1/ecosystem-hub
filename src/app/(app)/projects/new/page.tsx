@@ -10,7 +10,7 @@ export default async function NewProjectPage({ searchParams }: { searchParams: P
   await requireUser()
   const nextParam = (await searchParams).next
   return (
-    <div className="max-w-3xl">
+    <div className="mx-auto max-w-3xl">
       <PageHeader title="New project" description="You can change everything later — each save becomes a new version." />
       <ProjectForm next={nextParam ? safeNext(nextParam) : null} />
     </div>

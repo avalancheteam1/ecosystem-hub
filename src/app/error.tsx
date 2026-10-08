@@ -18,7 +18,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       </p>
       <div className="flex gap-3">
         <Button onClick={reset}>Try again</Button>
-        <Button asChild variant="outline"><Link href="/">Back to the hub</Link></Button>
+        <Button asChild variant="outline"><Link href="/">Back to the Ecosystem Hub</Link></Button>
       </div>
     </main>
   )

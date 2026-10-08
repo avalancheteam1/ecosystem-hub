@@ -8,7 +8,7 @@ export default function NotFound() {
       <h1 className="text-2xl sm:text-3xl">This page doesn&apos;t exist.</h1>
       <p className="max-w-sm text-fg-muted">It may have moved, or you may not have access to it.</p>
       <Button asChild>
-        <Link href="/">Back to the hub</Link>
+        <Link href="/">Back to the Ecosystem Hub</Link>
       </Button>
     </main>
   )

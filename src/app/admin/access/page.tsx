@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
+import { DataTable } from '@/components/data-table'
 import { PageHeader } from '@/components/layout/page-header'
 import { SearchForm } from '@/components/layout/search-form'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { prisma } from '@/lib/db'
 import { requireSuperAdmin } from '@/lib/guards'
 import { textParam } from '@/lib/params'
@@ -46,41 +46,42 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
 
       <section className="mb-12">
         <h2 className="mb-3 text-lg">Roles</h2>
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface-2">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Role</TableHead>
-                <TableHead>Permissions</TableHead>
-                <TableHead>Holders</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {roles.map(({ _count, ...role }) => (
-                <TableRow key={role.id}>
-                  <TableCell>
-                    <div className="text-fg-heading">{role.label}</div>
-                    <code className="text-xs text-fg-faint">{role.slug}</code>
-                  </TableCell>
-                  <TableCell className="space-x-1">
-                    {role.permissions.map((p) => (
-                      <Badge key={p} variant={isPermission(p) ? 'secondary' : 'outline'} title={isPermission(p) ? undefined : 'Unknown key — ignored'}>{p}</Badge>
-                    ))}
-                  </TableCell>
-                  <TableCell>{_count.users}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <RoleDialog role={{ ...role, permissions: role.permissions.filter(isPermission) }} trigger={<Button variant="ghost" size="sm">Edit</Button>} />
-                    <DeleteRoleButton role={role} holders={_count.users} />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {roles.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="py-10 text-center text-fg-muted">No roles yet.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          id="admin-roles"
+          empty="No roles yet."
+          columns={[
+            { key: 'label', label: 'Role', sortable: true, hideable: false },
+            { key: 'permissions', label: 'Permissions' },
+            { key: 'holders', label: 'Holders', sortable: true, firstDir: 'desc' },
+            { key: 'actions', label: '', hideable: false, className: 'text-right whitespace-nowrap' },
+          ]}
+          rows={roles.map(({ _count, ...role }) => ({
+            id: role.id,
+            sort: { label: role.label },
+            cells: {
+              label: (
+                <>
+                  <div className="text-fg-heading">{role.label}</div>
+                  <code className="text-xs text-fg-faint">{role.slug}</code>
+                </>
+              ),
+              permissions: (
+                <span className="space-x-1">
+                  {role.permissions.map((p) => (
+                    <Badge key={p} variant={isPermission(p) ? 'secondary' : 'outline'} title={isPermission(p) ? undefined : 'Unknown key — ignored'}>{p}</Badge>
+                  ))}
+                </span>
+              ),
+              holders: _count.users,
+              actions: (
+                <>
+                  <RoleDialog role={{ ...role, permissions: role.permissions.filter(isPermission) }} trigger={<Button variant="ghost" size="sm">Edit</Button>} />
+                  <DeleteRoleButton role={role} holders={_count.users} />
+                </>
+              ),
+            },
+          }))}
+        />
       </section>
 
       <section>

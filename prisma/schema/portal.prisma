@@ -1,0 +1,28 @@
+// Read-only copy of a user's member-portal data (tier + chapters), refreshed on
+// sign-in and after 24 h by src/lib/member-portal.ts. Never edited in the hub.
+
+model PortalProfile {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// collaborator | member | core — null = not a current member ('senior' arrives as 'core')
+  tier      String?
+  fetchedAt DateTime
+
+  chapters PortalChapterMembership[]
+
+  @@map("portal_profiles")
+}
+
+model PortalChapterMembership {
+  userId      String
+  profile     PortalProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  chapterSlug String
+  chapterName String
+  lead        Boolean       @default(false)
+  /// the person's primary chapter in the portal — onboardings count only for this one
+  primary     Boolean       @default(false)
+
+  @@id([userId, chapterSlug])
+  @@index([chapterSlug])
+  @@map("portal_chapter_memberships")
+}

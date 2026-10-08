@@ -22,7 +22,7 @@ export async function sendMail(mail: { to: string; subject: string; text: string
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined,
   })
   await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'team1 hub <hub@team1.network>',
+    from: process.env.MAIL_FROM || 'team1 Ecosystem Hub <hub@team1.network>',
     ...mail,
     attachments: mail.html ? [logoAttachment()] : undefined,
   })

@@ -1,6 +1,8 @@
-import { Code2, ExternalLink, Globe, PlayCircle } from 'lucide-react'
+import { Code2, Globe, PlayCircle } from 'lucide-react'
 import type { ProjectVersion } from '@prisma/client'
+import { CopyButton } from '@/components/copy-button'
 import { Markdown } from '@/components/markdown'
+import { SocialIcon, socialPlatform } from '@/components/social-icon'
 import { Badge } from '@/components/ui/badge'
 import { initials } from '@/lib/utils'
 
@@ -13,10 +15,10 @@ const host = (u: string) => {
   }
 }
 
-function LinkButton({ href, icon: Icon, children }: { href: string; icon: typeof Code2; children: React.ReactNode }) {
+function LinkButton({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <a href={href} target="_blank" rel="noreferrer nofollow" className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border border-line px-4 text-sm transition-colors hover:border-brand">
-      <Icon className="size-4 shrink-0" aria-hidden /> <span className="truncate">{children}</span>
+      {icon} <span className="truncate">{children}</span>
     </a>
   )
 }
@@ -49,9 +51,9 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
 
       {(v.githubRepos.length > 0 || v.demoLinks.length > 0 || v.videoUrl) && (
         <div className="flex flex-wrap gap-2">
-          {v.githubRepos.map((u) => <LinkButton key={u} href={u} icon={Code2}>{host(u) === 'github.com' ? new URL(u).pathname.slice(1) : host(u)}</LinkButton>)}
-          {v.demoLinks.map((u) => <LinkButton key={u} href={u} icon={Globe}>{host(u)}</LinkButton>)}
-          {v.videoUrl && <LinkButton href={v.videoUrl} icon={PlayCircle}>Demo video</LinkButton>}
+          {v.githubRepos.map((u) => <LinkButton key={u} href={u} icon={socialPlatform(u) === 'github' ? <SocialIcon platform="github" className="size-4 shrink-0" /> : <Code2 className="size-4 shrink-0" aria-hidden />}>{host(u) === 'github.com' ? new URL(u).pathname.slice(1) : host(u)}</LinkButton>)}
+          {v.demoLinks.map((u) => <LinkButton key={u} href={u} icon={<Globe className="size-4 shrink-0" aria-hidden />}>{host(u)}</LinkButton>)}
+          {v.videoUrl && <LinkButton href={v.videoUrl} icon={<PlayCircle className="size-4 shrink-0" aria-hidden />}>Demo video</LinkButton>}
         </div>
       )}
 
@@ -92,7 +94,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
             <div className="sm:col-span-2">
               <dt className="mb-2 text-fg-muted">Deployed contracts</dt>
               <dd className="space-y-1">
-                {addresses.map((a) => <p key={a.address} className="flex gap-3"><span className="w-28 shrink-0 truncate text-fg-faint">{a.tag || 'Contract'}</span><code className="truncate">{a.address}</code></p>)}
+                {addresses.map((a) => <p key={a.address} className="flex items-center gap-3"><span className="w-28 shrink-0 truncate text-fg-faint">{a.tag || 'Contract'}</span><code className="min-w-0 truncate">{a.address}</code><CopyButton value={a.address} label={`Copy ${a.tag || 'contract'} address`} /></p>)}
               </dd>
             </div>
           )}
@@ -103,7 +105,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
                 <dd className="space-y-1">
                   {(links as Tagged[]).map((l) => (
                     <a key={l.url} href={l.url} target="_blank" rel="noreferrer nofollow" className="flex items-center gap-1.5 text-fg-body hover:text-fg-heading">
-                      {l.tag || host(l.url)} <ExternalLink className="size-3.5" aria-hidden />
+                      <SocialIcon platform={socialPlatform(l.url)} className="size-3.5 shrink-0 text-fg-muted" /> {l.tag || host(l.url)}
                     </a>
                   ))}
                 </dd>

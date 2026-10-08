@@ -8,14 +8,17 @@ import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
 import { formatEventRange, formatUtc } from '@/lib/dates'
 import { prisma } from '@/lib/db'
-import { requirePermission } from '@/lib/guards'
+import { canManageEvents } from '@/app/(site)/events/_lib/access'
+import { requireUser } from '@/lib/guards'
+import { can } from '@/lib/permissions'
 import { EventActions } from '../_components/event-actions'
 import { HackathonButton } from '../_components/hackathon-button'
 
 export const metadata: Metadata = { title: 'Event' }
 
 export default async function AdminEventPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePermission('hackathons.manage')
+  const user = await requireUser()
+  if (!canManageEvents(user)) notFound()
   const event = await prisma.event.findUnique({ where: { id: (await params).id }, include: { hackathon: { select: { id: true } } } })
   if (!event) notFound()
   return (
@@ -29,6 +32,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
             <div className="flex flex-wrap items-center gap-3">
               <EventStatusBadge status={event.status} />
               {event.lumaVisibility !== 'public' && <span className="text-sm text-fg-muted">Not public on Luma</span>}
+              {event.source === 'portal' && <span className="text-sm text-fg-muted">Synced from the member portal</span>}
             </div>
             <h1 className="mt-3 text-2xl sm:text-3xl">{event.name}</h1>
             <p className="mt-2 text-fg-body">{formatEventRange(event.startAt, event.endAt, event.timezone)}</p>
@@ -37,7 +41,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <HackathonButton eventId={event.id} hackathonId={event.hackathon?.id ?? null} eventStart={event.startAt} eventEnd={event.endAt} eventTimezone={event.timezone} />
+            {can(user, 'hackathons.manage') && <HackathonButton eventId={event.id} hackathonId={event.hackathon?.id ?? null} eventStart={event.startAt} eventEnd={event.endAt} eventTimezone={event.timezone} />}
             <EventActions id={event.id} status={event.status} />
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
@@ -46,7 +50,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
             </a>
             {event.status === 'published' && (
               <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">
-                View on the hub <ExternalLink className="size-3.5" aria-hidden />
+                View on the Ecosystem Hub <ExternalLink className="size-3.5" aria-hidden />
               </Link>
             )}
             <span className="text-fg-faint">Last synced {formatUtc(event.lastSyncedAt)}</span>
@@ -58,7 +62,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
           )}
           {event.descriptionMd && (
             <section className="rounded-xl border border-line bg-surface-2 p-6">
-              <h2 className="mb-4 text-lg">Description from Luma</h2>
+              <h2 className="mb-4 text-lg">Description from {event.source === 'portal' ? 'the member portal' : 'Luma'}</h2>
               <Markdown>{event.descriptionMd}</Markdown>
             </section>
           )}

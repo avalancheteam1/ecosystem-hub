@@ -6,7 +6,7 @@ import { applyAssignment, assignAllToEntry, assignJudge, previewAssignment, setA
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { NativeSelect } from '@/components/ui/native-select'
+import { SegmentedControl } from '@/components/segmented-control'
 import { useActionToast } from '@/hooks/use-action-toast'
 
 export function AssignPanel({ hackathonId, stageId, mode: initialMode, perEntry: initialN, hasAssignments }: { hackathonId: string; stageId: string; mode: string; perEntry: number | null; hasAssignments: boolean }) {
@@ -24,11 +24,9 @@ export function AssignPanel({ hackathonId, stageId, mode: initialMode, perEntry:
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
         <div className="space-y-1">
-          <label htmlFor={`mode-${stageId}`} className="text-sm">Algorithm</label>
-          <NativeSelect id={`mode-${stageId}`} value={mode} onChange={(e) => { setMode(e.target.value as 'all' | 'random'); setPreview(null) }}>
-            <option value="all">Every eligible judge reviews every submission</option>
-            <option value="random">Random judges per submission, balanced load</option>
-          </NativeSelect>
+          <p className="text-sm">Algorithm</p>
+          <SegmentedControl label="Algorithm" value={mode} onChange={(m) => { setMode(m); setPreview(null) }} options={[{ value: 'all', label: 'All judges' }, { value: 'random', label: 'Random, balanced' }]} />
+          <p className="text-xs text-fg-faint">{mode === 'all' ? 'Every eligible judge reviews every submission.' : 'Random judges per submission, balanced load.'}</p>
         </div>
         {mode === 'random' && (
           <div className="space-y-1">

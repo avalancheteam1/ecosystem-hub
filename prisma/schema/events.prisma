@@ -20,6 +20,8 @@ model Event {
   fullAddress    String?
   isOnline       Boolean    @default(false)
   lumaVisibility String     @default("public")
+  /// where import + refresh fetch from: luma (public web API) | portal (member portal, key-only)
+  source         String     @default("luma")
   /// draft | published | archived
   status         String     @default("draft")
   lastSyncedAt   DateTime   @default(now())

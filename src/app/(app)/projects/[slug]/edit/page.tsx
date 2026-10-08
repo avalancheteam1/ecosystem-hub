@@ -17,7 +17,7 @@ export default async function EditProjectPage({ params, searchParams }: { params
   if (!project || !v) notFound()
   const initial = fieldsOf(v)
   return (
-    <div className="max-w-3xl">
+    <div className="mx-auto max-w-3xl">
       <PageHeader title={`Edit ${v.name}`} description={v.sealedAt ? `Version ${v.number} was submitted, so your changes start version ${v.number + 1} (draft). What you submitted stays exactly as it was.` : 'Changes go into your draft. Anything you already submitted stays exactly as it was.'} />
       <ProjectForm projectId={project.id} initial={initial} next={nextParam ? safeNext(nextParam) : null} />
     </div>

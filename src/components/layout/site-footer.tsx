@@ -1,17 +1,18 @@
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
+import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { Logo } from './logo'
 
 const COLUMNS = [
-  { title: 'Hub', links: [{ href: '/events', label: 'Events' }, { href: '/projects', label: 'Your projects' }, { href: '/dashboard', label: 'Dashboard' }] },
+  { title: 'Ecosystem Hub', links: [{ href: '/events', label: 'Events' }, { href: '/projects', label: 'Your projects' }, { href: '/dashboard', label: 'Dashboard' }] },
+  { title: 'Avalanche Builder Hub', links: BUILDER_HUB_LINKS },
   { title: 'team1', links: [{ href: 'https://team1.network', label: 'team1.network' }, { href: 'https://cascade.team1.network', label: 'Cascade' }] },
-  { title: 'Legal', links: [{ href: 'https://go.team1.network/privacy-policy', label: 'Privacy policy' }] },
 ]
 
 export function SiteFooter() {
   return (
     <footer className="border-t border-line bg-surface-1">
-      <div className="container-page grid gap-12 py-14 lg:grid-cols-[1.2fr_1fr] lg:py-20">
+      <div className="container-page grid gap-12 py-14 lg:grid-cols-[1fr_1.1fr] lg:py-20">
         <p className="font-heading text-[clamp(3.5rem,8vw,7.5rem)] font-medium leading-[0.88] tracking-[-0.05em] text-fg-heading">
           Keep<br /><span className="text-brand">building.</span>
         </p>
@@ -39,7 +40,10 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="container-page flex flex-wrap items-center justify-between gap-4 py-6">
           <Logo />
-          <p className="meta">© {new Date().getFullYear()} team1 — hub.team1.network</p>
+          <p className="meta flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>© {new Date().getFullYear()} team1 — hub.team1.network</span>
+            <a href="https://go.team1.network/privacy-policy" target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center hover:text-fg-heading">Privacy policy</a>
+          </p>
         </div>
       </div>
     </footer>

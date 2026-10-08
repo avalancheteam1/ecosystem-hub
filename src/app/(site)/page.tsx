@@ -6,6 +6,7 @@ import { SectionHeading } from '@/components/section-heading'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session'
 import { Button } from '@/components/ui/button'
+import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 
@@ -31,7 +32,7 @@ const PATH = [
 export default async function HomePage() {
   const [user, upcoming, stats] = await Promise.all([
     getCurrentUser(),
-    listPublicEvents('upcoming'),
+    listPublicEvents('upcoming', 3),
     Promise.all([prisma.event.count({ where: { status: 'published' } }), prisma.user.count(), prisma.project.count({ where: { archivedAt: null } }), prisma.hackathon.count({ where: { status: 'published' } })]),
   ])
   const [events, builders, projects, hackathons] = stats
@@ -63,7 +64,7 @@ export default async function HomePage() {
           <div className="lg:col-span-5">
             <div className="rounded-2xl border border-line bg-surface-2/80 p-6 backdrop-blur-sm sm:p-8">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
-                <h2 className="text-lg">Your path on the hub</h2>
+                <h2 className="text-lg">Your path on the Ecosystem Hub</h2>
                 <p className="text-sm text-fg-muted">Opening step by step</p>
               </div>
               <ol className="relative mt-8 space-y-8">
@@ -84,7 +85,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section aria-label="The hub in numbers" className="border-y border-line">
+      <section aria-label="The Ecosystem Hub in numbers" className="border-y border-line">
         <dl className="container-page grid grid-cols-2 lg:grid-cols-4 [&>div]:border-line [&>div:nth-child(n+3)]:border-t lg:[&>div:nth-child(n+3)]:border-t-0 [&>div+div]:border-l [&>div:nth-child(3)]:border-l-0 lg:[&>div:nth-child(3)]:border-l">
           {[
             [builders, 'builders signed up'],
@@ -104,13 +105,29 @@ export default async function HomePage() {
         <section className="container-page py-20 sm:py-28">
           <SectionHeading title={<>Coming up<span className="text-brand">.</span></>}>Hackathons, workshops and meetups run by team1 chapters around the world.</SectionHeading>
           <ul className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {upcoming.slice(0, 3).map((e) => <li key={e.id}><EventCard event={e} hackathon={e.hackathon?.status === 'published'} /></li>)}
+            {upcoming.map((e) => <li key={e.id}><EventCard event={e} hackathon={e.hackathon?.status === 'published'} /></li>)}
           </ul>
           <Link href="/events" className="group cta-row mt-12">
             See all events <ArrowUpRight className="arrow-nudge size-8 shrink-0" aria-hidden />
           </Link>
         </section>
       )}
+
+      <section className="container-page py-20 sm:py-28">
+        <SectionHeading title={<>Docs and dev tools<span className="text-brand">.</span></>}>
+          Documentation, courses and developer tools live on the Avalanche Builder Hub. This hub is where you meet other builders and take part.
+        </SectionHeading>
+        <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {BUILDER_HUB_LINKS.map((l) => (
+            <li key={l.href}>
+              <a href={l.href} target="_blank" rel="noreferrer" className="group flex h-full flex-col rounded-xl border border-line bg-surface-2 p-6 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow">
+                <span className="flex items-center justify-between text-xl text-fg-heading">{l.label} <ArrowUpRight className="arrow-nudge size-5 text-fg-faint" aria-hidden /></span>
+                <span className="mt-2 text-fg-muted">{l.body}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     </>
   )
 }

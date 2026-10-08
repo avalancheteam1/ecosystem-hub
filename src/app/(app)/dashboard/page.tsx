@@ -1,25 +1,29 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { BookOpen, FolderGit2, Trophy } from 'lucide-react'
+import { BookOpen, FolderGit2, Megaphone, Trophy } from 'lucide-react'
 import { SectionCard } from '@/components/section-card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { countryName } from '@/lib/countries'
 import { prisma } from '@/lib/db'
+import { BUILDER_HUB_URL } from '@/lib/builder-hub'
 import { requireUser } from '@/lib/guards'
 import { BUILDER_ROLES, hasCompleteBasicProfile } from '@/lib/profile'
 import { initials } from '@/lib/utils'
+import { getUserGroups } from '@/lib/user-groups'
 
 export const metadata: Metadata = { title: 'Dashboard', robots: { index: false } }
 
 export default async function DashboardPage() {
   const user = await requireUser()
-  const [u, projects, hackathons] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, username: true, country: true, builderRoles: true, image: true } }),
+  const [u, projects, hackathons, onboardings, { groups }] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true, image: true } }),
     prisma.project.findMany({ where: { archivedAt: null, members: { some: { userId: user.id } } }, include: { currentVersion: { select: { name: true, number: true } } }, orderBy: { updatedAt: 'desc' }, take: 5 }),
     prisma.participant.findMany({ where: { userId: user.id, status: 'active' }, include: { hackathon: { include: { event: { select: { name: true, slug: true } } } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
+    prisma.referral.count({ where: { referrerId: user.id } }),
+    getUserGroups(user.id),
   ])
-  const meta = [u.username && `@${u.username}`, countryName(u.country), u.builderRoles.map((r) => BUILDER_ROLES.find((x) => x.id === r)?.name).join(', ')].filter(Boolean)
+  const meta = [countryName(u.country), u.builderRoles.map((r) => BUILDER_ROLES.find((x) => x.id === r)?.name).join(', ')].filter(Boolean)
   return (
     <div className="space-y-10">
       <header className="flex flex-wrap items-center gap-5">
@@ -68,8 +72,21 @@ export default async function DashboardPage() {
             </ul>
           )}
         </SectionCard>
+        <SectionCard title="Referrals" actions={<Button asChild size="sm" variant="ghost"><Link href="/referrals">Your codes</Link></Button>}>
+          <p className="flex items-center gap-3 text-sm text-fg-muted">
+            <Megaphone className="size-5 text-brand" aria-hidden />
+            {onboardings === 0 ? 'Share your referral link and bring builders to the hub.' : `You onboarded ${onboardings} builder${onboardings === 1 ? '' : 's'}.`}
+          </p>
+          {groups.some((g) => g.lead) && (
+            <ul className="mt-4 divide-y divide-line">
+              {groups.filter((g) => g.lead).map((g) => (
+                <li key={g.group.id}><Link href={`/groups/${g.group.slug}`} className="flex min-h-12 items-center text-fg-body hover:text-fg-heading">{g.group.name} — group stats</Link></li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
       </div>
-      <p className="flex items-center gap-3 text-sm text-fg-faint"><BookOpen className="size-4" aria-hidden /> Courses and bounties show up here once they launch.</p>
+      <p className="flex items-center gap-3 text-sm text-fg-faint"><BookOpen className="size-4" aria-hidden /> Courses and bounties show up here once they launch. Meanwhile: docs, the Academy and dev tools are on the <a href={BUILDER_HUB_URL} target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2 hover:text-fg-heading">Avalanche Builder Hub</a>.</p>
     </div>
   )
 }

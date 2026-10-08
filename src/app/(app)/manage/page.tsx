@@ -16,7 +16,7 @@ export default async function ManageIndex() {
     <>
       <PageHeader title="Hackathons you run" description={all ? 'You can manage every hackathon.' : 'Hackathons where you are an organiser.'} />
       {hackathons.length === 0 ? (
-        <p className="text-fg-muted">Nothing here yet. {all ? 'Turn an event into a hackathon from Admin → Events.' : 'Ask a hub admin to add you as an organiser.'}</p>
+        <p className="text-fg-muted">Nothing here yet. {all ? 'Turn an event into a hackathon from Admin → Events.' : 'Ask an Ecosystem Hub admin to add you as an organiser.'}</p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {hackathons.map((h) => (

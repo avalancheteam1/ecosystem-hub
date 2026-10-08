@@ -6,7 +6,7 @@ import { requireUser } from '@/lib/guards'
 import { holdsAny } from '@/lib/permissions'
 import { ADMIN_NAV } from './_lib/nav'
 
-export const metadata: Metadata = { title: { default: 'Admin', template: '%s · Admin · team1 hub' }, robots: { index: false } }
+export const metadata: Metadata = { title: { default: 'Admin', template: '%s · Admin · team1 Ecosystem Hub' }, robots: { index: false } }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
