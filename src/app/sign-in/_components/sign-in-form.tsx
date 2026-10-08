@@ -7,6 +7,7 @@ import { authClient } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { SocialIcon } from '@/components/social-icon'
 
 const PROVIDER_LABEL = { google: 'Continue with Google', github: 'Continue with GitHub' } as const
 
@@ -40,7 +41,7 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
               disabled={pending}
               onClick={() => run(() => authClient.signIn.social({ provider: p, callbackURL: `/sign-in?next=${encodeURIComponent(next)}` }), () => {})}
             >
-              {PROVIDER_LABEL[p]}
+              <SocialIcon platform={p} /> {PROVIDER_LABEL[p]}
             </Button>
           ))}
           <div className="flex items-center gap-3 text-xs text-fg-faint">

@@ -63,6 +63,24 @@ export const auth = betterAuth({
         },
       },
     },
+    account: {
+      create: {
+        // Linking Google/GitHub to an existing user (e.g. an email-OTP sign-up)
+        // doesn't touch the user's picture. Take the provider's picture only if
+        // the user has none — never overwrite an uploaded avatar. Never blocks sign-in.
+        after: async (account, ctx) => {
+          const provider = ctx?.context.socialProviders.find((p) => p.id === account.providerId)
+          if (!provider) return
+          const user = await prisma.user.findUnique({ where: { id: account.userId }, select: { image: true } })
+          if (!user || user.image) return
+          const info = await provider
+            .getUserInfo({ accessToken: account.accessToken ?? undefined, idToken: account.idToken ?? undefined })
+            .catch((err) => void console.error('[auth] provider picture lookup failed', err))
+          const image = info?.user.image
+          if (image) await prisma.user.updateMany({ where: { id: account.userId, image: null }, data: { image } })
+        },
+      },
+    },
     session: {
       create: {
         // Hackathon organiser/judge invites are by email; bind them on every

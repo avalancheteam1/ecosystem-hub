@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { blocksPublish, mapPortalEvent } from '@/app/(site)/events/_lib/portal'
+import { blocksPublish, fetchPortalEvent, mapPortalEvent, PortalAuthError } from '@/app/(site)/events/_lib/portal'
 
 const full = {
   id: 'evt-abc123',
@@ -47,4 +47,22 @@ test('blocksPublish: only non-public portal events', () => {
   assert.equal(blocksPublish({ source: 'portal', lumaVisibility: 'private' }), true)
   assert.equal(blocksPublish({ source: 'portal', lumaVisibility: 'hidden' }), true)
   assert.equal(blocksPublish({ source: 'luma', lumaVisibility: 'private' }), false)
+})
+
+test('fetchPortalEvent: a missing or refused key is a PortalAuthError (aborts the import job)', async () => {
+  const key = process.env.MEMBER_PORTAL_API_KEY
+  const realFetch = globalThis.fetch
+  try {
+    delete process.env.MEMBER_PORTAL_API_KEY
+    await assert.rejects(fetchPortalEvent('evt-x'), PortalAuthError)
+    process.env.MEMBER_PORTAL_API_KEY = 'wrong'
+    globalThis.fetch = async () => new Response(null, { status: 401 })
+    await assert.rejects(fetchPortalEvent('evt-x'), PortalAuthError)
+    globalThis.fetch = async () => new Response(null, { status: 404 })
+    await assert.rejects(fetchPortalEvent('evt-x'), (err) => !(err instanceof PortalAuthError))
+  } finally {
+    globalThis.fetch = realFetch
+    if (key === undefined) delete process.env.MEMBER_PORTAL_API_KEY
+    else process.env.MEMBER_PORTAL_API_KEY = key
+  }
 })

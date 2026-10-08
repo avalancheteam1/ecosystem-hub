@@ -27,6 +27,8 @@ export async function listPortalEvents(opts: { cursor?: string; from?: string } 
 }
 
 export class PortalEventError extends Error {}
+/** Missing or refused API key — every further portal call would fail the same way. */
+export class PortalAuthError extends PortalEventError {}
 
 /** A private/hidden portal event carries its exact address + description — never publish it on the hub. */
 export const blocksPublish = (e: { source: string; lumaVisibility: string }) => e.source === 'portal' && e.lumaVisibility !== 'public'
@@ -70,7 +72,7 @@ export function mapPortalEvent(payload: unknown): LumaEventData | null {
 /** One event (public, private or hidden) by evt- id. Needs MEMBER_PORTAL_API_KEY with `events:read:all`. */
 export async function fetchPortalEvent(id: string): Promise<LumaEventData> {
   const key = process.env.MEMBER_PORTAL_API_KEY
-  if (!key) throw new PortalEventError('MEMBER_PORTAL_API_KEY is not set')
+  if (!key) throw new PortalAuthError('MEMBER_PORTAL_API_KEY is not set')
   let res: Response
   try {
     res = await fetch(`${PORTAL_URL}/api/v1/events/${encodeURIComponent(id)}/full`, {
@@ -82,7 +84,7 @@ export async function fetchPortalEvent(id: string): Promise<LumaEventData> {
     throw new PortalEventError('The member portal is unreachable right now — try again in a minute')
   }
   if (res.status === 404) throw new PortalEventError('The member portal has no such event')
-  if (res.status === 401 || res.status === 403) throw new PortalEventError('The member portal refused the API key (needs scope events:read:all)')
+  if (res.status === 401 || res.status === 403) throw new PortalAuthError('The member portal refused the API key (needs scope events:read:all)')
   if (!res.ok) throw new PortalEventError(`Member portal answered ${res.status}`)
   const data = mapPortalEvent(await res.json().catch(() => null))
   if (!data) throw new PortalEventError('The member portal returned an unusable event')

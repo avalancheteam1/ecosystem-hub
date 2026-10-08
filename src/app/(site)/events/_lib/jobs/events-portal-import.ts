@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db'
 import { recordAudit } from '@/lib/audit'
 import type { Job } from '@/lib/jobs'
-import { listPortalEvents } from '../portal'
+import { listPortalEvents, PortalAuthError } from '../portal'
 import { upsertEvent } from '../sync'
 
 /**
@@ -30,6 +30,7 @@ export const eventsPortalImportJob: Job = {
         const { event, created } = await upsertEvent(id, 'portal', null, true)
         if (created) await recordAudit({ actorId: null, action: 'event.import', entityType: 'Event', entityId: event.id, after: { lumaEventId: event.lumaEventId, name: event.name, source: 'portal', status: event.status } })
       } catch (err) {
+        if (err instanceof PortalAuthError) throw err // fails the run instead of failing every event
         failed.push({ id, error: err instanceof Error ? err.message : String(err) })
       }
       await new Promise((r) => setTimeout(r, 500)) // be gentle with the portal
