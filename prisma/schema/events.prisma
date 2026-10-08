@@ -1,0 +1,35 @@
+// Events — the hub's own copy of Luma events (public data only, see
+// src/app/(site)/events/_lib/luma.ts). Edited on Luma, refreshed daily.
+
+model Event {
+  id             String     @id @default(cuid())
+  /// Luma's evt-… id — the same id the member portal uses.
+  lumaEventId    String     @unique
+  lumaUrl        String
+  slug           String     @unique
+  name           String
+  descriptionMd  String?
+  startAt        DateTime
+  endAt          DateTime?
+  timezone       String
+  /// Luma CDN image, as stored by the member portal.
+  coverUrl       String?
+  city           String?
+  /// ISO-2
+  country        String?
+  fullAddress    String?
+  isOnline       Boolean    @default(false)
+  lumaVisibility String     @default("public")
+  /// draft | published | archived
+  status         String     @default("draft")
+  lastSyncedAt   DateTime   @default(now())
+  syncError      String?
+  createdById    String?
+  createdBy      User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  hackathon      Hackathon?
+
+  @@index([status, startAt])
+  @@map("events")
+}

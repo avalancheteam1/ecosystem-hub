@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { BackLink } from '@/components/back-link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { Badge } from '@/components/ui/badge'
 import { prisma } from '@/lib/db'
@@ -38,9 +37,8 @@ export default async function UserAccessPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <Link href="/admin/access" className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm text-fg-muted hover:text-fg-heading">
-        <ArrowLeft className="size-4" aria-hidden /> Access
-      </Link>
+      <BackLink href="/admin/access">Access
+      </BackLink>
       <PageHeader title={user.name} description={user.email} />
 
       <div className="grid gap-6 xl:grid-cols-2">

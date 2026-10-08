@@ -1,0 +1,151 @@
+{
+ "kind": "event",
+ "data": {
+  "api_id": "evt-ynMgsbJOURWEDEQ",
+  "event": {
+   "api_id": "evt-ynMgsbJOURWEDEQ",
+   "name": "Team1 India University Workshop - Gokhale College of Engineering, Nashik",
+   "start_at": "2026-10-08T05:30:00.000Z",
+   "end_at": "2026-10-08T08:30:00.000Z",
+   "timezone": "Asia/Kolkata",
+   "url": "y9koun3u",
+   "cover_url": "https://images.lumacdn.com/uploads/tj/2b1e2f7c-5c9d-4df4-b17a-414ab03dfa8f.jpg",
+   "visibility": "public",
+   "location_type": "offline",
+   "geo_address_info": {
+    "city": "Nashik",
+    "country": "India",
+    "country_code": "IN",
+    "full_address": "Gokhale Education Society's R. H. Sapat College of Engineering, Management Studies and Research, 2Q35+QHV, Krishi Nagar, Nashik, Maharashtra 422005, India",
+    "city_state": "Nashik, India"
+   }
+  },
+  "description_mirror": {
+   "type": "doc",
+   "content": [
+    {
+     "type": "heading",
+     "attrs": {
+      "level": 1
+     },
+     "content": [
+      {
+       "text": "Team1 Builders Connect at Gokhale College of Engineering, Nashik 🚀",
+       "type": "text",
+       "marks": [
+        {
+         "type": "bold"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "heading",
+     "attrs": {
+      "level": 2
+     },
+     "content": [
+      {
+       "text": "​​Introduction",
+       "type": "text",
+       "marks": [
+        {
+         "type": "bold"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "content": [
+      {
+       "text": "Welcome to ",
+       "type": "text"
+      },
+      {
+       "text": "Team1 Builders Connect at Gokhale College of Engineering, Nashik",
+       "type": "text",
+       "marks": [
+        {
+         "type": "bold"
+        }
+       ]
+      },
+      {
+       "text": " - a developer-focused gathering designed for students, aspiring builders, and technology enthusiasts who want to explore the world of ",
+       "type": "text"
+      },
+      {
+       "text": "Web3, blockchain, and the Avalanche ecosystem",
+       "type": "text",
+       "marks": [
+        {
+         "type": "bold"
+        }
+       ]
+      },
+      {
+       "text": ".",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "content": [
+      {
+       "text": "Whether you're completely new to Web3, curious about blockchain development, or already building projects, this session is your opportunity to ",
+       "type": "text"
+      },
+      {
+       "text": "learn, build, connect, and explore new opportunities",
+       "type": "text",
+       "marks": [
+        {
+         "type": "bold"
+        }
+       ]
+      },
+      {
+       "text": ".",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "content": [
+      {
+       "text": "Join fellow students and developers from ",
+       "type": "text"
+      },
+      {
+       "text": "Gokhale College of Engineering, Nashik ",
+       "type": "text",
+       "marks": [
+        {
+         "type": "bold"
+        }
+       ]
+      },
+      {
+       "text": "for an interactive evening featuring ecosystem insights, a hands-on introduction to Avalanche, discussions with the community, and networking with like-minded builders.",
+       "type": "text"
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "content": [
+      {
+       "text": "Come with curiosity. Leave with ideas, connections, and the inspiration to start building. ⚡",
+       "type": "text"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
+import { eventsRefreshJob } from '@/app/(site)/events/_lib/jobs/events-refresh'
 import { authCleanupJob } from './auth-cleanup'
 
 /**
@@ -23,7 +24,7 @@ export interface Job {
   run(data?: Record<string, unknown>): Promise<Record<string, unknown>>
 }
 
-export const JOBS: Job[] = [authCleanupJob]
+export const JOBS: Job[] = [authCleanupJob, eventsRefreshJob]
 
 /** Run a job wrapped in a JobRun record. Never throws — failures are recorded. */
 export async function executeJob(job: Job, data?: Record<string, unknown>): Promise<void> {

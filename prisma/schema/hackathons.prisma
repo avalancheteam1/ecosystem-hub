@@ -1,0 +1,269 @@
+// Hackathons: an Event set up with tracks, prizes, stages (rounds), criteria,
+// judges and submissions. Rules: src/app/(site)/events/_lib/hackathons/rules.ts
+
+model Hackathon {
+  id                   String    @id @default(cuid())
+  eventId              String    @unique
+  event                Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  tagline              String    @default("")
+  aboutMd              String    @default("")
+  rulesMd              String?
+  termsUrl             String?
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+  teamSizeMin          Int       @default(1)
+  teamSizeMax          Int       @default(5)
+  maxParticipants      Int?
+  /// Display text, e.g. "$50,000" — shown alongside (or instead of) per-place prizes
+  prizePool            String?
+  /// IANA zone the organiser enters times in and deadlines are shown in. Times themselves are stored in UTC.
+  timezone             String    @default("UTC")
+  /// draft | published
+  status               String    @default("draft")
+  resultsPublishedAt   DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  tracks       HackathonTrack[]
+  prizes       HackathonPrize[]
+  organizers   HackathonOrganizer[]
+  judges       HackathonJudge[]
+  stages       HackathonStage[]
+  fields       FormField[]
+  participants Participant[]
+  submissions  Submission[]
+
+  @@map("hackathons")
+}
+
+model HackathonTrack {
+  id             String           @id @default(cuid())
+  hackathonId    String
+  hackathon      Hackathon        @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  name           String
+  descriptionMd  String?
+  sponsor        String?
+  /// own upload (sponsor-logo)
+  sponsorLogoUrl String?
+  order          Int              @default(0)
+  prizes         HackathonPrize[]
+
+  @@index([hackathonId])
+  @@map("hackathon_tracks")
+}
+
+model HackathonPrize {
+  id          String          @id @default(cuid())
+  hackathonId String
+  hackathon   Hackathon       @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  /// null = overall prize
+  trackId     String?
+  track       HackathonTrack? @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  placement   Int             @default(1)
+  title       String
+  /// Display text, e.g. "$5,000"
+  amount      String?
+  description String?
+  order       Int             @default(0)
+  award       Award?
+
+  @@index([hackathonId])
+  @@map("hackathon_prizes")
+}
+
+model HackathonOrganizer {
+  id          String    @id @default(cuid())
+  hackathonId String
+  hackathon   Hackathon @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  /// lowercased; the invite binds to the user signing in with it (verified)
+  email       String
+  userId      String?
+  user        User?     @relation("OrganizerOf", fields: [userId], references: [id], onDelete: SetNull)
+  invitedById String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([hackathonId, email])
+  @@index([userId])
+  @@map("hackathon_organizers")
+}
+
+model HackathonJudge {
+  id          String            @id @default(cuid())
+  hackathonId String
+  hackathon   Hackathon         @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  email       String
+  userId      String?
+  user        User?             @relation("JudgeOf", fields: [userId], references: [id], onDelete: SetNull)
+  /// empty = judges every track
+  trackIds    String[]
+  invitedById String?
+  createdAt   DateTime          @default(now())
+  assignments JudgeAssignment[]
+
+  @@unique([hackathonId, email])
+  @@index([userId])
+  @@map("hackathon_judges")
+}
+
+/// Registration question (stageId null) or stage submission field.
+model FormField {
+  id          String          @id @default(cuid())
+  hackathonId String
+  hackathon   Hackathon       @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  stageId     String?
+  stage       HackathonStage? @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  label       String
+  help        String?
+  /// short_text | long_text | url | select | multi_select | checkbox | number
+  type        String
+  required    Boolean         @default(false)
+  options     String[]
+  maxLength   Int?
+  order       Int             @default(0)
+
+  @@index([hackathonId, stageId])
+  @@map("form_fields")
+}
+
+model Participant {
+  id              String    @id @default(cuid())
+  hackathonId     String
+  hackathon       Hackathon @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers         Json      @default("{}")
+  termsAcceptedAt DateTime?
+  /// active | withdrawn
+  status          String    @default("active")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([hackathonId, userId])
+  @@index([userId])
+  @@map("hackathon_participants")
+}
+
+model HackathonStage {
+  id                  String       @id @default(cuid())
+  hackathonId         String
+  hackathon           Hackathon    @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  order               Int
+  name                String
+  descriptionMd       String?
+  opensAt             DateTime
+  closesAt            DateTime
+  judgingClosedAt     DateTime?
+  /// all | random
+  reviewMode          String       @default("all")
+  judgesPerSubmission Int?
+  sameTrackOnly       Boolean      @default(false)
+  scaleMax            Int          @default(10)
+  /// Show this stage's judging criteria on the public page
+  showCriteria        Boolean      @default(true)
+  criteria            Criterion[]
+  fields              FormField[]
+  entries             StageEntry[]
+
+  @@index([hackathonId, order])
+  @@map("hackathon_stages")
+}
+
+model Criterion {
+  id          String         @id @default(cuid())
+  stageId     String
+  stage       HackathonStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  weight      Int            @default(1)
+  order       Int            @default(0)
+
+  @@index([stageId])
+  @@map("hackathon_criteria")
+}
+
+model Submission {
+  id          String       @id @default(cuid())
+  hackathonId String
+  hackathon   Hackathon    @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  trackIds    String[]
+  /// active | withdrawn | disqualified
+  status      String       @default("active")
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  entries     StageEntry[]
+  awards      Award[]
+
+  @@unique([hackathonId, projectId])
+  @@map("hackathon_submissions")
+}
+
+model StageEntry {
+  id               String            @id @default(cuid())
+  submissionId     String
+  submission       Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  stageId          String
+  stage            HackathonStage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  projectVersionId String
+  projectVersion   ProjectVersion    @relation(fields: [projectVersionId], references: [id], onDelete: Restrict)
+  answers          Json              @default("{}")
+  /// [{ userId, name }] at submission time
+  teamSnapshot     Json              @default("[]")
+  /// builders-hub: "Is this project based on a pre-existing idea?" + what was built during the event
+  preexistingIdea  Boolean           @default(false)
+  builtDuringEvent String?
+  submittedAt      DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  advancedAt       DateTime?
+  advancedById     String?
+  assignments      JudgeAssignment[]
+
+  @@unique([submissionId, stageId])
+  @@index([stageId])
+  @@map("hackathon_stage_entries")
+}
+
+model JudgeAssignment {
+  id          String         @id @default(cuid())
+  judgeId     String
+  judge       HackathonJudge @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  entryId     String
+  entry       StageEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdAt   DateTime       @default(now())
+  review      Review?
+
+  @@unique([judgeId, entryId])
+  @@index([entryId])
+  @@map("hackathon_judge_assignments")
+}
+
+model Review {
+  id               String          @id @default(cuid())
+  assignmentId     String          @unique
+  assignment       JudgeAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  /// { criterionId: number }
+  scores           Json            @default("{}")
+  /// weighted, 0–100; null until every criterion is scored
+  total            Float?
+  comment          String?
+  conflictDeclared Boolean         @default(false)
+  submittedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@map("hackathon_reviews")
+}
+
+model Award {
+  id           String         @id @default(cuid())
+  prizeId      String         @unique
+  prize        HackathonPrize @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+  submissionId String
+  submission   Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+
+  @@map("hackathon_awards")
+}

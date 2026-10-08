@@ -2,7 +2,7 @@
 
 `hub.team1.network` — the home for builders in the team1 / Avalanche ecosystem: hackathons & workshops, builder signup and community, public bounties, education (courses, workshops), builder projects (reused to apply for grants and hackathons), an evaluation/scoring backend and a university program. Large parts of `~/git/builders-hub` (notably hackathons) will move here.
 
-**Status:** base only. Auth, permissions, audit log, jobs, `/api/v1`, design system and deployment exist; feature **areas** are added on top, each with its own spec in `docs/superpowers/specs/`. Base design: `docs/superpowers/specs/2026-10-07-ecosystem-hub-base-design.md`.
+**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects** and **hackathons**. Specs live in `docs/superpowers/specs/` — base: `2026-10-07-ecosystem-hub-base-design.md`, events & hackathons: `2026-10-08-hackathons-design.md`.
 
 Several developers work here in parallel, mostly each on one area. The structure below exists so an area's PR touches its own folders — keep it that way.
 
@@ -52,6 +52,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 8. Tests for the area's pure rules in `tests/<area>*.test.ts`.
 
 ## Security rules (non-negotiable)
+- **A `'use server'` file may export ONLY `action(...)`-wrapped functions.** Every export of such a file becomes a public endpoint; a helper that trusts its arguments (e.g. `assertManage(id, user)`) must live in a plain server module (`import 'server-only'`).
 - **Every server action goes through `action({ schema, permission }, handler)`** (`src/lib/action.ts`). Server actions are public POST endpoints — a page guard does not protect the action. `permission` is a registry key, `'superAdmin'`, or `'user'` (any signed-in user). Throw `ActionError('message')` for user-facing errors; anything else is logged and masked.
 - **Every admin page/layout calls a guard** (`src/lib/guards.ts`): `requireUser()`, `requirePermission(p)`, `requireSuperAdmin()`. Unauthenticated → `/sign-in?next=…`; lacking power → 404 (never reveal admin surfaces).
 - `src/proxy.ts` (Next 16's renamed middleware) only does the CSP nonce and a coarse cookie-presence wall for `/dashboard` and `/admin`. It is **not** authorization.
@@ -90,18 +91,53 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 - Font: Kanit (300 body / 500 headings). Radius: cards `rounded-xl` (12px), controls `rounded-lg` (8px). Cards hover: `hover:-translate-y-0.5 hover:border-brand hover:shadow-glow`. Touch targets ≥ 44px. `:focus-visible` ring and `prefers-reduced-motion` are global — don't remove.
 - Copy: always "team1" lowercase ("Team1" only at the start of a sentence, never "TEAM1" — also not via `uppercase`).
 - Logos/favicons are copied from `~/git/team1/common/brand/assets/` — never redrawn. Use `<Logo />`.
-- Reuse before building: `src/components/ui/*` (shadcn), `src/components/layout/*` (`PageHeader`, `SearchForm`, `Pager`, `Logo`, `SiteHeader`, `SiteFooter`). Add shadcn components with `pnpm dlx shadcn@latest add <name>` (then fix the `cn` import to `@/lib/utils` if the CLI writes `from "cn"`).
+- **Reuse before building** — check these first, extend them rather than hand-rolling a variant:
+  - Forms: `Field` (label + control + hint), `FormDialog` (dialog wrapping one form; closes only on success), `ConfirmButton` (destructive + confirm), `NativeSelect` (`ui/native-select`), `ChipToggle` (multi-select chips), `AnswerFields` / `AnswerList` (organiser-defined questions), hook `useActionToast()` (run an action → toast → refresh; resolves `true` on success).
+  - Layout: `PageHeader`, `SectionCard`, `BackLink`, `LinkCard`, `EmptyState`, `SearchForm`, `Pager`, `Logo`, `SiteHeader`, `SiteFooter`.
+  - Dates: `DateTimeInput`, `TimeZoneSelect`.
+  - Display: `StatusPill` (tones), `StageStateBadge`, `EventCover` (Luma covers, square), `Markdown`, `ProjectVersionView`.
+  - shadcn primitives in `src/components/ui/*`. Add more with `pnpm dlx shadcn@latest add <name>` — **never `-o`** (it overwrites the tuned components) — and fix the `cn` import to `@/lib/utils` if the CLI writes `from "cn"`.
 
 ## Conventions
-- Dates are stored as UTC (`DateTime` = timestamptz semantics) and shown with an explicit zone; admin tables print UTC.
+- **Dates are always stored in UTC.** Entering a date: `<DateTimeInput timeZone>` (wall-clock time in that zone) + `toUtcIso(wall, tz)` on save, initialise with `utcToZoned(date, tz)`; pick zones with `<TimeZoneSelect>` (UTC + all IANA zones). Helpers in `src/lib/timezones.ts` (Intl only, DST-safe, tested). Never use the browser's zone for stored times. A hackathon has one `timezone` (default: the Luma event's) for all its inputs and public deadlines. Display: `formatEventRange` / `formatShortDate` with the zone; admin tables print UTC.
 - Server action results are `{ ok: true, data } | { ok: false, error }` — show `error` with `toast.error`.
 - Privacy policy: one policy for all team1 sites, linked as `https://go.team1.network/privacy-policy` (source in the team1-network repo). A feature that collects, shows, shares or tracks new personal data needs a policy update there.
 - Analytics: self-hosted Plausible (`NEXT_PUBLIC_PLAUSIBLE_DOMAIN`), no cookies, no banner.
 - Do not run git commands or commit unless explicitly asked.
 
+## Images (uploads)
+- Cloudflare R2 via the S3 API (`src/lib/storage/`, ported from the member portal); dev without a bucket uses `public/uploads/` (`local` provider). Env `STORAGE_*` (`.env.example`).
+- Every image kind is registered in `src/lib/image-kinds.ts` (aspect, max px, max bytes, category). Upload with `<ImageUploadField kind ownerId>` (pick → crop → `uploadImage` action → URL); the server re-validates magic bytes + exact aspect (`validateImageBuffer`).
+- Keys are `category/ownerId/<uuid>.ext`. **Saving a form must check the URL is an own upload** (`isOwnUpload(url, category, ownerId)`) — never accept hotlinked image URLs. Adding a kind: register it, add its owner check in `upload-actions.ts` `authorizeOwner`, check ownership where it's saved.
+- Orphans (cancelled forms) stay in the bucket — harmless, unguessable.
+
+## Areas
+
+### Events (`src/app/(site)/events/`, admin `src/app/admin/events/`)
+- The hub's own copy of **Luma** events, fetched from **public data only**: `api.lu.ma/url?url=<slug>` (unofficial web API, no key — `_lib/luma.ts`; description ProseMirror → Markdown in `_lib/prosemirror.ts`). Same `evt-…` ids and Luma CDN cover images as the member portal. Admin picker lists public team1 events from the member portal's anonymous `GET /api/v1/events` (`_lib/portal.ts`, `MEMBER_PORTAL_URL`). Daily `events-refresh` job; failures land in `Event.syncError` and the admin page — never silent. Edit events on Luma, not here.
+- `status` draft | published | archived — only published events are public. Permission `hackathons.manage` imports/publishes.
+- `_lib/sync.ts` has no `server-only` import on purpose: the worker uses it.
+
+### Projects (`src/app/(app)/projects/`)
+- Builder-owned, team via `ProjectMember` (one owner) + email invites (`ProjectInvite`, token hashed, 14 days, accepted only by the invited verified email; re-inviting a member is refused — never downgrades).
+- **Draft + sealed versions.** `Project.currentVersionId` points at the latest `ProjectVersion`. While it is a **draft** (`sealedAt` null) edits update it in place (`planSave`); builders don't see edit history. **Submitting seals it** (`planSeal`, inside the submission transaction: `sealedAt` + note "Submitted to …") and the stage entry pins it; the next edit starts a new draft (number + 1). Re-submitting without changes reuses the sealed version. **Sealed rows are immutable** — never update or delete them. Only submissions seal (grant applications will seal the same way).
+- Fields follow builders-hub's battle-tested submission set (`_lib/rules.ts`: categories, tech stack defaults, limits, link normalisation) — but stored as real arrays. `missingForSubmission` = builders-hub's "complete" set; hackathon submission requires it.
+- Rendering a version: `ProjectVersionView` (`src/components/`), shared by project, organiser and judge pages.
+
+### Profile (`src/app/(app)/profile/`, rules `src/lib/profile.ts`)
+- builders-hub's profile fields (roles, socials with its regexes, wallets, skills, consents), ISO-2 countries (`src/lib/countries.ts`). `hasCompleteBasicProfile` (name + country + role) is required to join a hackathon.
+
+### Hackathons (logic `src/app/(site)/events/_lib/hackathons/`, public page on `/events/[slug]`, organiser console `/manage/hackathons/[id]`, judges `/judge`)
+- An Event becomes a hackathon (1:1). Config is typed tables: tracks, prizes (overall or per track, placement), stages (= rounds: window, review mode, scale, criteria with weights, extra questions), registration questions (`FormField`, `stageId` null), organisers and judges (invited by email, bound to the user on sign-in via the Better Auth `session.create.after` hook / immediately if a verified user exists).
+- **Per-hackathon power is data, not permissions**: `canManageHackathon` = `hackathons.manage` or bound organiser. Organisers work in `/manage`, not `/admin`. Re-check it in every action via `assertManage` (`_lib/hackathons/manage.ts`).
+- Pure rules, all unit-tested: `rules.ts` (stage state — `closesAt` exclusive, stage validation, answers schema builder, join, publish checklist), `submissions.ts` (who may submit), `judging.ts` (COI, weighted total 0–100, ranking + tie-breaks, `assignRandom` balanced/seeded/keeps reviewed pairs, `assignAll`). Change a rule → change its test.
+- Flow: join (`Participant`) → team = project members, all must have joined, size within limits, one active submission per person per hackathon → submit to the open stage (pins current version + team snapshot; updatable until close) → after close: assign judges (preview → apply, judges mailed) → judges score (blind; only after the window closes; COI never assigned and blocked) → organiser closes judging (scores revealed) → ranking → advance teams (mailed) → next stage … → awards per prize → publish results. CSV export at `/manage/hackathons/[id]/export.csv` (formula-injection safe).
+- Structural edits are locked once judges scored (criteria, scale); stages with entries can't be deleted.
+
 ## Integrations (planned)
 - **Member portal** (`~/git/team1/member.team1.network`): `POST /api/v1/members/check` (scope `members:check`, body `{ emailHash }`) answers "is this a team1 member" — the intended way to give members extra features. Later also SSO via `genericOAuth`.
 - **Cascade** and others call this hub's `/api/v1` with keys from `/admin/api-keys`.
+- **Luma**: public data only (see Events). Don't add Luma API keys or luma-sync dependencies.
 
 # Basic Behaviour
 

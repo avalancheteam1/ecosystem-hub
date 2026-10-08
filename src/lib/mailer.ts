@@ -1,8 +1,11 @@
 import nodemailer, { type Transporter } from 'nodemailer'
+import { logoAttachment } from '@/lib/email-template'
 
 // SMTP mail. In development without SMTP_HOST the mail is printed to the
 // console (so OTP sign-in works locally); in production a missing SMTP config
-// is an error — never silently drop a sign-in code.
+// is an error — never silently drop a sign-in code. `html` is expected to be
+// built with brandedShell() (src/lib/email-template.ts); the logo it references
+// as cid:logo is attached here.
 
 let transporter: Transporter | undefined
 
@@ -18,5 +21,9 @@ export async function sendMail(mail: { to: string; subject: string; text: string
     secure: process.env.SMTP_SECURE === 'true',
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined,
   })
-  await transporter.sendMail({ from: process.env.MAIL_FROM || 'team1 hub <hub@team1.network>', ...mail })
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM || 'team1 hub <hub@team1.network>',
+    ...mail,
+    attachments: mail.html ? [logoAttachment()] : undefined,
+  })
 }

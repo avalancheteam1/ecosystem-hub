@@ -1,4 +1,9 @@
 import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
+import { EventCard } from './events/_components/event-card'
+import { listPublicEvents } from './events/_lib/queries'
+import { SectionHeading } from '@/components/section-heading'
+import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session'
 import { Button } from '@/components/ui/button'
 
@@ -24,7 +29,12 @@ const PATH = [
 ]
 
 export default async function HomePage() {
-  const user = await getCurrentUser()
+  const [user, upcoming, stats] = await Promise.all([
+    getCurrentUser(),
+    listPublicEvents('upcoming'),
+    Promise.all([prisma.event.count({ where: { status: 'published' } }), prisma.user.count(), prisma.project.count({ where: { archivedAt: null } }), prisma.hackathon.count({ where: { status: 'published' } })]),
+  ])
+  const [events, builders, projects, hackathons] = stats
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -35,7 +45,7 @@ export default async function HomePage() {
         <div className="container-page relative grid gap-16 py-20 sm:py-28 lg:grid-cols-12 lg:items-center lg:gap-10 lg:py-36">
           <div className="lg:col-span-7">
             <h1 className="animate-fade-in-up max-w-[13ch] text-[clamp(2.75rem,7vw,5.25rem)] leading-[1.02] tracking-[-0.02em]">
-              Where Avalanche builders learn, hack and ship.
+              Where Avalanche builders learn, hack and ship<span className="text-brand">.</span>
             </h1>
             <p className="animate-fade-in-up mt-8 max-w-[46ch] text-lg text-fg-body [animation-delay:120ms] sm:text-xl">
               Hackathons, workshops, bounties and courses from team1 — and one builder profile for everything you make.
@@ -73,6 +83,34 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <section aria-label="The hub in numbers" className="border-y border-line">
+        <dl className="container-page grid grid-cols-2 lg:grid-cols-4 [&>div]:border-line [&>div:nth-child(n+3)]:border-t lg:[&>div:nth-child(n+3)]:border-t-0 [&>div+div]:border-l [&>div:nth-child(3)]:border-l-0 lg:[&>div:nth-child(3)]:border-l">
+          {[
+            [builders, 'builders signed up'],
+            [projects, 'projects in the making'],
+            [events, 'events'],
+            [hackathons, 'hackathons'],
+          ].map(([n, label]) => (
+            <div key={label as string} className="flex flex-col-reverse px-4 py-8 first:pl-0 sm:px-8">
+              <dt className="meta mt-2">{label}</dt>
+              <dd className="font-heading text-5xl font-medium tracking-[-0.03em] text-fg-heading tabular-nums">{n}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {upcoming.length > 0 && (
+        <section className="container-page py-20 sm:py-28">
+          <SectionHeading title={<>Coming up<span className="text-brand">.</span></>}>Hackathons, workshops and meetups run by team1 chapters around the world.</SectionHeading>
+          <ul className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+            {upcoming.slice(0, 3).map((e) => <li key={e.id}><EventCard event={e} hackathon={e.hackathon?.status === 'published'} /></li>)}
+          </ul>
+          <Link href="/events" className="group cta-row mt-12">
+            See all events <ArrowUpRight className="arrow-nudge size-8 shrink-0" aria-hidden />
+          </Link>
+        </section>
+      )}
     </>
   )
 }

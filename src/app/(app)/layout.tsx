@@ -7,7 +7,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
-      <main className="container-page flex-1 py-10">{children}</main>
+      <main className="flex-1"><div className="container-page py-10">{children}</div></main>
       <SiteFooter />
     </div>
   )

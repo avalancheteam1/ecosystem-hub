@@ -1,24 +1,50 @@
 // Better Auth core models. Field names are Better Auth's — don't rename them.
 
 model User {
-  id            String   @id
-  name          String
-  email         String   @unique
-  emailVerified Boolean  @default(false)
-  image         String?
+  id              String   @id
+  name            String
+  email           String   @unique
+  emailVerified   Boolean  @default(false)
+  image           String?
+  // Builder profile (fields from builders-hub; see src/lib/profile.ts)
+  username        String?  @unique
+  bio             String?
+  /// ISO-2
+  country         String?
+  /// university | founder | developer | employee | enthusiast
+  builderRoles    String[]
+  institution     String?
+  companyName     String?
+  employeeRole    String?
+  githubAccount   String?
+  xAccount        String?
+  linkedinAccount String?
+  telegramAccount String?
+  otherSocials    String[]
+  wallets         String[]
+  skills          String[]
+  newsletterOptIn Boolean  @default(false)
   /// Grantable only by other super admins (/admin/access). SUPER_ADMIN_EMAILS also counts.
-  isSuperAdmin  Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isSuperAdmin    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  sessions         Session[]
-  accounts         Account[]
-  roles            UserRole[]       @relation("UserRoles")
-  permissions      UserPermission[] @relation("UserPermissions")
-  auditLogs        AuditLog[]
-  rolesGranted     UserRole[]       @relation("UserRolesGranted")
-  permissionsGranted UserPermission[] @relation("UserPermissionsGranted")
-  apiKeysCreated   ApiKey[]
+  sessions           Session[]
+  accounts           Account[]
+  roles              UserRole[]           @relation("UserRoles")
+  permissions        UserPermission[]     @relation("UserPermissions")
+  auditLogs          AuditLog[]
+  rolesGranted       UserRole[]           @relation("UserRolesGranted")
+  permissionsGranted UserPermission[]     @relation("UserPermissionsGranted")
+  apiKeysCreated     ApiKey[]
+  eventsCreated      Event[]
+  projectsOwned      Project[]            @relation("ProjectsOwned")
+  projectVersions    ProjectVersion[]
+  projectMembers     ProjectMember[]
+  projectInvites     ProjectInvite[]      @relation("ProjectInvitesSent")
+  organizerOf        HackathonOrganizer[] @relation("OrganizerOf")
+  judgeOf            HackathonJudge[]     @relation("JudgeOf")
+  participations     Participant[]
 
   @@map("users")
 }

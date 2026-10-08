@@ -1,0 +1,9 @@
+name: PR checks
+
+on:
+  pull_request:
+
+jobs:
+  team1:
+    # Shared team1 checks: lint (zero warnings), tsc, prisma validate/generate, pnpm audit.
+    uses: avalancheteam1/common/.github/workflows/team1-pr-review.yml@main

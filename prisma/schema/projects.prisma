@@ -1,0 +1,98 @@
+// Builder projects. A project evolves through immutable versions (like document
+// history); hackathon submissions pin a specific version.
+
+model Project {
+  id               String          @id @default(cuid())
+  slug             String          @unique
+  ownerId          String
+  owner            User            @relation("ProjectsOwned", fields: [ownerId], references: [id], onDelete: Restrict)
+  currentVersionId String?         @unique
+  currentVersion   ProjectVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  archivedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  versions    ProjectVersion[] @relation("ProjectVersions")
+  members     ProjectMember[]
+  invites     ProjectInvite[]
+  submissions Submission[]
+
+  @@map("projects")
+}
+
+/// One mutable DRAFT per project (sealedAt null) + SEALED versions (sealedAt set) —
+/// sealed rows are IMMUTABLE: never update or delete them (submissions point at them).
+model ProjectVersion {
+  id                String    @id @default(cuid())
+  projectId         String
+  project           Project   @relation("ProjectVersions", fields: [projectId], references: [id], onDelete: Cascade)
+  number            Int
+  name              String
+  shortDescription  String
+  /// Markdown
+  fullDescription   String
+  /// "How it's made" — stack, APIs, hacky parts
+  techDescription   String    @default("")
+  techStack         String[]
+  categories        String[]
+  otherCategory     String?
+  githubRepos       String[]
+  demoLinks         String[]
+  videoUrl          String?
+  logoUrl           String?
+  coverUrl          String?
+  screenshots       String[]
+  /// [{ address, tag }]
+  deployedAddresses Json      @default("[]")
+  /// [{ tag, url }]
+  websites          Json      @default("[]")
+  /// [{ tag, url }]
+  socials           Json      @default("[]")
+  /// What changed, e.g. "added mainnet deploy"
+  note              String?
+  createdById       String?
+  createdBy         User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime  @default(now())
+  /// Set when submitted somewhere; from then on the row never changes.
+  sealedAt          DateTime?
+  updatedAt         DateTime  @default(now()) @updatedAt
+
+  currentOf    Project?     @relation("CurrentVersion")
+  stageEntries StageEntry[]
+
+  @@unique([projectId, number])
+  @@map("project_versions")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// owner | member
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model ProjectInvite {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// lowercased
+  email       String
+  tokenHash   String    @unique
+  invitedById String?
+  invitedBy   User?     @relation("ProjectInvitesSent", fields: [invitedById], references: [id], onDelete: SetNull)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([projectId])
+  @@map("project_invites")
+}

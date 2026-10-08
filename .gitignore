@@ -2,6 +2,7 @@
 .claude/
 .playwright-mcp/
 .superpowers/
+docs/superpowers/
 
 # dependencies
 node_modules
@@ -29,3 +30,4 @@ next-env.d.ts
 *.log
 .pnpm-debug.log*
 .DS_Store
+public/uploads/

@@ -4,3 +4,8 @@ import { twMerge } from 'tailwind-merge'
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+/** "Ada Lovelace" → "AL" (avatar fallback). */
+export function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '?'
+}

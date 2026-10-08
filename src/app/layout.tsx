@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from 'next'
-import { Kanit } from 'next/font/google'
+import { JetBrains_Mono, Kanit } from 'next/font/google'
 import { headers } from 'next/headers'
 import Script from 'next/script'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
-const kanit = Kanit({ subsets: ['latin'], weight: ['300', '400', '500', '600'], variable: '--font-kanit' })
+const kanit = Kanit({ subsets: ['latin', 'latin-ext'], weight: ['300', '400', '500', '600'], variable: '--font-kanit' })
+// Metadata layer only (dates, counts, numbering) — Kanit stays the brand face.
+const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains' })
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
@@ -26,7 +28,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? undefined
   return (
-    <html lang="en" className={kanit.variable} suppressHydrationWarning>
+    <html lang="en" className={`${kanit.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
         <ThemeProvider nonce={nonce}>
           {children}

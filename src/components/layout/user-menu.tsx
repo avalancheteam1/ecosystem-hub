@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, LogOut, Shield } from 'lucide-react'
+import { ClipboardCheck, FolderGit2, LayoutDashboard, LogOut, Shield, Trophy, UserRound } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
+import { initials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -14,11 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export type UserMenuUser = { name: string; email: string; image: string | null; showAdmin: boolean }
-
-export function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '?'
-}
+export type UserMenuUser = { name: string; email: string; image: string | null; showAdmin: boolean; showJudging: boolean; showManage: boolean }
 
 export function UserMenu({ user }: { user: UserMenuUser }) {
   const router = useRouter()
@@ -39,6 +36,22 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
         <DropdownMenuItem asChild>
           <Link href="/dashboard"><LayoutDashboard aria-hidden /> Dashboard</Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/profile"><UserRound aria-hidden /> Your profile</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/projects"><FolderGit2 aria-hidden /> Your projects</Link>
+        </DropdownMenuItem>
+        {user.showJudging && (
+          <DropdownMenuItem asChild>
+            <Link href="/judge"><ClipboardCheck aria-hidden /> Judging</Link>
+          </DropdownMenuItem>
+        )}
+        {user.showManage && (
+          <DropdownMenuItem asChild>
+            <Link href="/manage"><Trophy aria-hidden /> Hackathons you run</Link>
+          </DropdownMenuItem>
+        )}
         {user.showAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/admin"><Shield aria-hidden /> Admin</Link>

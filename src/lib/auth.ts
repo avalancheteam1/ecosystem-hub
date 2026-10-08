@@ -4,7 +4,9 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { nextCookies } from 'better-auth/next-js'
 import { emailOTP } from 'better-auth/plugins'
 import { prisma } from '@/lib/db'
+import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
+import { bindInvitesForUser } from '@/app/(site)/events/_lib/hackathons/bind'
 
 // Sign-in methods: Google, GitHub, email OTP. Each social provider is enabled
 // only when its credentials are set. Member-portal SSO will be added later via
@@ -27,7 +29,7 @@ export const enabledSocialProviders = Object.keys(socialProviders) as ('google' 
 export const auth = betterAuth({
   appName: 'team1 Ecosystem Hub',
   // Profile edits go through our validated + audited server action
-  // (dashboard/_lib/actions.ts), not Better Auth's generic endpoint.
+  // (profile/_lib/actions.ts), not Better Auth's generic endpoint.
   disabledPaths: ['/update-user'],
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   socialProviders,
@@ -50,6 +52,15 @@ export const auth = betterAuth({
         before: async (user) => ({ data: { ...user, name: user.name?.trim() || user.email.split('@')[0]! } }),
       },
     },
+    session: {
+      create: {
+        // Hackathon organiser/judge invites are by email; bind them on every
+        // sign-in (invites for already-verified users bind at invite time).
+        after: async (session) => {
+          await bindInvitesForUser(session.userId).catch((err) => console.error('[auth] invite binding failed', err))
+        },
+      },
+    },
   },
   session: {
     // No cookie cache: every request checks the DB session, so revoking a
@@ -70,6 +81,14 @@ export const auth = betterAuth({
           to: email,
           subject: `${otp} is your team1 hub sign-in code`,
           text: `Your team1 hub sign-in code is ${otp}.\n\nIt expires in 5 minutes. If you didn't request it, ignore this email.`,
+          html: brandedShell({
+            preheader: `Your team1 hub sign-in code is ${otp}`,
+            body: `<tr><td class="m-px" style="${CELL}">
+              <p style="${PARA}">Your team1 hub sign-in code:</p>
+              <p style="margin:24px 0;text-align:center;font-size:32px;font-weight:600;letter-spacing:0.3em;color:#18181b;font-family:monospace">${esc(otp)}</p>
+              <p style="${PARA}">It expires in 5 minutes. If you didn&rsquo;t request it, you can safely ignore this email.</p>
+            </td></tr>`,
+          }),
         })
       },
     }),

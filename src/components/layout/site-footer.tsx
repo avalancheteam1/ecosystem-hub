@@ -1,15 +1,46 @@
+import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
 import { Logo } from './logo'
+
+const COLUMNS = [
+  { title: 'Hub', links: [{ href: '/events', label: 'Events' }, { href: '/projects', label: 'Your projects' }, { href: '/dashboard', label: 'Dashboard' }] },
+  { title: 'team1', links: [{ href: 'https://team1.network', label: 'team1.network' }, { href: 'https://cascade.team1.network', label: 'Cascade' }] },
+  { title: 'Legal', links: [{ href: 'https://go.team1.network/privacy-policy', label: 'Privacy policy' }] },
+]
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-line">
-      <div className="container-page flex flex-col gap-6 py-10 sm:flex-row sm:items-center sm:justify-between">
-        <Logo />
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-fg-muted">
-          <a href="https://team1.network" className="hover:text-fg-heading">team1.network</a>
-          <a href="https://go.team1.network/privacy-policy" className="hover:text-fg-heading">Privacy policy</a>
+    <footer className="border-t border-line bg-surface-1">
+      <div className="container-page grid gap-12 py-14 lg:grid-cols-[1.2fr_1fr] lg:py-20">
+        <p className="font-heading text-[clamp(3.5rem,8vw,7.5rem)] font-medium leading-[0.88] tracking-[-0.05em] text-fg-heading">
+          Keep<br /><span className="text-brand">building.</span>
+        </p>
+        <nav aria-label="Footer" className="grid grid-cols-2 gap-8 self-end sm:grid-cols-3">
+          {COLUMNS.map((c) => (
+            <div key={c.title}>
+              <p className="meta mb-4">{c.title}</p>
+              <ul className="space-y-2">
+                {c.links.map((l) => {
+                  const external = l.href.startsWith('http')
+                  return (
+                    <li key={l.href}>
+                      <Link href={l.href} {...(external ? { target: '_blank', rel: 'noreferrer' } : {})} className="group inline-flex min-h-8 items-center gap-1 text-fg-body transition-colors hover:text-fg-heading">
+                        {l.label}
+                        {external && <ArrowUpRight className="arrow-nudge size-3.5 text-fg-faint" aria-hidden />}
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
-        <p className="text-sm text-fg-faint">© {new Date().getFullYear()} team1</p>
+      </div>
+      <div className="border-t border-line">
+        <div className="container-page flex flex-wrap items-center justify-between gap-4 py-6">
+          <Logo />
+          <p className="meta">© {new Date().getFullYear()} team1 — hub.team1.network</p>
+        </div>
       </div>
     </footer>
   )

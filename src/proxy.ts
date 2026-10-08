@@ -7,7 +7,7 @@ import { getSessionCookie } from 'better-auth/cookies'
 //     only). It is NOT authorization — guards in src/lib/guards.ts and
 //     action() are authoritative.
 
-const PROTECTED = ['/dashboard', '/admin']
+const PROTECTED = ['/dashboard', '/admin', '/manage', '/projects', '/judge', '/profile']
 
 function buildCsp(nonce: string): string {
   const devEval = process.env.NODE_ENV !== 'production' ? " 'unsafe-eval'" : ''

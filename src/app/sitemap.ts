@@ -1,8 +1,17 @@
 import type { MetadataRoute } from 'next'
+import { prisma } from '@/lib/db'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 
 // Areas add their public pages here (e.g. every published hackathon).
-export default function sitemap(): MetadataRoute.Sitemap {
-  return [{ url: siteUrl, changeFrequency: 'weekly', priority: 1 }]
+// Dynamic: it reads the DB, which doesn't exist at Docker build time.
+export const dynamic = 'force-dynamic'
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const events = await prisma.event.findMany({ where: { status: 'published' }, select: { slug: true, updatedAt: true } })
+  return [
+    { url: siteUrl, changeFrequency: 'weekly', priority: 1 },
+    { url: `${siteUrl}/events`, changeFrequency: 'daily', priority: 0.8 },
+    ...events.map((e) => ({ url: `${siteUrl}/events/${e.slug}`, lastModified: e.updatedAt })),
+  ]
 }
