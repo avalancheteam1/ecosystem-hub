@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { formatEventRange } from '@/lib/dates'
 import { requireUser } from '@/lib/guards'
 import { FieldList } from '../_components/field-editor'
-import { CriterionDialog, DeleteCriterion, DeleteStage, StageDialog } from '../_components/stage-editors'
+import { CriterionDialog, DeleteCriterion, DeleteStage, DuplicateStage, StageDialog } from '../_components/stage-editors'
 
 export const metadata = { title: 'Stages' }
 
@@ -21,7 +21,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-fg-muted">Stages run one after another. Only teams you advance can submit to the next stage.</p>
+        <p className="max-w-2xl text-fg-muted">Stages run in order and may overlap. Only teams you advance can submit to the next stage.</p>
         <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
       </div>
       {h.stages.map((s, i) => {
@@ -35,6 +35,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
               <>
                 <StageStateBadge state={stageState(s, now)} />
                 <StageDialog hackathonId={h.id} timeZone={h.timezone} stage={s} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
+                <DuplicateStage hackathonId={h.id} stageId={s.id} />
                 {s._count.entries === 0 && <DeleteStage hackathonId={h.id} stage={s} />}
               </>
             }
@@ -49,7 +50,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
                     {s.criteria.map((c) => (
                       <li key={c.id} className="flex items-center gap-3 py-3">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-fg-heading">{c.name}</p>
+                          <p className="text-fg-heading sm:truncate">{c.name}</p>
                           {c.description && <p className="truncate text-xs text-fg-muted">{c.description}</p>}
                         </div>
                         <span className="text-sm text-fg-muted tabular-nums">{Math.round((c.weight / totalWeight) * 100)}%</span>

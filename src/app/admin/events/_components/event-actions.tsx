@@ -1,13 +1,16 @@
 'use client'
 
 import { useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { refreshEvent, setEventStatus } from '@/app/(site)/events/_lib/actions'
+import { deleteEvent, refreshEvent, setEventStatus } from '@/app/(site)/events/_lib/actions'
+import { ConfirmButton } from '@/components/confirm-button'
 import { Button } from '@/components/ui/button'
 
-export function EventActions({ id, status, canPublish }: { id: string; status: string; canPublish: boolean }) {
+export function EventActions({ id, status, canPublish, canDelete, isPortal }: { id: string; status: string; canPublish: boolean; canDelete: boolean; isPortal: boolean }) {
   const [pending, start] = useTransition()
+  const router = useRouter()
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, msg: string) =>
     start(async () => {
       const res = await fn()
@@ -27,6 +30,21 @@ export function EventActions({ id, status, canPublish }: { id: string; status: s
       </Button>
       {status !== 'archived' && (
         <Button variant="ghost" disabled={pending} onClick={() => run(() => setEventStatus({ id, status: 'archived' }), 'Event archived')}>Archive</Button>
+      )}
+      {canDelete && (
+        <ConfirmButton
+          size="default"
+          disabled={pending}
+          message={isPortal ? 'Delete this event? Public member-portal events are re-imported (published) within the hour — archive it instead to hide it for good.' : 'Delete this event? This can’t be undone.'}
+          onConfirm={() => start(async () => {
+            const res = await deleteEvent({ id })
+            if (!res.ok) return void toast.error(res.error)
+            toast.success('Event deleted')
+            router.push('/admin/events')
+          })}
+        >
+          Delete
+        </ConfirmButton>
       )}
     </div>
   )

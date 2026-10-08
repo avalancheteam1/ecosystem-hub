@@ -13,7 +13,7 @@ type SubmitCtx = {
   team: string[]
   activeParticipants: ReadonlySet<string>
   teamSizeMin: number
-  teamSizeMax: number
+  teamSizeMax: number | null
   submitterId: string
   now: Date
 }
@@ -27,7 +27,7 @@ export function canSubmitToStage(c: SubmitCtx): Check {
   if (c.submissionStatus === 'disqualified') return { ok: false, reason: 'This submission was disqualified' }
   if (!c.isFirstStage && !c.advancedFromPrevious) return { ok: false, reason: 'Only teams advanced from the previous stage can submit here' }
   if (c.team.length < c.teamSizeMin) return { ok: false, reason: `Teams need at least ${c.teamSizeMin} members — invite teammates on the project` }
-  if (c.team.length > c.teamSizeMax) return { ok: false, reason: `Teams can have at most ${c.teamSizeMax} members` }
+  if (c.teamSizeMax != null && c.team.length > c.teamSizeMax) return { ok: false, reason: `Teams can have at most ${c.teamSizeMax} members` }
   const missing = c.team.filter((u) => !c.activeParticipants.has(u))
   if (missing.length) return { ok: false, reason: `Every team member must have joined the hackathon (${missing.length} haven’t yet)` }
   return { ok: true }

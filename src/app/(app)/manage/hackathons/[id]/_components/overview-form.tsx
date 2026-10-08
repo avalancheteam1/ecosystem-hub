@@ -17,7 +17,7 @@ type Initial = {
   timezone: string
   tagline: string; aboutMd: string; rulesMd: string | null; termsUrl: string | null
   registrationOpensAt: Date | null; registrationClosesAt: Date | null
-  teamSizeMin: number; teamSizeMax: number; maxParticipants: number | null
+  teamSizeMin: number; teamSizeMax: number | null; maxParticipants: number | null
   allowMultipleSubmissions: boolean
 }
 
@@ -26,7 +26,7 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
     tagline: initial.tagline, aboutMd: initial.aboutMd, rulesMd: initial.rulesMd ?? '', termsUrl: initial.termsUrl ?? '',
     // Wall-clock times in the hackathon's zone (deterministic on server and client).
     registrationOpensAt: utcToZoned(initial.registrationOpensAt, initial.timezone), registrationClosesAt: utcToZoned(initial.registrationClosesAt, initial.timezone),
-    teamSizeMin: String(initial.teamSizeMin), teamSizeMax: String(initial.teamSizeMax), maxParticipants: initial.maxParticipants ? String(initial.maxParticipants) : '',
+    teamSizeMin: String(initial.teamSizeMin), teamSizeMax: initial.teamSizeMax ? String(initial.teamSizeMax) : '', maxParticipants: initial.maxParticipants ? String(initial.maxParticipants) : '',
   })
   const [multi, setMulti] = useState(initial.allowMultipleSubmissions)
   const [tz, setTz] = useState(initial.timezone)
@@ -58,7 +58,7 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
         </div>
         <div className="space-y-2">
           <Label htmlFor="max">Largest team</Label>
-          <Input id="max" type="number" min={1} max={50} value={v.teamSizeMax} onChange={set('teamSizeMax')} className="h-11" />
+          <Input id="max" type="number" min={1} max={50} value={v.teamSizeMax} onChange={set('teamSizeMax')} placeholder="No limit" className="h-11" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="cap">Participant limit</Label>

@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { buildAnswersSchema, canJoin, canManageHackathon, publishChecklist, registrationStatus, stageState, validateStages, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
+import { advancedStageIds, buildAnswersSchema, canJoin, canManageHackathon, pickOpenStage, publishChecklist, registrationStatus, stageState, validateStages, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
 
 const d = (s: string) => new Date(s)
 const stage = (o: Partial<{ opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; name: string; order: number }> = {}) => ({
@@ -15,10 +15,20 @@ test('stageState walks upcoming → open → judging → closed', () => {
   assert.equal(stageState({ ...s, judgingClosedAt: d('2026-11-12T00:00Z') }, d('2026-11-11T00:00Z')), 'closed')
 })
 
-test('validateStages: windows must be valid, ordered and non-overlapping', () => {
+test('pickOpenStage: latest open stage I qualify for, else the first open one', () => {
+  const s1 = { ...stage(), id: 's1' }
+  const s2 = { ...stage({ name: 'Finals', order: 1, opensAt: d('2026-11-05T00:00Z'), closesAt: d('2026-11-20T00:00Z') }), id: 's2' }
+  const at = d('2026-11-06T00:00Z') // both open
+  assert.equal(pickOpenStage([s1, s2], at, new Set()), 0)
+  assert.equal(pickOpenStage([s1, s2], at, advancedStageIds([{ entries: [{ stageId: 's1', advancedAt: at }] }])), 1)
+  assert.equal(pickOpenStage([s1, s2], d('2026-11-15T00:00Z'), new Set()), 1) // only s2 open — not qualified, still shown
+  assert.equal(pickOpenStage([s1, s2], d('2026-12-01T00:00Z'), new Set()), -1)
+})
+
+test('validateStages: windows must be valid; overlapping a previous stage is fine', () => {
   assert.deepEqual(validateStages([stage(), stage({ name: 'Finals', order: 1, opensAt: d('2026-11-15T00:00Z'), closesAt: d('2026-11-20T00:00Z') })]), [])
   assert.match(validateStages([stage({ closesAt: d('2026-10-01T00:00Z') })])[0]!, /closes before it opens/)
-  assert.match(validateStages([stage(), stage({ name: 'Finals', order: 1, opensAt: d('2026-11-05T00:00Z'), closesAt: d('2026-11-20T00:00Z') })])[0]!, /overlaps/)
+  assert.deepEqual(validateStages([stage(), stage({ name: 'Finals', order: 1, opensAt: d('2026-11-05T00:00Z'), closesAt: d('2026-11-20T00:00Z') })]), [])
 })
 
 const fields: FieldDef[] = [
@@ -88,5 +98,6 @@ test('publishChecklist lists what blocks publishing', () => {
   assert.deepEqual(publishChecklist(ok), [])
   const bad = publishChecklist({ ...ok, tagline: '', teamSizeMin: 5, teamSizeMax: 2, eventPublished: false, stages: [{ ...ok.stages[0]!, criteria: [], reviewMode: 'random', judgesPerSubmission: null }] })
   assert.equal(bad.length, 5)
+  assert.deepEqual(publishChecklist({ ...ok, teamSizeMin: 5, teamSizeMax: null }), [])
   assert.deepEqual(publishChecklist({ ...ok, stages: [] }), ['Add at least one stage'])
 })

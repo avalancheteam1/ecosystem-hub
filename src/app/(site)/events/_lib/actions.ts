@@ -63,3 +63,15 @@ export const refreshEvent = action({ schema: z.object({ id: z.string().min(1) })
   if (!res.ok) throw new ActionError(res.error ?? 'Refresh failed')
   return null
 })
+
+export const deleteEvent = action({ schema: z.object({ id: z.string().min(1) }), permission: 'superAdmin' }, async ({ id }, user) => {
+  const before = await prisma.event.findUnique({ where: { id }, select: { lumaEventId: true, name: true, source: true, status: true, hackathon: { select: { id: true } } } })
+  if (!before) throw new ActionError('Event not found')
+  if (before.hackathon) throw new ActionError('This event is a hackathon — it can’t be deleted')
+  await prisma.event.delete({ where: { id } })
+  const { hackathon: _, ...snapshot } = before
+  await recordAudit({ actorId: user.id, action: 'event.delete', entityType: 'Event', entityId: id, before: snapshot })
+  revalidatePath('/admin/events', 'layout')
+  revalidatePath('/events', 'layout')
+  return null
+})

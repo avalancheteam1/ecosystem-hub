@@ -12,7 +12,8 @@ model Hackathon {
   registrationOpensAt  DateTime?
   registrationClosesAt DateTime?
   teamSizeMin          Int       @default(1)
-  teamSizeMax          Int       @default(5)
+  /// null = no upper limit
+  teamSizeMax          Int?
   maxParticipants      Int?
   /// false = each person may be on only one active submission in this hackathon
   allowMultipleSubmissions Boolean @default(true)

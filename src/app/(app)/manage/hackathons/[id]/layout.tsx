@@ -26,7 +26,7 @@ export default async function ManageLayout({ children, params }: { children: Rea
             <Badge className={`rounded-full border-0 ${h.status === 'published' ? 'bg-success/15 text-success' : 'bg-surface-hover text-fg-muted'}`}>{h.status === 'published' ? 'Live' : 'Draft'}</Badge>
             <span className="text-sm text-fg-muted">{h._count.participants} joined — {h._count.submissions} submissions</span>
           </div>
-          <h1 className="mt-1 truncate text-2xl sm:text-3xl">{h.event.name}</h1>
+          <h1 className="mt-1 text-2xl text-balance sm:text-3xl">{h.event.name}</h1>
           <p className="text-sm text-fg-muted">{formatEventRange(h.event.startAt, h.event.endAt, h.event.timezone)}</p>
         </div>
         <div className="flex items-center gap-3">

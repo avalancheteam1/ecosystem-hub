@@ -12,7 +12,7 @@ const ok = {
   team: ['u1', 'u2'],
   activeParticipants: new Set(['u1', 'u2', 'u3']),
   teamSizeMin: 1,
-  teamSizeMax: 3,
+  teamSizeMax: 3 as number | null,
   submitterId: 'u1',
   now,
 }
@@ -46,6 +46,7 @@ test('withdrawn or disqualified submissions are out', () => {
 
 test('team size limits and every member must have joined', () => {
   assert.match(reason({ team: ['u1', 'u2', 'u3', 'u4'], activeParticipants: new Set(['u1', 'u2', 'u3', 'u4']) }), /at most 3/)
+  assert.equal(reason({ teamSizeMax: null, team: ['u1', 'u2', 'u3', 'u4'], activeParticipants: new Set(['u1', 'u2', 'u3', 'u4']) }), 'ok')
   assert.match(reason({ teamSizeMin: 3 }), /at least 3/)
   assert.match(reason({ team: ['u1', 'u9'] }), /joined the hackathon/)
 })

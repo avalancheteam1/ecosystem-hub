@@ -113,7 +113,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       )}
       {fresh && leadGroups.length > 0 && <ReferralsCard onboardings={onboardings} leadGroups={leadGroups} />}
 
-      <p className="flex items-center gap-3 text-sm text-fg-faint"><BookOpen className="size-4" aria-hidden /> Courses and bounties show up here once they launch. Meanwhile: docs, the Academy and dev tools are on the <a href={BUILDER_HUB_URL} target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2 hover:text-fg-heading">Avalanche Builder Hub</a>.</p>
+      <p className="flex gap-3 text-sm text-fg-faint"><BookOpen className="mt-0.5 size-4 shrink-0" aria-hidden /><span>Courses and bounties show up here once they launch. Meanwhile: docs, the Academy and dev tools are on the <a href={BUILDER_HUB_URL} target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2 hover:text-fg-heading">Avalanche Builder Hub</a>.</span></p>
     </div>
   )
 }

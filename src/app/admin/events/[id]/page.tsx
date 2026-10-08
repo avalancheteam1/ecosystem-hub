@@ -44,7 +44,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex flex-wrap gap-2">
             {can(user, 'hackathons.manage') && <HackathonButton eventId={event.id} hackathonId={event.hackathon?.id ?? null} eventStart={event.startAt} eventEnd={event.endAt} eventTimezone={event.timezone} />}
-            <EventActions id={event.id} status={event.status} canPublish={!blocksPublish(event)} />
+            <EventActions id={event.id} status={event.status} canPublish={!blocksPublish(event)} canDelete={user.isSuperAdmin && !event.hackathon} isPortal={event.source === 'portal'} />
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">

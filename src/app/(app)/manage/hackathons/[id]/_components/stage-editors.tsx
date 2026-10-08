@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { deleteCriterion, deleteStage, saveCriterion, saveStage } from '@/app/(site)/events/_lib/hackathons/setup-actions'
+import { deleteCriterion, deleteStage, duplicateStage, saveCriterion, saveStage } from '@/app/(site)/events/_lib/hackathons/setup-actions'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
 import { MarkdownField } from '@/components/markdown-field'
 import { SegmentedControl } from '@/components/segmented-control'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -60,6 +61,12 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }:
       <p className="text-xs text-fg-faint">Times are in {timeZone} (the hackathon’s timezone — change it in Overview).</p>
     </FormDialog>
   )
+}
+
+/** Copies settings, window, criteria and questions into a new last stage. */
+export function DuplicateStage({ hackathonId, stageId }: { hackathonId: string; stageId: string }) {
+  const { pending, run } = useActionToast()
+  return <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => duplicateStage({ hackathonId, stageId }), 'Stage duplicated — check its dates')}>Duplicate</Button>
 }
 
 export function DeleteStage({ hackathonId, stage }: { hackathonId: string; stage: Stage }) {

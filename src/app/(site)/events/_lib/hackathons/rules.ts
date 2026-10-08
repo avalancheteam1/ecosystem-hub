@@ -14,16 +14,25 @@ export function stageState(s: StageWindow, now: Date): StageState {
   return 'judging'
 }
 
+/**
+ * Stage windows may overlap, so several can be open at once. Index of the open stage this
+ * builder submits to: the latest one they qualify for (first stage, or advanced from the
+ * previous one), else the first open stage; -1 when none is open.
+ */
+export function pickOpenStage(stages: (StageWindow & { id: string })[], now: Date, advancedStageIds: ReadonlySet<string>): number {
+  const open = stages.flatMap((s, i) => (stageState(s, now) === 'open' ? [i] : []))
+  return open.findLast((i) => i === 0 || advancedStageIds.has(stages[i - 1]!.id)) ?? open[0] ?? -1
+}
+
+/** Stages from which one of my submissions was advanced. */
+export function advancedStageIds(mine: { entries: { stageId: string; advancedAt: Date | null }[] }[]): Set<string> {
+  return new Set(mine.flatMap((m) => m.entries.filter((e) => e.advancedAt).map((e) => e.stageId)))
+}
+
 /** Problems with a stage list, in order (empty = valid). */
 export function validateStages(stages: (StageWindow & { name: string; order: number })[]): string[] {
-  const errors: string[] = []
-  const sorted = [...stages].sort((a, b) => a.order - b.order)
-  sorted.forEach((s, i) => {
-    if (s.closesAt <= s.opensAt) errors.push(`${s.name}: closes before it opens`)
-    const prev = sorted[i - 1]
-    if (prev && s.opensAt < prev.closesAt) errors.push(`${s.name}: overlaps ${prev.name} — a stage must open after the previous one closes`)
-  })
-  return errors
+  // Windows may overlap a previous stage (pickOpenStage chooses between open stages).
+  return [...stages].sort((a, b) => a.order - b.order).filter((s) => s.closesAt <= s.opensAt).map((s) => `${s.name}: closes before it opens`)
 }
 
 export const FIELD_TYPES = ['short_text', 'long_text', 'url', 'select', 'multi_select', 'checkbox', 'number'] as const
@@ -102,7 +111,7 @@ export function canManageHackathon(user: (AuthzUser & { id: string }) | null, or
 type ChecklistInput = {
   tagline: string
   teamSizeMin: number
-  teamSizeMax: number
+  teamSizeMax: number | null
   eventPublished: boolean
   stages: (StageWindow & { name: string; order: number; criteria: { weight: number }[]; reviewMode: string; judgesPerSubmission: number | null })[]
 }
@@ -111,7 +120,7 @@ type ChecklistInput = {
 export function publishChecklist(h: ChecklistInput): string[] {
   const problems: string[] = []
   if (!h.tagline.trim()) problems.push('Add a tagline')
-  if (h.teamSizeMin < 1 || h.teamSizeMin > h.teamSizeMax) problems.push('Team size: minimum must be between 1 and the maximum')
+  if (h.teamSizeMin < 1 || (h.teamSizeMax != null && h.teamSizeMin > h.teamSizeMax)) problems.push('Team size: minimum must be between 1 and the maximum')
   if (!h.eventPublished) problems.push('Publish the event first')
   if (h.stages.length === 0) return [...problems, 'Add at least one stage']
   problems.push(...validateStages(h.stages))

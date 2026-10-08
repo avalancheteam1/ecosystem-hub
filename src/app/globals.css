@@ -142,6 +142,12 @@
     border-color: var(--color-border);
   }
 
+  /* Grid items default to min-width: auto, so one long URL/title/input widens the column past a phone screen.
+     :where() keeps specificity 0 — any min-w-* utility still wins. */
+  :where(.grid) > * {
+    min-width: 0;
+  }
+
   /* Reserve the scrollbar's space on every page so centred content doesn't jump between long and short pages */
   html {
     scrollbar-gutter: stable;

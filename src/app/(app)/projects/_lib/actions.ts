@@ -145,7 +145,7 @@ export const acceptInvite = action({ schema: z.object({ token: z.string().min(20
     include: { hackathon: { select: { id: true, teamSizeMax: true, allowMultipleSubmissions: true, event: { select: { name: true } } } }, project: { select: { _count: { select: { members: true } } } } },
   })
   for (const s of running) {
-    if (s.project._count.members + 1 > s.hackathon.teamSizeMax) throw new ActionError(`This team is at the ${s.hackathon.event.name} size limit (${s.hackathon.teamSizeMax})`)
+    if (s.hackathon.teamSizeMax != null && s.project._count.members + 1 > s.hackathon.teamSizeMax) throw new ActionError(`This team is at the ${s.hackathon.event.name} size limit (${s.hackathon.teamSizeMax})`)
     if (s.hackathon.allowMultipleSubmissions) continue
     const other = await prisma.submission.findFirst({ where: { hackathonId: s.hackathon.id, status: 'active', projectId: { not: invite.projectId }, project: { members: { some: { userId: user.id } } } } })
     if (other) throw new ActionError(`You're already on another team in ${s.hackathon.event.name}`)

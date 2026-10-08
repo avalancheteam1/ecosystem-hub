@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { Event } from '@prisma/client'
 import { ArrowUpRight, ExternalLink, Trophy } from 'lucide-react'
 import type { getMySubmissions, PublicHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
-import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
+import { advancedStageIds, pickOpenStage, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
 import { SectionHeading } from '@/components/section-heading'
@@ -18,7 +18,7 @@ const Dot = () => <span className="text-brand">.</span>
 
 /** The single next step for this viewer, as a button (or a sentence when there's none). */
 function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Mine, now: Date): { href?: string; label: string } {
-  const open = h.stages.find((s) => stageState(s, now) === 'open')
+  const open = h.stages[pickOpenStage(h.stages, now, advancedStageIds(mine))]
   if (!signedIn) return { href: `/sign-in?next=/events/${event.slug}/join`, label: 'Register for Hackathon' }
   if (h.joined) {
     if (open) {
@@ -54,7 +54,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
   const facts = [
     ...(h.prizePool ? [[h.prizePool, 'prize pool']] : []),
     ...(deadline ? [[formatShortDate(deadline.closesAt, h.timezone), h.stages.length > 1 ? `${deadline.name} closes` : 'submissions close']] : []),
-    [h.teamSizeMin === h.teamSizeMax ? h.teamSizeMin : `${h.teamSizeMin}–${h.teamSizeMax}`, 'people per team'],
+    [teamSize(h), 'people per team'],
     ...(h.tracks.length ? [[h.tracks.length, h.tracks.length === 1 ? 'track' : 'tracks']] : []),
     [h.stages.length, h.stages.length === 1 ? 'round' : 'rounds'],
   ].slice(0, 4)
@@ -82,7 +82,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
         </div>
         <dl className="container-page grid grid-cols-2 border-t border-line lg:grid-cols-4">
           {facts.map(([n, label], i) => (
-            <div key={label as string} className={cn('flex flex-col-reverse py-6', i % 2 === 1 && 'border-l border-line pl-6', i >= 2 && 'border-t border-line lg:border-t-0', i === 2 && 'lg:border-l lg:pl-6', i === 3 && 'lg:pl-6')}>
+            <div key={label as string} className={cn('flex flex-col-reverse justify-end py-6', i % 2 === 1 && 'border-l border-line pl-6', i >= 2 && 'border-t border-line lg:border-t-0', i === 2 && 'lg:border-l lg:pl-6', i === 3 && 'lg:pl-6')}>
               <dt className="meta mt-1">{label}</dt>
               <dd className="font-heading text-4xl font-medium tracking-[-0.03em] text-fg-heading tabular-nums">{n}</dd>
             </div>
@@ -143,7 +143,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
           </div>
           <aside className="self-start border-t border-line lg:sticky lg:top-36">
             <dl className="divide-y divide-line text-sm">
-              <div className="flex justify-between gap-4 py-3"><dt className="meta">Teams</dt><dd className="text-fg-heading">{h.teamSizeMin === h.teamSizeMax ? h.teamSizeMin : `${h.teamSizeMin}–${h.teamSizeMax}`} people</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="meta">Teams</dt><dd className="text-fg-heading">{teamSize(h)} people</dd></div>
               {h.registrationClosesAt && <div className="flex justify-between gap-4 py-3"><dt className="meta">Register until</dt><dd className="text-right text-fg-heading">{formatEventRange(h.registrationClosesAt, null, h.timezone)}</dd></div>}
               {h.maxParticipants && <div className="flex justify-between gap-4 py-3"><dt className="meta">Spots</dt><dd className="text-fg-heading">{Math.max(h.maxParticipants - h._count.participants, 0)} of {h.maxParticipants} left</dd></div>}
               {h.termsUrl && <div className="py-3"><a href={h.termsUrl} target="_blank" rel="noreferrer" className="group inline-flex items-center gap-1.5 text-fg-body hover:text-fg-heading">Terms <ExternalLink className="size-3.5" aria-hidden /></a></div>}
@@ -264,4 +264,9 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
       </div>
     </>
   )
+}
+
+function teamSize(h: { teamSizeMin: number; teamSizeMax: number | null }) {
+  if (h.teamSizeMax == null) return `${h.teamSizeMin}+`
+  return h.teamSizeMin === h.teamSizeMax ? h.teamSizeMin : `${h.teamSizeMin}–${h.teamSizeMax}`
 }

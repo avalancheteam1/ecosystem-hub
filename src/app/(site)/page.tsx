@@ -51,7 +51,7 @@ export default async function HomePage() {
             <p className="animate-fade-in-up mt-8 max-w-[46ch] text-lg text-fg-body [animation-delay:120ms] sm:text-xl">
               Hackathons, workshops, bounties and courses from team1 — and one builder profile for everything you make.
             </p>
-            <div className="animate-fade-in-up mt-10 flex flex-wrap gap-3 [animation-delay:240ms]">
+            <div className="animate-fade-in-up mt-10 flex flex-col gap-3 [animation-delay:240ms] sm:flex-row sm:flex-wrap">
               {user ? (
                 <Button asChild size="lg"><Link href="/dashboard">Open your dashboard</Link></Button>
               ) : (
@@ -93,7 +93,7 @@ export default async function HomePage() {
             [events, 'upcoming events'],
             [hackathons, 'upcoming hackathons'],
           ].map(([n, label]) => (
-            <div key={label as string} className="flex flex-col-reverse px-4 py-8 first:pl-0 sm:px-8">
+            <div key={label as string} className="flex flex-col-reverse items-center justify-end px-4 py-8 text-center lg:items-start lg:px-8 lg:text-left lg:first:pl-0">
               <dt className="meta mt-2">{label}</dt>
               <dd className="font-heading text-5xl font-medium tracking-[-0.03em] text-fg-heading tabular-nums">{n}</dd>
             </div>

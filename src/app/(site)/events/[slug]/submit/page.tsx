@@ -8,7 +8,7 @@ import { formatEventRange } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { requireUser } from '@/lib/guards'
 import { getMySubmissions, getPublicHackathon } from '../../_lib/hackathons/queries'
-import { stageState } from '../../_lib/hackathons/rules'
+import { advancedStageIds, pickOpenStage } from '../../_lib/hackathons/rules'
 import { getPublicEvent } from '../../_lib/queries'
 import { SubmitForm } from './submit-form'
 
@@ -34,15 +34,11 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
   if (!h) notFound()
   if (!h.joined) return <Notice slug={slug} title="Join first">Join the hackathon before you submit.</Notice>
   const now = new Date()
-  const idx = h.stages.findIndex((s) => stageState(s, now) === 'open')
+  const [myProjects, mines] = await Promise.all([listMyProjects(user.id), getMySubmissions(h.id, user.id)])
+  const idx = pickOpenStage(h.stages, now, advancedStageIds(mines))
   const stage = h.stages[idx]
   if (!stage) return <Notice slug={slug} title="No stage is open">Submissions open with the next stage — see the timeline.</Notice>
-
-  const [myProjects, mines, fields] = await Promise.all([
-    listMyProjects(user.id),
-    getMySubmissions(h.id, user.id),
-    prisma.formField.findMany({ where: { stageId: stage.id }, orderBy: { order: 'asc' } }),
-  ])
+  const fields = await prisma.formField.findMany({ where: { stageId: stage.id }, orderBy: { order: 'asc' } })
   // Which of my projects may be picked: later stages only advanced teams; one submission per person unless multiple are allowed.
   const advanced = idx > 0 ? mines.filter((m) => m.entries.find((e) => e.stageId === h.stages[idx - 1]!.id)?.advancedAt) : null
   if (advanced && !advanced.length) {

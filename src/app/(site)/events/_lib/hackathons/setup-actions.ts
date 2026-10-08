@@ -90,11 +90,11 @@ export const updateOverview = action(
         registrationOpensAt: optDate,
         registrationClosesAt: optDate,
         teamSizeMin: z.coerce.number().int().min(1).max(50),
-        teamSizeMax: z.coerce.number().int().min(1).max(50),
+        teamSizeMax: z.union([z.coerce.number().int().min(1).max(50), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
         maxParticipants: z.union([z.coerce.number().int().min(1).max(100_000), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
         allowMultipleSubmissions: z.boolean(),
       })
-      .refine((v) => v.teamSizeMin <= v.teamSizeMax, { message: 'Minimum team size can’t be above the maximum', path: ['teamSizeMin'] })
+      .refine((v) => v.teamSizeMax == null || v.teamSizeMin <= v.teamSizeMax, { message: 'Minimum team size can’t be above the maximum', path: ['teamSizeMin'] })
       .refine((v) => !v.registrationOpensAt || !v.registrationClosesAt || v.registrationOpensAt < v.registrationClosesAt, { message: 'Registration must open before it closes' }),
     permission: 'user',
   },
@@ -222,6 +222,34 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   if (existing) await prisma.hackathonStage.update({ where: { id: existing.id }, data })
   else await prisma.hackathonStage.create({ data: { hackathonId, order: stages.length, ...data } })
   await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission } })
+  revalidate(h)
+  return null
+})
+
+export const duplicateStage = action({ schema: z.object({ hackathonId: id, stageId: id }), permission: 'user' }, async ({ hackathonId, stageId }, user) => {
+  const h = await assertManage(hackathonId, user)
+  const src = await prisma.hackathonStage.findFirst({ where: { id: stageId, hackathonId }, include: { criteria: true, fields: true } })
+  if (!src) throw new ActionError('Stage not found')
+  const last = await prisma.hackathonStage.findFirst({ where: { hackathonId }, orderBy: { order: 'desc' }, select: { order: true } })
+  // The copy goes last with the same window — stages may overlap, edit its dates afterwards.
+  const copy = await prisma.hackathonStage.create({
+    data: {
+      hackathonId,
+      order: last!.order + 1,
+      name: `${src.name} (copy)`.slice(0, 60),
+      descriptionMd: src.descriptionMd,
+      opensAt: src.opensAt,
+      closesAt: src.closesAt,
+      reviewMode: src.reviewMode,
+      judgesPerSubmission: src.judgesPerSubmission,
+      sameTrackOnly: src.sameTrackOnly,
+      scaleMax: src.scaleMax,
+      showCriteria: src.showCriteria,
+      criteria: { create: src.criteria.map(({ name, description, weight, order }) => ({ name, description, weight, order })) },
+      fields: { create: src.fields.map(({ label, help, type, required, options, maxLength, order }) => ({ hackathonId, label, help, type, required, options, maxLength, order })) },
+    },
+  })
+  await recordAudit({ actorId: user.id, action: 'hackathon.stage.duplicate', entityType: 'Hackathon', entityId: hackathonId, after: { stageId: copy.id, fromStageId: src.id, name: copy.name } })
   revalidate(h)
   return null
 })
