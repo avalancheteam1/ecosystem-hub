@@ -6,7 +6,7 @@ import { Logo } from './logo'
 const COLUMNS = [
   { title: 'Ecosystem Hub', links: [{ href: '/events', label: 'Events' }, { href: '/projects', label: 'Your projects' }, { href: '/dashboard', label: 'Dashboard' }] },
   { title: 'Avalanche Builder Hub', links: BUILDER_HUB_LINKS },
-  { title: 'team1', links: [{ href: 'https://team1.network', label: 'team1.network' }, { href: 'https://cascade.team1.network', label: 'Cascade' }] },
+  { title: 'team1', links: [{ href: 'https://team1.network', label: 'team1.network' }, { href: 'https://cascade.team1.network', label: 'Cascade' }, { href: 'https://github.com/avalancheteam1', label: 'GitHub' }, { href: 'https://github.com/avalancheteam1/workshops', label: 'Workshops repo' }] },
 ]
 
 export function SiteFooter() {
