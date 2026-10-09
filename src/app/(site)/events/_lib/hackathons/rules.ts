@@ -29,6 +29,28 @@ export function advancedStageIds(mine: { entries: { stageId: string; advancedAt:
   return new Set(mine.flatMap((m) => m.entries.filter((e) => e.advancedAt).map((e) => e.stageId)))
 }
 
+/** A stage whose judging was closed reopens when its new window ends in the future. */
+export const reopensJudging = (s: StageWindow, next: { closesAt: Date }, now: Date) => !!s.judgingClosedAt && now < next.closesAt
+
+/**
+ * What moving a stage's submission window does to work already done (empty = nothing to warn about).
+ * Organisers may always change it — these are shown before saving, never enforced.
+ */
+export function windowChangeWarnings(s: StageWindow & { entries: number; reviews: number }, next: { opensAt: Date; closesAt: Date }, now: Date): string[] {
+  const before = stageState(s, now)
+  const after = stageState({ ...next, judgingClosedAt: reopensJudging(s, next, now) ? null : s.judgingClosedAt }, now)
+  if (before === after) return []
+  const w: string[] = []
+  if (after === 'open') w.push(s.entries ? 'Teams can submit again and change submissions they already made.' : 'Teams can submit to this stage.')
+  if (before === 'open') w.push('Teams can no longer submit or change their submissions.')
+  if (s.judgingClosedAt && after !== 'closed') w.push('Judging reopens: scores and the ranking are hidden again until you close judging.')
+  if ((before === 'judging' || before === 'closed') && (after === 'open' || after === 'upcoming')) {
+    if (s.reviews) w.push(`Judges can’t score until submissions close again. The ${s.reviews} review(s) already submitted stay — if a team changes its submission, those scores were given to the earlier version.`)
+    if (s.entries) w.push('New submissions have no judges yet — assign judges again after the stage closes.')
+  }
+  return w
+}
+
 /** Problems with a stage list, in order (empty = valid). */
 export function validateStages(stages: (StageWindow & { name: string; order: number })[]): string[] {
   // Windows may overlap a previous stage (pickOpenStage chooses between open stages).

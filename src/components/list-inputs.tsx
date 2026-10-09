@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SocialIcon, type SocialPlatform } from '@/components/social-icon'
+import { NativeSelect } from '@/components/ui/native-select'
+import { detectPlatform, isSocialPlatform, SOCIAL_PLATFORMS, type SocialPlatformKey } from '@/lib/social-platforms'
 import { cn } from '@/lib/utils'
 
 /** A list of single values (links, addresses): type, press Enter / Add; remove per item. `validate` checks as you type and blocks adding. */
@@ -55,6 +58,31 @@ export function TaggedLinksInput({ label, value, onChange, max = 10 }: { label: 
         </div>
       ))}
       {value.length < max && <Button type="button" variant="outline" size="sm" onClick={() => onChange([...value, { tag: '', url: '' }])}><Plus aria-hidden /> Add</Button>}
+    </fieldset>
+  )
+}
+
+/** Social links: paste a URL, the platform is detected from it (tag = platform key, or 'other'). Ported from cascade's SocialLinksForm. */
+export function SocialLinksInput({ label, value, onChange, max = 10 }: { label: string; value: { tag: string; url: string }[]; onChange: (v: { tag: SocialPlatformKey; url: string }[]) => void; max?: number }) {
+  // The type is the user's pick; pasting / typing a recognisable link selects it automatically. Older free-text tags fall back to detection.
+  const rows = value.map((l) => ({ url: l.url, tag: isSocialPlatform(l.tag) ? l.tag : (detectPlatform(l.url) ?? 'other') }))
+  const update = (i: number, row: { tag: SocialPlatformKey; url: string }) => onChange(rows.map((r, j) => (j === i ? row : r)))
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-1 text-sm">{label}</legend>
+      {rows.map((r, i) => (
+        <div key={i} className="flex gap-2">
+          <div className="relative w-36 shrink-0">
+            <SocialIcon platform={r.tag === 'other' ? null : (r.tag as SocialPlatform)} className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-muted" />
+            <NativeSelect aria-label={`${label} ${i + 1} type`} value={r.tag} onChange={(e) => update(i, { ...r, tag: e.target.value as SocialPlatformKey })} className="pl-9">
+              {Object.entries(SOCIAL_PLATFORMS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
+            </NativeSelect>
+          </div>
+          <Input aria-label={`${label} ${i + 1} link`} type="url" placeholder="https://x.com/yourproject" value={r.url} onChange={(e) => update(i, { tag: detectPlatform(e.target.value) ?? r.tag, url: e.target.value })} className="h-11 min-w-0 flex-1" />
+          <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`} className="shrink-0" onClick={() => onChange(rows.filter((_, j) => j !== i))}><X aria-hidden /></Button>
+        </div>
+      ))}
+      {value.length < max && <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, { tag: 'other', url: '' }])}><Plus aria-hidden /> Add</Button>}
     </fieldset>
   )
 }

@@ -22,3 +22,12 @@ test('missing end and bad zones degrade gracefully', () => {
   assert.equal(formatEventRange(new Date('2026-10-08T05:30:00Z'), null, ist), 'Thu, Oct 8, 2026, 11:00 AM GMT+5:30')
   assert.equal(formatEventDate(new Date('2026-10-08T05:30:00Z'), 'Not/AZone'), 'Thu, Oct 8, 2026')
 })
+
+test('formatRelative: largest whole unit, past and future', async () => {
+  const { formatRelative } = await import('@/lib/dates')
+  const now = new Date('2026-10-09T12:00:00Z')
+  assert.equal(formatRelative(new Date('2026-10-06T12:00:00Z'), now), '3 days ago')
+  assert.equal(formatRelative(new Date('2026-10-09T14:30:00Z'), now), 'in 2 hours')
+  assert.equal(formatRelative(new Date('2026-10-08T12:00:00Z'), now), 'yesterday')
+  assert.equal(formatRelative(new Date('2026-10-09T11:59:30Z'), now), 'just now')
+})

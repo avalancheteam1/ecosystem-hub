@@ -12,13 +12,15 @@ export const metadata: Metadata = {
   description: 'Hackathons, workshops and meetups for builders in the team1 community.',
 }
 
-const PAGE_SIZE = 24 // divisible by the 2/3/4-column grid
+const PAGE_SIZE = 12 // divisible by the 2/3/4-column grid
 
-export default async function EventsPage({ searchParams }: { searchParams: Promise<{ when?: string | string[]; page?: string | string[] }> }) {
+export default async function EventsPage({ searchParams }: { searchParams: Promise<{ when?: string | string[]; type?: string | string[]; page?: string | string[] }> }) {
   const sp = await searchParams
   const when = sp.when === 'past' ? 'past' : 'upcoming'
+  const hackathonsOnly = sp.type === 'hackathons'
   const page = pageParam(sp.page)
-  const rows = await listPublicEvents(when, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE)
+  const href = (w: string, h: boolean) => { const q = new URLSearchParams(); if (w === 'past') q.set('when', 'past'); if (h) q.set('type', 'hackathons'); return q.size ? `/events?${q}` : '/events' }
+  const rows = await listPublicEvents(when, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE, hackathonsOnly)
   const events = rows.slice(0, PAGE_SIZE)
   return (
     <div className="container-page py-14 sm:py-20">
@@ -27,7 +29,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         {(['upcoming', 'past'] as const).map((w) => (
           <Link
             key={w}
-            href={w === 'upcoming' ? '/events' : '/events?when=past'}
+            href={href(w, hackathonsOnly)}
             aria-current={when === w ? 'page' : undefined}
             className={cn(
               '-mb-px inline-flex min-h-11 items-center border-b-2 px-4 capitalize transition-colors',
@@ -37,6 +39,21 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
             {w}
           </Link>
         ))}
+        <span className="ml-auto flex items-center gap-1 pb-1.5">
+          {([false, true] as const).map((h) => (
+            <Link
+              key={String(h)}
+              href={href(when, h)}
+              aria-current={hackathonsOnly === h ? 'true' : undefined}
+              className={cn(
+                'inline-flex min-h-11 items-center rounded-lg px-3 text-sm transition-colors',
+                hackathonsOnly === h ? 'bg-surface-2 text-fg-heading' : 'text-fg-muted hover:text-fg-heading',
+              )}
+            >
+              {h ? 'Hackathons' : 'All'}
+            </Link>
+          ))}
+        </span>
       </nav>
       {events.length > 0 ? (
         <ul className="mt-10 grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -46,10 +63,10 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         </ul>
       ) : (
         <p className="mt-12 text-fg-muted">
-          {when === 'upcoming' ? 'No upcoming events right now — check back soon.' : 'No past events yet.'}
+          {hackathonsOnly ? `No ${when} hackathons${when === 'upcoming' ? ' right now — check back soon' : ' yet'}.` : when === 'upcoming' ? 'No upcoming events right now — check back soon.' : 'No past events yet.'}
         </p>
       )}
-      <Pager page={page} hasMore={rows.length > PAGE_SIZE} params={{ when: when === 'past' ? 'past' : undefined }} />
+      <Pager page={page} hasMore={rows.length > PAGE_SIZE} params={{ when: when === 'past' ? 'past' : undefined, type: hackathonsOnly ? 'hackathons' : undefined }} />
     </div>
   )
 }

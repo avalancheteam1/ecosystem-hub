@@ -8,6 +8,7 @@ import { IMAGE_KIND_KEYS, IMAGE_KINDS, type ImageKind } from '@/lib/image-kinds'
 import { validateImageBuffer } from '@/lib/image-upload'
 import { getStorage, storageKey } from '@/lib/storage'
 import { canManageHackathon } from '@/app/(site)/events/_lib/hackathons/rules'
+import { canEditProject } from '@/app/(app)/projects/_lib/rules'
 import type { CurrentUser } from '@/lib/session'
 
 // One upload endpoint for every image kind. The returned URL is then saved by
@@ -24,7 +25,7 @@ async function authorizeOwner(kind: ImageKind, ownerId: string, user: CurrentUse
     case 'project-screenshot': {
       if (ownerId === 'new') return `new-${user.id}` // before the project exists; re-checked on save
       const m = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId: ownerId, userId: user.id } } })
-      if (!m) throw new ActionError('You are not on this project')
+      if (!m || !canEditProject(m.role)) throw new ActionError('You can’t edit this project')
       return ownerId
     }
     case 'sponsor-logo': {

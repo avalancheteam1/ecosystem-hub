@@ -1,7 +1,10 @@
 import 'server-only'
 import { cache } from 'react'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { CurrentUser } from '@/lib/session'
+import { assignAll } from './judging'
+import { TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
 import { canManageHackathon } from './rules'
 
 /** Full hackathon for the organiser console, or null if the user may not manage it. */
@@ -22,6 +25,12 @@ export const getManagedHackathon = cache(async (id: string, user: CurrentUser) =
   if (!h || !canManageHackathon(user, h.organizers)) return null
   return h
 })
+
+/** Submitted reviews per stage (a hackathon has a handful of stages — one count each). */
+export async function stageReviewCounts(stageIds: string[]) {
+  const counts = await Promise.all(stageIds.map((stageId) => prisma.review.count({ where: { submittedAt: { not: null }, assignment: { entry: { stageId } } } })))
+  return new Map(stageIds.map((sid, i) => [sid, counts[i]!]))
+}
 
 export type ManagedHackathon = NonNullable<Awaited<ReturnType<typeof getManagedHackathon>>>
 
@@ -81,10 +90,10 @@ export const getPublicHackathon = cache(async (eventId: string, userId: string |
 
 export type PublicHackathon = NonNullable<Awaited<ReturnType<typeof getPublicHackathon>>>
 
-/** The viewer's team submissions in this hackathon (via project membership), with entries and pinned versions. */
+/** The viewer's team submissions in this hackathon (via project membership, readers excluded), with entries and pinned versions. */
 export async function getMySubmissions(hackathonId: string, userId: string) {
   return prisma.submission.findMany({
-    where: { hackathonId, status: { not: 'withdrawn' }, project: { members: { some: { userId } } } },
+    where: { hackathonId, status: { not: 'withdrawn' }, project: { members: { some: { userId, role: { in: TEAM_ROLES } } } } },
     orderBy: { createdAt: 'asc' },
     include: {
       project: { include: { currentVersion: { select: { id: true, number: true, name: true } } } },
@@ -93,8 +102,31 @@ export async function getMySubmissions(hackathonId: string, userId: string) {
   })
 }
 
+/**
+ * "All judges" stages need no draw: once submissions close, every eligible judge
+ * reviews every active submission. Reviews hang on a JudgeAssignment row, so the
+ * rows are created on read (idempotent) by every judging read below — judges and
+ * organisers see them live, no button, no job. Existing rows (declared conflicts
+ * included) are skipped by the unique key.
+ */
+async function ensureAllJudgesAssigned(where: Prisma.HackathonStageWhereInput) {
+  const stages = await prisma.hackathonStage.findMany({
+    where: { ...where, reviewMode: 'all', judgingClosedAt: null, closesAt: { lte: new Date() } },
+    select: {
+      hackathon: { select: { judges: { select: { id: true, userId: true, trackIds: true } } } },
+      entries: { where: { submission: { status: 'active' } }, select: { id: true, teamSnapshot: true, submission: { select: { trackIds: true, project: { select: { members: { select: { userId: true } } } } } } } },
+    },
+  })
+  const data = stages.flatMap((s) => {
+    const entries = s.entries.map((e) => ({ id: e.id, trackIds: e.submission.trackIds, teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }))
+    return assignAll(entries, s.hackathon.judges).map(([judgeId, entryId]) => ({ judgeId, entryId }))
+  })
+  if (data.length) await prisma.judgeAssignment.createMany({ data, skipDuplicates: true })
+}
+
 /** Organiser judging data for one stage: entries, assignment progress and (after close) the ranking inputs. */
 export async function getStageJudging(stageId: string) {
+  await ensureAllJudgesAssigned({ id: stageId })
   return prisma.stageEntry.findMany({
     where: { stageId },
     orderBy: { submittedAt: 'asc' },
@@ -119,6 +151,7 @@ export async function listSubmissions(hackathonId: string) {
 
 /** Hackathons the user judges, with their assignment progress. */
 export async function listJudgeHackathons(userId: string) {
+  await ensureAllJudgesAssigned({ hackathon: { judges: { some: { userId } } } })
   return prisma.hackathonJudge.findMany({
     where: { userId },
     include: {
@@ -132,6 +165,7 @@ export async function listJudgeHackathons(userId: string) {
 export async function getJudgeQueue(hackathonId: string, userId: string) {
   const judge = await prisma.hackathonJudge.findFirst({ where: { hackathonId, userId }, include: { hackathon: { include: { event: { select: { name: true } } } } } })
   if (!judge) return null
+  await ensureAllJudgesAssigned({ hackathonId })
   const assignments = await prisma.judgeAssignment.findMany({
     where: { judgeId: judge.id, entry: { submission: { status: 'active' } } },
     include: { review: true, entry: { include: { stage: true, projectVersion: { select: { name: true, shortDescription: true, number: true } } } } },

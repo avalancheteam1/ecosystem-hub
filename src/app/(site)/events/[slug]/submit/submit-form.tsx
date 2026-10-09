@@ -19,19 +19,23 @@ import { cn } from '@/lib/utils'
 
 type ProjectOption = { id: string; slug: string; name: string; tagline: string; imageUrl: string | null; maturity: string | null; versionNumber: number; sealed: boolean; members: number; missing: string[] }
 
-function NewProjectDialog({ onCreated, primary }: { onCreated: (id: string) => void; primary?: boolean }) {
+type CountryProps = { countries: { code: string; name: string }[]; defaultCountry: string | null }
+
+function NewProjectDialog({ onCreated, primary, countries, defaultCountry }: { onCreated: (id: string) => void; primary?: boolean } & CountryProps) {
   const [open, setOpen] = useState(false)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant={primary ? 'default' : 'outline'} size={primary ? 'default' : 'sm'}><Plus aria-hidden /> New project</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>Create it here — it’s selected for this submission when you save. Invite teammates from the project page.</DialogDescription>
         </DialogHeader>
         <ProjectForm
+          countries={countries}
+          defaultCountry={defaultCountry}
           onCancel={() => setOpen(false)}
           onSaved={({ id }) => {
             setOpen(false)
@@ -60,7 +64,7 @@ export function SubmitForm(props: {
   initialPreexisting: boolean
   initialBuilt: string
   submittedVersion: number | null
-}) {
+} & CountryProps) {
   const router = useRouter()
   const projectId = props.projectId
   const setProjectId = (id: string) => router.replace(`${props.submitPath}?project=${encodeURIComponent(id)}`, { scroll: false })
@@ -76,7 +80,7 @@ export function SubmitForm(props: {
     return (
       <div className="text-center">
         <p className="text-fg-body">You need a project to submit. Create one — your teammates join it by invite.</p>
-        <div className="mt-6"><NewProjectDialog primary onCreated={setProjectId} /></div>
+        <div className="mt-6"><NewProjectDialog primary onCreated={setProjectId} countries={props.countries} defaultCountry={props.defaultCountry} /></div>
       </div>
     )
   }
@@ -96,7 +100,7 @@ export function SubmitForm(props: {
       <fieldset>
         <div className="mb-3 flex items-center justify-between gap-3">
           <legend className="text-lg">Project</legend>
-          {props.canCreate && <NewProjectDialog onCreated={setProjectId} />}
+          {props.canCreate && <NewProjectDialog onCreated={setProjectId} countries={props.countries} defaultCountry={props.defaultCountry} />}
         </div>
         <div className="grid gap-3">
           {props.projects.map((p) => (

@@ -1,16 +1,22 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowUpRight, BookOpen, CalendarDays, Coins, FolderGit2, GraduationCap, Megaphone, Trophy, Users, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, BookOpen, CalendarDays, Coins, Flag, FolderGit2, GraduationCap, Megaphone, Plus, Trophy, Users, type LucideIcon } from 'lucide-react'
+import { EventCover } from '@/components/event-cover'
 import { SectionCard } from '@/components/section-card'
+import { StatusPill } from '@/components/status-pill'
+import { missingForSubmission } from '@/app/(app)/projects/_lib/rules'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { countryName } from '@/lib/countries'
+import { formatRelative, formatShortDate } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { BUILDER_HUB_URL } from '@/lib/builder-hub'
 import { requireUser } from '@/lib/guards'
 import { BUILDER_ROLES, hasCompleteBasicProfile } from '@/lib/profile'
+import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { cn, initials } from '@/lib/utils'
 import { getUserGroups } from '@/lib/user-groups'
+import { byActivity, byUrgency, hackathonMoment, projectNudge, type HackathonMoment } from './_lib/highlights'
 import { startSteps } from './_lib/start'
 
 const STEP_ICON = { events: CalendarDays, project: FolderGit2, learn: GraduationCap, grants: Coins, team1: Users, invite: Megaphone } as Record<string, LucideIcon>
@@ -20,16 +26,49 @@ export const metadata: Metadata = { title: 'Dashboard', robots: { index: false }
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const user = await requireUser()
   const welcome = (await searchParams).welcome === '1'
-  const [u, projects, hackathons, onboardings, { groups }] = await Promise.all([
+  const [u, allProjects, hackathons, onboardings, { groups }] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true, image: true } }),
-    prisma.project.findMany({ where: { archivedAt: null, members: { some: { userId: user.id } } }, include: { currentVersion: { select: { name: true, number: true } } }, orderBy: { updatedAt: 'desc' }, take: 5 }),
-    prisma.participant.findMany({ where: { userId: user.id, status: 'active' }, include: { hackathon: { include: { event: { select: { name: true, slug: true } } } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
+    prisma.project.findMany({
+      where: { archivedAt: null, members: { some: { userId: user.id } } },
+      select: {
+        id: true,
+        slug: true,
+        currentVersion: { select: { name: true, logoUrl: true, maturity: true, updatedAt: true, fullDescription: true, techDescription: true, techStack: true, githubRepos: true, demoLinks: true } },
+        milestones: { where: { status: { in: ['planned', 'in_progress'] } }, orderBy: { targetDate: 'asc' }, take: 1, select: { title: true, targetDate: true } },
+      },
+    }),
+    prisma.participant.findMany({
+      where: { userId: user.id, status: { in: ['active', 'pending'] } },
+      select: {
+        id: true,
+        status: true,
+        hackathon: {
+          select: {
+            resultsPublishedAt: true,
+            timezone: true,
+            event: { select: { name: true, slug: true, coverUrl: true, startAt: true } },
+            stages: { orderBy: { order: 'asc' }, select: { id: true, name: true, opensAt: true, closesAt: true, judgingClosedAt: true } },
+            submissions: { where: { status: 'active', project: { members: { some: { userId: user.id } } } }, select: { entries: { select: { stageId: true } } } },
+          },
+        },
+      },
+    }),
     prisma.referral.count({ where: { referrerId: user.id } }),
     getUserGroups(user.id),
   ])
+  // ponytail: sorts all of the user's projects in memory — fine for a handful, paginate if builders get dozens
+  const projects = allProjects.filter((p) => p.currentVersion).sort((a, b) => byActivity(a.currentVersion!, b.currentVersion!)).slice(0, 6)
   // Nothing joined or created yet: lead with next steps instead of empty lists.
   const fresh = projects.length === 0 && hackathons.length === 0
   const leadGroups = groups.filter((g) => g.lead)
+  const now = new Date()
+  const nextUp = hackathons
+    .flatMap((p) => {
+      const h = p.hackathon
+      const moment = hackathonMoment(h.stages, h.resultsPublishedAt, h.event.startAt, new Set(h.submissions.flatMap((s) => s.entries.map((e) => e.stageId))), now)
+      return moment ? [{ ...moment, id: p.id, pending: p.status === 'pending', event: h.event, timezone: h.timezone }] : []
+    })
+    .sort(byUrgency)
   const first = u.name.split(' ')[0]
   const meta = [countryName(u.country), u.builderRoles.map((r) => BUILDER_ROLES.find((x) => x.id === r)?.name).join(', ')].filter(Boolean)
   return (
@@ -79,38 +118,43 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </section>
       )}
 
-      {!fresh && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SectionCard title="Hackathons" actions={<Button asChild size="sm" variant="ghost"><Link href="/events">Browse events</Link></Button>}>
-            {hackathons.length === 0 ? (
-              <p className="flex items-center gap-3 text-sm text-fg-muted"><Trophy className="size-5 text-brand" aria-hidden /> You haven&apos;t joined a hackathon yet.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {hackathons.map((p) => (
-                  <li key={p.id}><Link href={`/events/${p.hackathon.event.slug}`} className="flex min-h-12 items-center text-fg-body hover:text-fg-heading">{p.hackathon.event.name}</Link></li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-          <SectionCard title="Projects" actions={<Button asChild size="sm" variant="ghost"><Link href="/projects/new">New project</Link></Button>}>
-            {projects.length === 0 ? (
-              <p className="flex items-center gap-3 text-sm text-fg-muted"><FolderGit2 className="size-5 text-brand" aria-hidden /> Create a project to submit it to hackathons and grants.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {projects.map((p) => (
-                  <li key={p.id}>
-                    <Link href={`/projects/${p.slug}`} className="flex min-h-12 items-center justify-between gap-3 text-fg-body hover:text-fg-heading">
-                      <span className="truncate">{p.currentVersion?.name}</span>
-                      <span className="text-xs text-fg-faint">v{p.currentVersion?.number}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-          <ReferralsCard onboardings={onboardings} leadGroups={leadGroups} />
-        </div>
+      {nextUp.length > 0 && (
+        <section aria-labelledby="next-up">
+          <h2 id="next-up" className="text-xl">Next up</h2>
+          <ul className="mt-5 grid gap-5 lg:grid-cols-2">
+            {nextUp.map((h, i) => (
+              <li key={h.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 80}ms` }}>
+                <HackathonCard h={h} now={now} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
+
+      {!fresh && (
+        <section aria-labelledby="your-projects">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="your-projects" className="text-xl">Your projects</h2>
+            {projects.length > 0 && <Button asChild size="sm" variant="ghost"><Link href="/projects">All projects</Link></Button>}
+          </div>
+          <ul className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {projects.map((p, i) => (
+              <li key={p.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 80}ms` }}>
+                <ProjectCard p={p} now={now} />
+              </li>
+            ))}
+            <li>
+              <Link href="/projects/new" className="flex h-full min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line p-6 text-center text-fg-muted transition duration-200 hover:border-brand hover:text-fg-heading">
+                <Plus className="size-6 text-brand" aria-hidden />
+                <span>{projects.length === 0 ? 'Add your first project' : 'New project'}</span>
+                <span className="text-xs text-fg-faint">Describe it once, submit it to hackathons and grants.</span>
+              </Link>
+            </li>
+          </ul>
+        </section>
+      )}
+
+      {!fresh && <ReferralsCard onboardings={onboardings} leadGroups={leadGroups} />}
       {fresh && leadGroups.length > 0 && <ReferralsCard onboardings={onboardings} leadGroups={leadGroups} />}
 
       <p className="flex gap-3 text-sm text-fg-faint"><BookOpen className="mt-0.5 size-4 shrink-0" aria-hidden /><span>Courses and bounties show up here once they launch. Meanwhile: docs, the Academy and dev tools are on the <a href={BUILDER_HUB_URL} target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2 hover:text-fg-heading">Avalanche Builder Hub</a>.</span></p>
@@ -133,5 +177,87 @@ function ReferralsCard({ onboardings, leadGroups }: { onboardings: number; leadG
         </ul>
       )}
     </SectionCard>
+  )
+}
+
+type NextUp = HackathonMoment & { pending: boolean; event: { name: string; slug: string; coverUrl: string | null }; timezone: string }
+
+function HackathonCard({ h, now }: { h: NextUp; now: Date }) {
+  const when = h.at && `${formatShortDate(h.at, h.timezone, now)} · ${formatRelative(h.at, now)}`
+  const headline =
+    h.state === 'open' ? (h.submitted ? 'Submitted — you can still update it' : 'Submissions are open')
+    : h.state === 'upcoming' ? (h.stage ? 'Submissions open soon' : 'Starts soon')
+    : h.state === 'judging' ? (h.submitted ? 'Judges are reviewing your project' : 'Judging in progress')
+    : 'Results are out'
+  const detail = h.state === 'open' ? `${h.stage} closes ${when}` : h.state === 'upcoming' ? `${h.stage ?? 'Kick-off'} — ${when}` : h.state === 'results' ? `Published ${formatRelative(h.at!, now)}` : h.stage
+  return (
+    <div className="flex h-full gap-5 rounded-xl border border-line bg-surface-2 p-5 transition duration-200 hover:border-brand hover:shadow-glow">
+      <EventCover src={h.event.coverUrl} className="size-20 shrink-0 sm:size-24" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/events/${h.event.slug}`} className="truncate text-lg text-fg-heading hover:underline hover:decoration-brand hover:underline-offset-4">{h.event.name}</Link>
+          {h.pending && <StatusPill tone="warning">Awaiting approval</StatusPill>}
+          {h.submitted && <StatusPill tone="success">Submitted</StatusPill>}
+        </div>
+        <p className={cn('mt-1', h.state === 'open' && !h.submitted ? 'text-brand' : 'text-fg-body')}>{headline}</p>
+        {detail && <p className="text-sm text-fg-muted">{detail}</p>}
+        <div className="mt-auto flex flex-wrap gap-2 pt-4">
+          {h.state === 'open' && !h.pending && (
+            <Button asChild size="sm" variant={h.submitted ? 'outline' : 'default'}><Link href={`/events/${h.event.slug}/submit`}>{h.submitted ? 'Update submission' : 'Submit your project'}</Link></Button>
+          )}
+          <Button asChild size="sm" variant="ghost"><Link href={`/events/${h.event.slug}`}>{h.state === 'results' ? 'See results' : 'Hackathon page'}</Link></Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// The maturity ladder without "archived" — the steps a project climbs.
+const LADDER: ProjectMaturity[] = (Object.keys(PROJECT_MATURITY) as ProjectMaturity[]).filter((k) => k !== 'archived')
+type DashProject = {
+  slug: string
+  currentVersion: ({ name: string; logoUrl: string | null; maturity: string | null; updatedAt: Date } & Parameters<typeof missingForSubmission>[0]) | null
+  milestones: { title: string; targetDate: string }[]
+}
+
+function ProjectCard({ p, now }: { p: DashProject; now: Date }) {
+  const v = p.currentVersion
+  if (!v) return null
+  const archived = v.maturity === 'archived'
+  const step = LADDER.indexOf(v.maturity as ProjectMaturity)
+  const next = p.milestones[0] ?? null
+  const nudge = projectNudge({ daysSinceUpdate: Math.floor((now.getTime() - v.updatedAt.getTime()) / 86_400_000), maturity: v.maturity, nextMilestone: next, missing: missingForSubmission(v).length })
+  return (
+    <Link href={`/projects/${p.slug}`} className={cn('flex h-full flex-col rounded-xl border border-line bg-surface-2 p-5 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow', archived && 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0')}>
+      <div className="flex items-center gap-4">
+        {v.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- own upload
+          <img src={v.logoUrl} alt="" className="size-12 shrink-0 rounded-xl border border-line object-cover" />
+        ) : (
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-line bg-surface-1 text-brand">{initials(v.name)}</span>
+        )}
+        <div className="min-w-0">
+          <h3 className="truncate text-lg">{v.name}</h3>
+          <p className="text-xs text-fg-faint">Updated {formatRelative(v.updatedAt, now)}</p>
+        </div>
+      </div>
+      <div className="mt-5">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-fg-body">{v.maturity ? PROJECT_MATURITY[v.maturity as ProjectMaturity]?.label : 'Stage not set'}</span>
+          {step >= 0 && <span className="text-xs text-fg-faint">{step + 1} / {LADDER.length}</span>}
+        </div>
+        <div className="mt-2 flex gap-1" aria-hidden>
+          {LADDER.map((k, i) => <span key={k} className={cn('h-1.5 flex-1 rounded-full', i <= step ? 'bg-brand' : 'bg-surface-hover')} />)}
+        </div>
+      </div>
+      {next && (
+        <p className="mt-4 flex items-center gap-2 text-sm text-fg-muted">
+          <Flag className="size-4 shrink-0 text-brand" aria-hidden />
+          <span className="truncate">Next: {next.title}</span>
+          <span className="ml-auto shrink-0 text-xs text-fg-faint">{formatShortDate(new Date(`${next.targetDate}T00:00:00Z`), 'UTC', now)}</span>
+        </p>
+      )}
+      {nudge && <p className="mt-auto pt-4 text-sm text-warning">{nudge}</p>}
+    </Link>
   )
 }

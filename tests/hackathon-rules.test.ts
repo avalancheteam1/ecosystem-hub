@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { advancedStageIds, buildAnswersSchema, canJoin, canManageHackathon, pickOpenStage, publishChecklist, registrationStatus, stageState, validateStages, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
+import { advancedStageIds, buildAnswersSchema, canJoin, canManageHackathon, pickOpenStage, publishChecklist, registrationStatus, reopensJudging, stageState, validateStages, windowChangeWarnings, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
 
 const d = (s: string) => new Date(s)
 const stage = (o: Partial<{ opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; name: string; order: number }> = {}) => ({
@@ -100,4 +100,23 @@ test('publishChecklist lists what blocks publishing', () => {
   assert.equal(bad.length, 5)
   assert.deepEqual(publishChecklist({ ...ok, teamSizeMin: 5, teamSizeMax: null }), [])
   assert.deepEqual(publishChecklist({ ...ok, stages: [] }), ['Add at least one stage'])
+})
+
+test('windowChangeWarnings: changing a judged window is allowed but explained', () => {
+  const now = d('2026-11-15T00:00Z')
+  const judged = { ...stage({ judgingClosedAt: d('2026-11-12T00:00Z') }), entries: 4, reviews: 6 }
+  const reopen = { opensAt: judged.opensAt, closesAt: d('2026-11-20T00:00Z') }
+  assert.equal(reopensJudging(judged, reopen, now), true)
+  const w = windowChangeWarnings(judged, reopen, now)
+  assert.equal(w.length, 4)
+  assert.match(w.join(' '), /Judging reopens/)
+  assert.match(w.join(' '), /6 review/)
+  // Moving a past close date stays past: judging stays closed, nothing changes.
+  assert.deepEqual(windowChangeWarnings(judged, { opensAt: judged.opensAt, closesAt: d('2026-11-09T00:00Z') }, now), [])
+  assert.equal(reopensJudging(judged, { closesAt: d('2026-11-09T00:00Z') }, now), false)
+  // Closing an open stage early.
+  const open = { ...stage(), entries: 2, reviews: 0 }
+  assert.deepEqual(windowChangeWarnings(open, { opensAt: open.opensAt, closesAt: d('2026-11-05T00:00Z') }, d('2026-11-05T00:00Z')), ['Teams can no longer submit or change their submissions.'])
+  // An untouched stage has nothing to warn about.
+  assert.deepEqual(windowChangeWarnings({ ...stage(), entries: 0, reviews: 0 }, stage(), d('2026-10-01T00:00Z')), [])
 })

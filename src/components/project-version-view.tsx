@@ -5,7 +5,10 @@ import { Markdown } from '@/components/markdown'
 import { SocialIcon, socialPlatform } from '@/components/social-icon'
 import { Badge } from '@/components/ui/badge'
 import { initials } from '@/lib/utils'
+import { countryName, flagEmoji } from '@/lib/countries'
+import { networkLabel } from '@/lib/project-networks'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
+import { socialLabel } from '@/lib/social-platforms'
 
 type Tagged = { tag: string; url: string }
 const host = (u: string) => {
@@ -28,7 +31,7 @@ function LinkButton({ href, icon, children }: { href: string; icon: React.ReactN
 export function ProjectVersionView({ version: v }: { version: ProjectVersion }) {
   const websites = (v.websites as Tagged[]) ?? []
   const socials = (v.socials as Tagged[]) ?? []
-  const addresses = (v.deployedAddresses as { tag: string; address: string }[]) ?? []
+  const addresses = (v.deployedAddresses as { tag: string; address: string; network?: string }[]) ?? []
   const maturity = PROJECT_MATURITY[v.maturity as ProjectMaturity] as (typeof PROJECT_MATURITY)[ProjectMaturity] | undefined
   const categories = v.categories.map((c) => (c === 'Other (Specify)' ? v.otherCategory : c)).filter(Boolean)
   return (
@@ -47,9 +50,11 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
         <div className="min-w-0">
           <h2 className="text-2xl sm:text-3xl">{v.name}</h2>
           <p className="mt-1 text-lg text-fg-muted">{v.shortDescription}</p>
-          {(maturity || categories.length > 0) && (
+          {(maturity || v.country || v.launchDate || categories.length > 0) && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-fg-faint">
               {maturity && <Badge variant="outline" title={maturity.hint}>Stage: {maturity.label}</Badge>}
+              {v.country && <span>{flagEmoji(v.country)} {countryName(v.country)}</span>}
+              {v.launchDate && <span>Launched {new Date(v.launchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}</span>}
               {categories.join(' / ')}
             </p>
           )}
@@ -101,7 +106,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
             <div className="sm:col-span-2">
               <dt className="mb-2 text-fg-muted">Deployed contracts</dt>
               <dd className="space-y-1">
-                {addresses.map((a) => <p key={a.address} className="flex items-center gap-3"><span className="w-28 shrink-0 truncate text-fg-faint">{a.tag || 'Contract'}</span><code className="min-w-0 truncate">{a.address}</code><CopyButton value={a.address} label={`Copy ${a.tag || 'contract'} address`} /></p>)}
+                {addresses.map((a) => <p key={a.address} className="flex items-center gap-3"><span className="w-28 shrink-0 truncate text-fg-faint">{a.tag || 'Contract'}</span>{a.network && <Badge variant="outline" className="shrink-0">{networkLabel(a.network)}</Badge>}<code className="min-w-0 truncate">{a.address}</code><CopyButton value={a.address} label={`Copy ${a.tag || 'contract'} address`} /></p>)}
               </dd>
             </div>
           )}
@@ -112,7 +117,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
                 <dd className="space-y-1">
                   {(links as Tagged[]).map((l) => (
                     <a key={l.url} href={l.url} target="_blank" rel="noreferrer nofollow" className="flex items-center gap-1.5 text-fg-body hover:text-fg-heading">
-                      <SocialIcon platform={socialPlatform(l.url)} className="size-3.5 shrink-0 text-fg-muted" /> {l.tag || host(l.url)}
+                      <SocialIcon platform={socialPlatform(l.url)} className="size-3.5 shrink-0 text-fg-muted" /> {socialLabel(l)}
                     </a>
                   ))}
                 </dd>

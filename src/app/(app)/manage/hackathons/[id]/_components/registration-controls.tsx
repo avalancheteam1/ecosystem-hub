@@ -3,6 +3,7 @@
 import { reviewRegistration, setInviteLink, setRequireApproval } from '@/app/(site)/events/_lib/hackathons/setup-actions'
 import { ConfirmButton } from '@/components/confirm-button'
 import { CopyButton } from '@/components/copy-button'
+import { QrCodeDialog } from '@/components/qr-code-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useActionToast } from '@/hooks/use-action-toast'
@@ -32,6 +33,7 @@ export function ApprovalSettings({ hackathonId, requireApproval, inviteUrl }: { 
               <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-1 py-1 pr-1 pl-3">
                 <code className="min-w-0 flex-1 truncate text-sm">{inviteUrl}</code>
                 <CopyButton value={inviteUrl} label="Copy invite link" />
+                <QrCodeDialog value={inviteUrl} filename="team1-hackathon-invite" title="Invite link QR code" label="QR code for invite link" />
               </div>
               <div className="flex flex-wrap gap-2">
                 <ConfirmButton disabled={pending} message="Create a new link? The current one stops working." onConfirm={() => run(() => setInviteLink({ hackathonId, enabled: true }), 'New invite link created')}>New link</ConfirmButton>

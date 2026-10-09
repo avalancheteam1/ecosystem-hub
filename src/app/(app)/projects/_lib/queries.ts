@@ -2,11 +2,13 @@ import 'server-only'
 import { cache } from 'react'
 import { prisma } from '@/lib/db'
 
-export async function listMyProjects(userId: string) {
+/** `roles` narrows to projects where I hold one of them, and counts only members holding them. */
+export async function listMyProjects(userId: string, roles?: string[]) {
+  const role = roles ? { role: { in: roles } } : {}
   return prisma.project.findMany({
-    where: { archivedAt: null, members: { some: { userId } } },
+    where: { archivedAt: null, members: { some: { userId, ...role } } },
     orderBy: { updatedAt: 'desc' },
-    include: { currentVersion: true, _count: { select: { members: true } } },
+    include: { currentVersion: true, _count: { select: { members: { where: role } } } },
   })
 }
 
@@ -16,9 +18,16 @@ export const getProjectForMember = cache(async (slug: string, userId: string) =>
     where: { slug },
     include: {
       currentVersion: true,
+      milestones: { orderBy: [{ targetDate: 'asc' }, { createdAt: 'asc' }] },
       members: { include: { user: { select: { id: true, name: true, email: true, image: true } } }, orderBy: { createdAt: 'asc' } },
       invites: { where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } },
-      versions: { orderBy: { number: 'desc' }, select: { id: true, number: true, note: true, sealedAt: true, createdAt: true, updatedAt: true, createdBy: { select: { name: true } } } },
+      versions: {
+        orderBy: { number: 'desc' },
+        select: {
+          id: true, number: true, note: true, sealedAt: true, createdAt: true, updatedAt: true, createdBy: { select: { name: true } },
+          stageEntries: { orderBy: { submittedAt: 'asc' }, select: { id: true, stage: { select: { name: true, hackathon: { select: { event: { select: { name: true, slug: true } } } } } } } },
+        },
+      },
     },
   })
   if (!project || project.archivedAt || !project.members.some((m) => m.userId === userId)) return null

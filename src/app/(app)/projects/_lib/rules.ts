@@ -1,5 +1,8 @@
 import { z } from 'zod'
+import { isCountryCode } from '@/lib/countries'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
+import { DEFAULT_NETWORK, PROJECT_NETWORKS, type ProjectNetwork } from '@/lib/project-networks'
+import { detectPlatform, isSocialPlatform, type SocialPlatformKey } from '@/lib/social-platforms'
 
 // Project fields — builders-hub's submission fields (battle-tested), stored as
 // real arrays instead of comma-joined strings. Pure. A save creates a new
@@ -27,6 +30,16 @@ const linkList = (max: number, label: string) =>
 
 const tagged = z.array(z.object({ tag: z.string().trim().max(40), url: httpUrl })).max(10, 'At most 10 links')
 
+// Socials: the tag is a stable platform key — the user's pick if it's a known key, otherwise detected from the URL (or 'other').
+const socials = z
+  .array(z.object({ tag: z.string().optional(), url: httpUrl }).transform(({ tag, url }): { tag: SocialPlatformKey; url: string } => ({ tag: tag && isSocialPlatform(tag) ? tag : (detectPlatform(url) ?? 'other'), url })))
+  .max(10, 'At most 10 links')
+
+/** A calendar date as `YYYY-MM-DD` (no time, no zone — a launch day or a milestone's target day). */
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date').refine((d) => !Number.isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d), 'Pick a valid date')
+
+const NETWORK_KEYS = Object.keys(PROJECT_NETWORKS) as [ProjectNetwork, ...ProjectNetwork[]]
+
 const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|loom\.com|vimeo\.com)$/i
 
 export const projectFieldsSchema = z
@@ -45,22 +58,24 @@ export const projectFieldsSchema = z
     categories: z.array(z.enum(PROJECT_CATEGORIES)).max(8).transform((c) => [...new Set(c)]),
     otherCategory: z.string().trim().max(60).nullable().optional().transform((v) => v || null),
     maturity: z.enum(Object.keys(PROJECT_MATURITY) as [ProjectMaturity, ...ProjectMaturity[]], 'Pick the project stage'),
+    launchDate: z.union([z.literal(''), z.null(), isoDate]).optional().transform((v) => v || null),
+    country: z.string().nullable().optional().transform((v) => v || null).refine((c) => !c || isCountryCode(c), 'Pick a country from the list'),
     githubRepos: linkList(10, 'repository links'),
     demoLinks: linkList(10, 'demo links').refine((a) => !a.some((u) => /youtube\.com|youtu\.be|loom\.com/i.test(u)), 'Put YouTube and Loom links in the demo video field'),
     videoUrl: optionalUrl.refine((u) => !u || VIDEO_HOSTS.test(new URL(u).hostname), 'Use a YouTube, Loom or Vimeo link'),
     logoUrl: optionalUrl,
     coverUrl: optionalUrl,
     screenshots: z.array(httpUrl).max(5, 'At most 5 screenshots'),
-    deployedAddresses: z.array(z.object({ address: z.string().trim().min(1, 'Address is required').max(120), tag: z.string().trim().max(40) })).max(20),
+    deployedAddresses: z.array(z.object({ address: z.string().trim().min(1, 'Address is required').max(120), tag: z.string().trim().max(40), network: z.enum(NETWORK_KEYS).default(DEFAULT_NETWORK) })).max(20),
     websites: tagged,
-    socials: tagged,
+    socials,
   })
   .refine((p) => !p.categories.includes('Other (Specify)') || !!p.otherCategory, { message: 'Please specify the other category', path: ['otherCategory'] })
 
 export type ProjectFields = z.output<typeof projectFieldsSchema>
 export type ProjectFieldsInput = z.input<typeof projectFieldsSchema>
 
-const KEYS = ['name', 'shortDescription', 'fullDescription', 'techDescription', 'techStack', 'categories', 'otherCategory', 'maturity', 'githubRepos', 'demoLinks', 'videoUrl', 'logoUrl', 'coverUrl', 'screenshots', 'deployedAddresses', 'websites', 'socials'] as const
+const KEYS = ['name', 'shortDescription', 'fullDescription', 'techDescription', 'techStack', 'categories', 'otherCategory', 'maturity', 'launchDate', 'country', 'githubRepos', 'demoLinks', 'videoUrl', 'logoUrl', 'coverUrl', 'screenshots', 'deployedAddresses', 'websites', 'socials'] as const
 
 /** Does saving `next` on top of `prev` warrant a new version? */
 export function versionChanged(prev: ProjectFields | null, next: ProjectFields): boolean {
@@ -104,4 +119,51 @@ export function planSeal(current: VersionState): 'seal-draft' | 'reuse-sealed' {
 
 export function versionLabel(v: { number: number; sealedAt: Date | null }): string {
   return v.sealedAt ? `Version ${v.number}` : `Version ${v.number} · draft`
+}
+
+// ── Team roles ─────────────────────────────────────────────────────────────
+// reader: sees the project · writer: + edits, milestones, submits · owner (exactly one): + manages the team.
+// Readers are not part of the hackathon team (size, join, snapshot) but still count for judges' COI.
+
+/** Keys are persisted (ProjectMember.role, ProjectInvite.role) — only add. */
+export const PROJECT_ROLES = {
+  owner: { label: 'Owner' },
+  writer: { label: 'Writer' },
+  reader: { label: 'Reader' },
+} as const
+export type ProjectRole = keyof typeof PROJECT_ROLES
+/** Roles an owner can give by invite or change to (ownership moves only via transfer). */
+export const ASSIGNABLE_ROLES = ['writer', 'reader'] as const
+/** Roles that make up the hackathon team — use in Prisma filters: `{ role: { in: TEAM_ROLES } }`. */
+export const TEAM_ROLES: string[] = ['owner', 'writer']
+
+export const canEditProject = (role: string) => TEAM_ROLES.includes(role)
+export const canManageTeam = (role: string) => role === 'owner'
+
+// ── Milestones ─────────────────────────────────────────────────────────────
+// A live roadmap (own table, not versioned): edited in place by the team.
+
+/** Keys are persisted — only add. */
+export const MILESTONE_STATUS = {
+  planned: { label: 'Planned', tone: 'neutral' },
+  in_progress: { label: 'In progress', tone: 'info' },
+  done: { label: 'Done', tone: 'success' },
+  dropped: { label: 'Dropped', tone: 'warning' },
+} as const
+export type MilestoneStatus = keyof typeof MILESTONE_STATUS
+
+export const milestoneSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(120, 'Max 120 characters'),
+  /** Markdown */
+  description: z.string().trim().max(2000, 'Max 2000 characters').optional().transform((v) => v || null),
+  targetDate: isoDate,
+  status: z.enum(Object.keys(MILESTONE_STATUS) as [MilestoneStatus, ...MilestoneStatus[]]).default('planned'),
+})
+export type MilestoneInput = z.input<typeof milestoneSchema>
+export const MAX_MILESTONES = 30
+
+/** doneAt follows the status: stamped when it becomes done, kept while done, cleared otherwise. */
+export function milestoneDoneAt(prev: { status: string; doneAt: Date | null } | null, nextStatus: MilestoneStatus, now: Date): Date | null {
+  if (nextStatus !== 'done') return null
+  return prev?.status === 'done' ? prev.doneAt : now
 }

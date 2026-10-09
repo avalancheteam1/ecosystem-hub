@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { listMyProjects } from '@/app/(app)/projects/_lib/queries'
-import { missingForSubmission } from '@/app/(app)/projects/_lib/rules'
+import { missingForSubmission, TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
 import { Markdown } from '@/components/markdown'
+import { COUNTRIES } from '@/lib/countries'
 import { formatEventRange } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { requireUser } from '@/lib/guards'
@@ -34,7 +35,7 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
   if (!h) notFound()
   if (!h.joined) return <Notice slug={slug} title="Join first">Join the hackathon before you submit.</Notice>
   const now = new Date()
-  const [myProjects, mines] = await Promise.all([listMyProjects(user.id), getMySubmissions(h.id, user.id)])
+  const [myProjects, mines, me] = await Promise.all([listMyProjects(user.id, TEAM_ROLES), getMySubmissions(h.id, user.id), prisma.user.findUnique({ where: { id: user.id }, select: { country: true } })])
   const idx = pickOpenStage(h.stages, now, advancedStageIds(mines))
   const stage = h.stages[idx]
   if (!stage) return <Notice slug={slug} title="No stage is open">Submissions open with the next stage — see the timeline.</Notice>
@@ -72,6 +73,8 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
           initialPreexisting={entry?.preexistingIdea ?? false}
           initialBuilt={entry?.builtDuringEvent ?? ''}
           submittedVersion={entry?.projectVersion.number ?? null}
+          countries={COUNTRIES}
+          defaultCountry={me?.country ?? null}
         />
       </div>
     </div>

@@ -6,40 +6,26 @@ import { applyAssignment, assignAllToEntry, assignJudge, previewAssignment, setA
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { SegmentedControl } from '@/components/segmented-control'
 import { useActionToast } from '@/hooks/use-action-toast'
 
-export function AssignPanel({ hackathonId, stageId, mode: initialMode, perEntry: initialN, hasAssignments }: { hackathonId: string; stageId: string; mode: string; perEntry: number | null; hasAssignments: boolean }) {
-  const [mode, setMode] = useState<'all' | 'random'>(initialMode === 'random' ? 'random' : 'all')
-  const [perEntry, setPerEntry] = useState(String(initialN ?? 2))
+/** Random stages only: draw with the stage's settings (set under Stages), preview, apply. */
+export function AssignPanel({ hackathonId, stageId, perEntry, hasAssignments }: { hackathonId: string; stageId: string; perEntry: number | null; hasAssignments: boolean }) {
   const [preview, setPreview] = useState<{ seed: string; total: number; load: { judge: string; count: number }[] } | null>(null)
   const { pending, run } = useActionToast()
   const draw = () =>
     run(async () => {
-      const res = await previewAssignment({ hackathonId, stageId, mode, perEntry })
+      const res = await previewAssignment({ hackathonId, stageId })
       if (res.ok) setPreview(res.data)
       return res
     }, 'Preview ready')
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-        <div className="space-y-1">
-          <p className="text-sm">Algorithm</p>
-          <SegmentedControl label="Algorithm" value={mode} onChange={(m) => { setMode(m); setPreview(null) }} options={[{ value: 'all', label: 'All judges' }, { value: 'random', label: 'Random, balanced' }]} />
-          <p className="text-xs text-fg-faint">{mode === 'all' ? 'Every eligible judge reviews every submission.' : 'Random judges per submission, balanced load.'}</p>
-        </div>
-        {mode === 'random' && (
-          <div className="space-y-1">
-            <label htmlFor={`n-${stageId}`} className="text-sm">Judges each</label>
-            <Input id={`n-${stageId}`} type="number" min={1} max={20} value={perEntry} onChange={(e) => { setPerEntry(e.target.value); setPreview(null) }} className="h-11" />
-          </div>
-        )}
-      </div>
+      <p className="text-sm">Random, balanced — {perEntry ?? '?'} judge{perEntry === 1 ? '' : 's'} per submission <span className="text-fg-faint">(change under Stages)</span></p>
       <p className="text-xs text-fg-faint">Never assigns a judge who is on the team, declared a conflict, or judges other tracks. Submitted reviews are always kept. You can adjust single assignments in the table.</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={pending} onClick={draw}><Shuffle aria-hidden /> {preview ? 'Draw again' : hasAssignments ? 'Preview a new draw' : 'Preview assignment'}</Button>
         {preview && (
-          <Button size="sm" disabled={pending} onClick={() => run(() => applyAssignment({ hackathonId, stageId, seed: preview.seed, mode, perEntry }), 'Judges assigned and notified', () => setPreview(null))}>
+          <Button size="sm" disabled={pending} onClick={() => run(() => applyAssignment({ hackathonId, stageId, seed: preview.seed }), 'Judges assigned and notified', () => setPreview(null))}>
             Apply {preview.total} assignments
           </Button>
         )}
@@ -58,8 +44,8 @@ export type MatrixCell =
   | { kind: 'open' }
   | { kind: 'blocked'; reason: string }
 
-/** Submissions × judges: who reviews what, why not, and manual changes. */
-export function AssignmentMatrix({ hackathonId, judges, rows }: { hackathonId: string; judges: { id: string; label: string }[]; rows: { entryId: string; name: string; cells: MatrixCell[] }[] }) {
+/** Submissions × judges: who reviews what, why not, and (random stages) manual changes. */
+export function AssignmentMatrix({ hackathonId, judges, rows, manual }: { hackathonId: string; judges: { id: string; label: string }[]; rows: { entryId: string; name: string; cells: MatrixCell[] }[]; manual: boolean }) {
   const { pending, run } = useActionToast()
   const tone = { pending: 'text-fg-muted', draft: 'text-info', done: 'text-success', conflict: 'text-warning' } as const
   const label = { pending: 'Assigned', draft: 'Draft', done: 'Reviewed', conflict: 'Conflict' } as const
@@ -82,11 +68,12 @@ export function AssignmentMatrix({ hackathonId, judges, rows }: { hackathonId: s
                   {c.kind === 'assigned' ? (
                     <span className="inline-flex items-center gap-1">
                       <span className={`text-xs ${tone[c.state]}`}>{label[c.state]}</span>
-                      {(c.state === 'pending' || c.state === 'draft') && (
+                      {manual && (c.state === 'pending' || c.state === 'draft') && (
                         <button type="button" disabled={pending} aria-label={`Unassign ${judges[i]!.label} from ${r.name}`} onClick={() => run(() => unassignJudge({ hackathonId, assignmentId: c.assignmentId }), 'Unassigned')} className="grid size-7 place-items-center rounded text-fg-faint hover:bg-surface-hover hover:text-destructive"><X className="size-3.5" aria-hidden /></button>
                       )}
                     </span>
                   ) : c.kind === 'open' ? (
+                    !manual ? <span className="text-xs text-fg-faint">When submissions close</span> :
                     <Button size="xs" variant="ghost" disabled={pending} onClick={() => run(() => assignJudge({ hackathonId, entryId: r.entryId, judgeId: judges[i]!.id }), 'Assigned')}><Plus aria-hidden /> Assign</Button>
                   ) : (
                     <span className="text-xs text-fg-faint" title={c.reason}>{c.reason}</span>
@@ -94,7 +81,7 @@ export function AssignmentMatrix({ hackathonId, judges, rows }: { hackathonId: s
                 </td>
               ))}
               <td className="p-2 text-right">
-                {r.cells.some((c) => c.kind === 'open') && (
+                {manual && r.cells.some((c) => c.kind === 'open') && (
                   <Button size="xs" variant="outline" disabled={pending} onClick={() => run(() => assignAllToEntry({ hackathonId, entryId: r.entryId }), 'All eligible judges assigned')}>Assign everyone</Button>
                 )}
               </td>

@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { missingForSubmission, projectFieldsSchema, versionChanged, type ProjectFieldsInput } from '@/app/(app)/projects/_lib/rules'
+import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, milestoneDoneAt, milestoneSchema, missingForSubmission, projectFieldsSchema, versionChanged, type ProjectFieldsInput } from '@/app/(app)/projects/_lib/rules'
 
 const base: ProjectFieldsInput = {
   name: 'Snowpay', shortDescription: 'Pay with AVAX in one tap', fullDescription: 'A wallet-less checkout.', techDescription: 'Next.js + Solidity',
@@ -42,6 +42,14 @@ test('project stage is required and limited to the known stages', () => {
   assert.equal(versionChanged(projectFieldsSchema.parse(base), projectFieldsSchema.parse({ ...base, maturity: 'live' })), true)
 })
 
+test('country is optional, an ISO-2 code from the list, and versioned', () => {
+  assert.equal(projectFieldsSchema.parse(base).country, null)
+  assert.equal(projectFieldsSchema.parse({ ...base, country: '' }).country, null)
+  assert.equal(projectFieldsSchema.parse({ ...base, country: 'AT' }).country, 'AT')
+  assert.equal(parse({ country: 'Austria' }).success, false)
+  assert.equal(versionChanged(projectFieldsSchema.parse(base), projectFieldsSchema.parse({ ...base, country: 'AT' })), true)
+})
+
 test('versionChanged is false for an identical save and true for any field change', () => {
   const a = projectFieldsSchema.parse(base)
   assert.equal(versionChanged(a, projectFieldsSchema.parse({ ...base, techStack: [...base.techStack!] })), false)
@@ -74,4 +82,56 @@ test('version label hides drafts behind the next number', async () => {
   const { versionLabel } = await import('@/app/(app)/projects/_lib/rules')
   assert.equal(versionLabel({ number: 1, sealedAt: null }), 'Version 1 · draft')
   assert.equal(versionLabel({ number: 2, sealedAt: new Date() }), 'Version 2')
+})
+
+test('socials: a known platform key the user picked is kept; otherwise the platform is detected from the URL', () => {
+  const p = projectFieldsSchema.parse({ ...base, socials: [{ tag: 'Twitter', url: 'x.com/snowpay' }, { tag: 'linkedin', url: 'https://example.com' }, { url: 'https://www.linkedin.com/company/snowpay' }, { tag: 'nonsense', url: 'https://example.org' }] })
+  assert.deepEqual(p.socials, [
+    { tag: 'x', url: 'https://x.com/snowpay' },
+    { tag: 'linkedin', url: 'https://example.com' },
+    { tag: 'linkedin', url: 'https://www.linkedin.com/company/snowpay' },
+    { tag: 'other', url: 'https://example.org' },
+  ])
+})
+
+test('launch date is an optional real calendar day', () => {
+  assert.equal(projectFieldsSchema.parse(base).launchDate, null)
+  assert.equal(projectFieldsSchema.parse({ ...base, launchDate: '' }).launchDate, null)
+  assert.equal(projectFieldsSchema.parse({ ...base, launchDate: '2025-11-03' }).launchDate, '2025-11-03')
+  assert.equal(parse({ launchDate: '2025-02-30' }).success, false)
+  assert.equal(parse({ launchDate: '03.11.2025' }).success, false)
+})
+
+test('deployed addresses get a network, C-Chain by default', () => {
+  const p = projectFieldsSchema.parse({ ...base, deployedAddresses: [{ tag: 'Token', address: '0xabc' }, { tag: '', address: '0xdef', network: 'fuji' }] })
+  assert.deepEqual(p.deployedAddresses.map((a) => a.network), ['c-chain', 'fuji'])
+  assert.equal(parse({ deployedAddresses: [{ tag: '', address: '0x1', network: 'solana' as never }] }).success, false)
+})
+
+test('archived is a project stage', () => {
+  assert.equal(projectFieldsSchema.parse({ ...base, maturity: 'archived' }).maturity, 'archived')
+})
+
+test('milestones need a title and a real target date; status defaults to planned', () => {
+  const m = milestoneSchema.parse({ title: ' Mainnet ', targetDate: '2027-01-31' })
+  assert.deepEqual(m, { title: 'Mainnet', description: null, targetDate: '2027-01-31', status: 'planned' })
+  assert.equal(milestoneSchema.safeParse({ title: '', targetDate: '2027-01-31' }).success, false)
+  assert.equal(milestoneSchema.safeParse({ title: 'x', targetDate: '' }).success, false)
+  assert.equal(milestoneSchema.safeParse({ title: 'x', targetDate: '2027-01-31', status: 'shipped' }).success, false)
+})
+
+test('milestone doneAt is stamped on done, kept while done, cleared otherwise', () => {
+  const now = new Date('2026-10-09T10:00:00Z')
+  const earlier = new Date('2026-09-01T10:00:00Z')
+  assert.equal(milestoneDoneAt(null, 'done', now), now)
+  assert.equal(milestoneDoneAt({ status: 'planned', doneAt: null }, 'done', now), now)
+  assert.equal(milestoneDoneAt({ status: 'done', doneAt: earlier }, 'done', now), earlier)
+  assert.equal(milestoneDoneAt({ status: 'done', doneAt: earlier }, 'in_progress', now), null)
+})
+
+test('team roles: readers view, writers edit + submit, only the owner manages the team', () => {
+  assert.deepEqual(['owner', 'writer', 'reader'].map(canEditProject), [true, true, false])
+  assert.deepEqual(['owner', 'writer', 'reader'].map(canManageTeam), [true, false, false])
+  assert.equal(canEditProject('member'), false) // unknown/legacy roles get nothing
+  assert.ok(!(ASSIGNABLE_ROLES as readonly string[]).includes('owner')) // ownership moves only by transfer
 })

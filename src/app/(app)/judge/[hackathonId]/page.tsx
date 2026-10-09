@@ -20,7 +20,7 @@ export default async function JudgeQueue({ params }: { params: Promise<{ hackath
     <>
       <BackLink href="/judge">Judging</BackLink>
       <PageHeader title={q.judge.hackathon.event.name} description="Score each submission on every criterion. Your scores stay private until the organisers close the round." />
-      {stages.length === 0 && <p className="text-fg-muted">Nothing assigned to you yet — you’ll get an email when there is.</p>}
+      {stages.length === 0 && <p className="text-fg-muted">Nothing assigned to you yet — submissions show up here once they close.</p>}
       <div className="space-y-8">
         {stages.map((s) => {
           const items = q.assignments.filter((a) => a.entry.stage.id === s.id)

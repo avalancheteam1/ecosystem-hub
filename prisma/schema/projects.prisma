@@ -16,6 +16,7 @@ model Project {
   members     ProjectMember[]
   invites     ProjectInvite[]
   submissions Submission[]
+  milestones  ProjectMilestone[]
 
   @@map("projects")
 }
@@ -37,6 +38,10 @@ model ProjectVersion {
   categories        String[]
   /// How far the project is: PROJECT_MATURITY in projects/_lib/rules.ts (null = not set)
   maturity          String?
+  /// Calendar day it launched (mainnet / public), `YYYY-MM-DD`; null = not launched / not set
+  launchDate        String?
+  /// Where the team is based — ISO 3166-1 alpha-2 (src/lib/countries.ts); null = not set
+  country           String?
   otherCategory     String?
   githubRepos       String[]
   demoLinks         String[]
@@ -72,8 +77,8 @@ model ProjectMember {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// owner | member
-  role      String   @default("member")
+  /// PROJECT_ROLES in projects/_lib/rules.ts: owner | writer | reader
+  role      String   @default("writer")
   createdAt DateTime @default(now())
 
   @@unique([projectId, userId])
@@ -87,6 +92,8 @@ model ProjectInvite {
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// lowercased
   email       String
+  /// Role given on accept: writer | reader (ASSIGNABLE_ROLES)
+  role        String    @default("writer")
   tokenHash   String    @unique
   invitedById String?
   invitedBy   User?     @relation("ProjectInvitesSent", fields: [invitedById], references: [id], onDelete: SetNull)
@@ -97,4 +104,25 @@ model ProjectInvite {
 
   @@index([projectId])
   @@map("project_invites")
+}
+
+/// The project's roadmap — a live list edited in place by the team (not versioned).
+model ProjectMilestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  /// Markdown
+  description String?
+  /// Calendar day `YYYY-MM-DD`
+  targetDate  String
+  /// MILESTONE_STATUS in projects/_lib/rules.ts: planned | in_progress | done | dropped
+  status      String    @default("planned")
+  /// Set when status becomes done (milestoneDoneAt)
+  doneAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
+  @@map("project_milestones")
 }

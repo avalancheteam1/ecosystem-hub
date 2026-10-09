@@ -17,9 +17,15 @@ export async function SiteHeader() {
         <Logo className="justify-self-start" />
         <nav aria-label="Main" className="hidden items-center gap-6 text-sm md:flex">
           <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
-          {user && <Link href="/projects" className="text-fg-muted transition-colors hover:text-fg-heading">My Projects</Link>}
           {/* ponytail: external until grants live in the hub */}
           <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</a>
+          {user && (
+            <>
+              <span aria-hidden className="h-4 w-px bg-line" />
+              <Link href="/dashboard" className="text-fg-muted transition-colors hover:text-fg-heading">Dashboard</Link>
+              <Link href="/projects" className="text-fg-muted transition-colors hover:text-fg-heading">My Projects</Link>
+            </>
+          )}
         </nav>
         <div className="flex items-center gap-1 justify-self-end sm:gap-2">
           <MobileNav signedIn={!!user} />

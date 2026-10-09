@@ -22,7 +22,7 @@ export function canSubmitToStage(c: SubmitCtx): Check {
   const state = stageState(c.stage, c.now)
   if (state === 'upcoming') return { ok: false, reason: 'This stage is not open yet' }
   if (state !== 'open') return { ok: false, reason: 'Submissions for this stage are closed' }
-  if (!c.team.includes(c.submitterId)) return { ok: false, reason: 'Only members of the project team can submit it' }
+  if (!c.team.includes(c.submitterId)) return { ok: false, reason: "Only the project's writers and owner can submit it" }
   if (c.submissionStatus === 'withdrawn') return { ok: false, reason: 'This submission was withdrawn' }
   if (c.submissionStatus === 'disqualified') return { ok: false, reason: 'This submission was disqualified' }
   if (!c.isFirstStage && !c.advancedFromPrevious) return { ok: false, reason: 'Only teams advanced from the previous stage can submit here' }

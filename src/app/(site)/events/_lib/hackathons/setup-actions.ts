@@ -14,7 +14,7 @@ import { isTimeZone } from '@/lib/timezones'
 import { verifiedUserIdByEmail } from './bind'
 import { judgeEligibility } from './judging'
 import { assertManage } from './manage'
-import { FIELD_TYPES, publishChecklist, validateStages } from './rules'
+import { FIELD_TYPES, publishChecklist, reopensJudging, validateStages } from './rules'
 
 // Organiser console actions (/manage/hackathons/[id]). Every action re-checks
 // canManageHackathon — organisers are per-hackathon data, not a permission.
@@ -208,23 +208,37 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   const existing = stageId ? stages.find((s) => s.id === stageId) : undefined
   if (stageId && !existing) throw new ActionError('Stage not found')
   if (existing && (await stageHasReviews(existing.id))) {
-    // Judged work must stay what was judged: no new scale, no reopened window.
+    // Judged scores must stay comparable: no new scale. The window may move (the dialog warns: windowChangeWarnings).
     if (existing.scaleMax !== data.scaleMax) throw new ActionError('Judges already scored this stage — the scale can’t change now')
-    // Inputs carry minutes only, so compare at minute precision.
-    const moved = (a: Date, b: Date) => Math.abs(+a - +b) >= 60_000
-    if (moved(existing.opensAt, data.opensAt) || moved(existing.closesAt, data.closesAt)) throw new ActionError('Judges already scored this stage — its window can’t change now')
   }
   const next = existing
     ? stages.map((s) => (s.id === stageId ? { ...s, ...data } : s))
     : [...stages, { ...data, order: stages.length, judgingClosedAt: null }]
   const errors = validateStages(next)
   if (errors.length) throw new ActionError(errors[0]!)
-  if (existing) await prisma.hackathonStage.update({ where: { id: existing.id }, data })
+  if (existing) await prisma.hackathonStage.update({ where: { id: existing.id }, data: { ...data, ...(reopensJudging(existing, data, new Date()) && { judgingClosedAt: null }) } })
   else await prisma.hackathonStage.create({ data: { hackathonId, order: stages.length, ...data } })
   await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission } })
   revalidate(h)
   return null
 })
+
+/** "Open submissions" (until closesAt) / "Close submissions" (now) — allowed in any state; the button warns first. */
+export const setSubmissionsOpen = action(
+  { schema: z.object({ hackathonId: id, stageId: id, open: z.boolean(), closesAt: date.optional() }), permission: 'user' },
+  async ({ hackathonId, stageId, open, closesAt }, user) => {
+    const h = await assertManage(hackathonId, user)
+    const stage = await prisma.hackathonStage.findFirst({ where: { id: stageId, hackathonId } })
+    if (!stage) throw new ActionError('Stage not found')
+    const now = new Date()
+    if (open && !(closesAt && closesAt > now)) throw new ActionError('Pick a closing time in the future')
+    const next = { opensAt: stage.opensAt < now ? stage.opensAt : now, closesAt: open ? closesAt! : now }
+    await prisma.hackathonStage.update({ where: { id: stageId }, data: { ...next, ...(reopensJudging(stage, next, now) && { judgingClosedAt: null }) } })
+    await recordAudit({ actorId: user.id, action: open ? 'hackathon.stage.open' : 'hackathon.stage.close', entityType: 'HackathonStage', entityId: stageId, before: { opensAt: stage.opensAt, closesAt: stage.closesAt, judgingClosedAt: stage.judgingClosedAt }, after: next })
+    revalidate(h)
+    return null
+  },
+)
 
 export const duplicateStage = action({ schema: z.object({ hackathonId: id, stageId: id }), permission: 'user' }, async ({ hackathonId, stageId }, user) => {
   const h = await assertManage(hackathonId, user)

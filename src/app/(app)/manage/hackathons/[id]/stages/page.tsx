@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Plus } from 'lucide-react'
-import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
+import { getManagedHackathon, stageReviewCounts } from '@/app/(site)/events/_lib/hackathons/queries'
 import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
 import { StageStateBadge } from '@/components/stage-state-badge'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { formatEventRange } from '@/lib/dates'
 import { requireUser } from '@/lib/guards'
 import { FieldList } from '../_components/field-editor'
-import { CriterionDialog, DeleteCriterion, DeleteStage, DuplicateStage, StageDialog } from '../_components/stage-editors'
+import { CloseSubmissions, CriterionDialog, DeleteCriterion, DeleteStage, DuplicateStage, OpenSubmissions, StageDialog } from '../_components/stage-editors'
 
 export const metadata = { title: 'Stages' }
 
@@ -18,13 +18,16 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
   if (!h) notFound()
   const now = new Date()
   const tz = h.timezone
+  const reviews = await stageReviewCounts(h.stages.map((s) => s.id))
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-fg-muted">Stages run in order and may overlap. Only teams you advance can submit to the next stage.</p>
         <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
       </div>
-      {h.stages.map((s, i) => {
+      {h.stages.map((stage, i) => {
+        const s = { ...stage, entries: stage._count.entries, reviews: reviews.get(stage.id) ?? 0 }
+        const state = stageState(s, now)
         const totalWeight = s.criteria.reduce((a, c) => a + c.weight, 0)
         return (
           <SectionCard
@@ -33,10 +36,11 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
             description={`${formatEventRange(s.opensAt, s.closesAt, tz)} — ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} — scored 0–${s.scaleMax}`}
             actions={
               <>
-                <StageStateBadge state={stageState(s, now)} />
+                <StageStateBadge state={state} />
+                {state === 'open' ? <CloseSubmissions hackathonId={h.id} stage={s} /> : <OpenSubmissions hackathonId={h.id} stage={s} timeZone={tz} />}
                 <StageDialog hackathonId={h.id} timeZone={h.timezone} stage={s} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
                 <DuplicateStage hackathonId={h.id} stageId={s.id} />
-                {s._count.entries === 0 && <DeleteStage hackathonId={h.id} stage={s} />}
+                {s.entries === 0 && <DeleteStage hackathonId={h.id} stage={s} />}
               </>
             }
           >

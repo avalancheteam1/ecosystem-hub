@@ -1,15 +1,15 @@
 /**
- * Page title. Bottom-aligned split on wide screens: title left, description
- * right (seed-sprint's section header), with a hairline underneath.
+ * Page title. Title left, actions right on one row; the description sits
+ * underneath at full width so long copy never squeezes the actions.
  */
 export function PageHeader({ title, description, children }: { title: string; description?: string; children?: React.ReactNode }) {
   return (
-    <div className="mb-10 grid gap-4 border-b border-line pb-6 lg:grid-cols-[1.15fr_1fr] lg:items-end lg:gap-16">
-      <h1 className="text-3xl leading-[1.05] tracking-[-0.012em] sm:text-4xl">{title}</h1>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between lg:justify-end">
-        {description && <p className="max-w-[52ch] text-fg-muted lg:text-right">{description}</p>}
-        {children && <div className="flex shrink-0 gap-2">{children}</div>}
+    <div className="mb-10 border-b border-line pb-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-3xl leading-[1.05] tracking-[-0.012em] sm:text-4xl">{title}</h1>
+        {children && <div className="flex shrink-0 flex-wrap gap-2">{children}</div>}
       </div>
+      {description && <p className="mt-3 max-w-[70ch] text-fg-muted">{description}</p>}
     </div>
   )
 }

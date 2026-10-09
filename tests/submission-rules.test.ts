@@ -52,5 +52,5 @@ test('team size limits and every member must have joined', () => {
 })
 
 test('the submitter must be on the team', () => {
-  assert.match(reason({ submitterId: 'u3' }), /team/)
+  assert.match(reason({ submitterId: 'u3' }), /writers and owner/)
 })

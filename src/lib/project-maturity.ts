@@ -6,5 +6,6 @@ export const PROJECT_MATURITY = {
   testnet: { label: 'Testnet / beta', hint: 'Deployed on testnet or in public beta' },
   live: { label: 'Live', hint: 'Launched on mainnet, first users' },
   established: { label: 'Established', hint: 'Steady users or revenue, growing' },
+  archived: { label: 'Archived', hint: 'No longer active or maintained' },
 } as const
 export type ProjectMaturity = keyof typeof PROJECT_MATURITY

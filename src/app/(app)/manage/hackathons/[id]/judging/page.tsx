@@ -46,7 +46,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
           <SectionCard
             key={s.id}
             title={`${i + 1}. ${s.name}`}
-            description={`${active.length} submissions — ${done} of ${assigned - conflicts} reviews done${conflicts ? ` — ${conflicts} conflict${conflicts === 1 ? '' : 's'} declared (draw again to replace)` : ''}${uncovered ? ` — ${uncovered} without judges` : ''}`}
+            description={`${active.length} submissions — ${done} of ${assigned - conflicts} reviews done${conflicts ? ` — ${conflicts} conflict${conflicts === 1 ? '' : 's'} declared${s.reviewMode === 'random' ? ' (draw again to replace)' : ''}` : ''}${uncovered ? ` — ${uncovered} without judges` : ''}`}
             actions={
               <>
                 <StageStateBadge state={state} />
@@ -70,8 +70,12 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
               <p className="text-sm text-fg-muted">No submissions yet.</p>
             ) : (
               <div className="space-y-8">
-                <AssignPanel hackathonId={h.id} stageId={s.id} mode={s.reviewMode} perEntry={s.judgesPerSubmission} hasAssignments={assigned > 0} />
-                {judges.length > 0 && <AssignmentMatrix hackathonId={h.id} judges={judges.map((j) => ({ id: j.id, label: j.label }))} rows={matrix} />}
+                {s.reviewMode === 'random' ? (
+                  <AssignPanel hackathonId={h.id} stageId={s.id} perEntry={s.judgesPerSubmission} hasAssignments={assigned > 0} />
+                ) : (
+                  <p className="text-sm text-fg-muted">All judges — every eligible judge sees every submission automatically once submissions close. <span className="text-fg-faint">(Change under Stages.)</span></p>
+                )}
+                {judges.length > 0 && <AssignmentMatrix hackathonId={h.id} judges={judges.map((j) => ({ id: j.id, label: j.label }))} rows={matrix} manual={s.reviewMode === 'random'} />}
               </div>
             )}
           </SectionCard>

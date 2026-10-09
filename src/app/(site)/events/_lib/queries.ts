@@ -8,10 +8,10 @@ export function upcomingEventWhere(now = new Date()) {
 }
 
 /** Published events, upcoming or past. */
-export async function listPublicEvents(when: 'upcoming' | 'past', take: number, skip = 0) {
+export async function listPublicEvents(when: 'upcoming' | 'past', take: number, skip = 0, hackathonsOnly = false) {
   const upcoming = upcomingEventWhere()
   return prisma.event.findMany({
-    where: { status: 'published', ...(when === 'upcoming' ? upcoming : { NOT: upcoming }) },
+    where: { status: 'published', ...(hackathonsOnly && { hackathon: { status: 'published' as const } }), ...(when === 'upcoming' ? upcoming : { NOT: upcoming }) },
     orderBy: { startAt: when === 'upcoming' ? 'asc' : 'desc' },
     skip,
     take,

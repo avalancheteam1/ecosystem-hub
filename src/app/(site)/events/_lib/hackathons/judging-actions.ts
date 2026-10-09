@@ -8,7 +8,7 @@ import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
-import { assignAll, assignRandom, isConflicted, judgeEligibility, weightedTotal, type Pair } from './judging'
+import { assignRandom, isConflicted, judgeEligibility, weightedTotal, type Pair } from './judging'
 import { assertManage } from './manage'
 import { stageState } from './rules'
 
@@ -29,9 +29,10 @@ async function loadStage(stageId: string) {
 
 type LoadedStage = Awaited<ReturnType<typeof loadStage>>
 
-type Mode = { mode: 'all' | 'random'; perEntry: number }
-
-async function computePairs(stage: LoadedStage, seed: string, m: Mode) {
+/** A random, balanced draw with the stage's "judges per submission" ("all judges" stages assign themselves, see queries.ts). */
+async function computePairs(stage: LoadedStage, seed: string) {
+  const perEntry = stage.judgesPerSubmission
+  if (stage.reviewMode !== 'random' || !perEntry) throw new ActionError('This stage assigns every judge automatically — switch it to random judges under Stages to draw')
   const entries = stage.entries.map((e) => ({
     id: e.id,
     trackIds: e.submission.trackIds,
@@ -44,45 +45,40 @@ async function computePairs(stage: LoadedStage, seed: string, m: Mode) {
   // Real reviews stay and count toward n; declared conflicts stay recorded but are never drawn again and don't count.
   const keep: Pair[] = done.filter((r) => !r.review?.conflictDeclared).map((r) => [r.judgeId, r.entryId])
   const exclude: Pair[] = done.filter((r) => r.review?.conflictDeclared).map((r) => [r.judgeId, r.entryId])
-  if (m.mode === 'all') return { pairs: assignAll(entries, judges, exclude), keep }
-  const r = assignRandom(entries, judges, m.perEntry, { seed, keep, exclude })
+  const r = assignRandom(entries, judges, perEntry, { seed, keep, exclude })
   if (!r.ok) {
     const names = stage.entries.filter((e) => r.infeasible.includes(e.id)).length
-    throw new ActionError(`${names} submission(s) can't get ${m.perEntry} eligible judges (conflicts or track limits). Invite more judges or lower the number.`)
+    throw new ActionError(`${names} submission(s) can't get ${perEntry} eligible judges (conflicts or track limits). Invite more judges or lower the number.`)
   }
   return { pairs: r.pairs, keep }
 }
 
 /** Preview a draw without writing anything. */
-const modeSchema = { mode: z.enum(['all', 'random']), perEntry: z.coerce.number().int().min(1).max(20) }
-
-export const previewAssignment = action({ schema: z.object({ hackathonId: id, stageId: id, seed: z.string().max(40).optional(), ...modeSchema }), permission: 'user' }, async ({ hackathonId, stageId, seed, mode, perEntry }, user) => {
+export const previewAssignment = action({ schema: z.object({ hackathonId: id, stageId: id, seed: z.string().max(40).optional() }), permission: 'user' }, async ({ hackathonId, stageId, seed }, user) => {
   await assertManage(hackathonId, user)
   const stage = await loadStage(stageId)
   if (stage.hackathonId !== hackathonId) throw new ActionError('Stage not found')
   const s = seed ?? crypto.randomBytes(6).toString('hex')
-  const { pairs } = await computePairs(stage, s, { mode, perEntry })
+  const { pairs } = await computePairs(stage, s)
   const load = stage.hackathon.judges.map((j) => ({ judge: j.email, count: pairs.filter(([jid]) => jid === j.id).length }))
   return { seed: s, total: pairs.length, load }
 })
 
 /** Apply a (previewed) draw: keeps reviewed assignments, replaces the rest. */
-export const applyAssignment = action({ schema: z.object({ hackathonId: id, stageId: id, seed: z.string().min(1).max(40), ...modeSchema }), permission: 'user' }, async ({ hackathonId, stageId, seed, mode, perEntry }, user) => {
+export const applyAssignment = action({ schema: z.object({ hackathonId: id, stageId: id, seed: z.string().min(1).max(40) }), permission: 'user' }, async ({ hackathonId, stageId, seed }, user) => {
   const h = await assertManage(hackathonId, user)
   const stage = await loadStage(stageId)
   if (stage.hackathonId !== hackathonId) throw new ActionError('Stage not found')
   if (stageState(stage, new Date()) === 'closed') throw new ActionError('Judging is closed for this stage')
-  const { pairs, keep } = await computePairs(stage, seed, { mode, perEntry })
+  const { pairs, keep } = await computePairs(stage, seed)
   const keepSet = new Set(keep.map(([j, e]) => `${j}:${e}`))
   const added = await prisma.$transaction(async (tx) => {
     await tx.judgeAssignment.deleteMany({ where: { entry: { stageId }, OR: [{ review: null }, { review: { submittedAt: null } }] } })
     const fresh = pairs.filter(([j, e]) => !keepSet.has(`${j}:${e}`))
     await tx.judgeAssignment.createMany({ data: fresh.map(([judgeId, entryId]) => ({ judgeId, entryId, createdById: user.id })), skipDuplicates: true })
-    // The chosen algorithm becomes the stage's setting.
-    await tx.hackathonStage.update({ where: { id: stageId }, data: { reviewMode: mode, judgesPerSubmission: mode === 'random' ? perEntry : null } })
     return fresh.length
   })
-  await recordAudit({ actorId: user.id, action: 'hackathon.judging.assign', entityType: 'HackathonStage', entityId: stageId, after: { seed, mode, perEntry, assignments: pairs.length } })
+  await recordAudit({ actorId: user.id, action: 'hackathon.judging.assign', entityType: 'HackathonStage', entityId: stageId, after: { seed, perEntry: stage.judgesPerSubmission, assignments: pairs.length } })
   // Tell judges they have work (one mail per judge with new assignments).
   const judgeIds = new Set(pairs.filter(([j, e]) => !keepSet.has(`${j}:${e}`)).map(([j]) => j))
   for (const j of stage.hackathon.judges.filter((x) => judgeIds.has(x.id))) {
@@ -139,8 +135,9 @@ export const assignAllToEntry = action({ schema: z.object({ hackathonId: id, ent
 /** Remove an assignment — only while no review was submitted on it. */
 export const unassignJudge = action({ schema: z.object({ hackathonId: id, assignmentId: id }), permission: 'user' }, async ({ hackathonId, assignmentId }, user) => {
   await assertManage(hackathonId, user)
-  const a = await prisma.judgeAssignment.findFirst({ where: { id: assignmentId, entry: { stage: { hackathonId, judgingClosedAt: null } } }, include: { review: { select: { submittedAt: true } } } })
+  const a = await prisma.judgeAssignment.findFirst({ where: { id: assignmentId, entry: { stage: { hackathonId, judgingClosedAt: null } } }, include: { review: { select: { submittedAt: true } }, entry: { select: { stage: { select: { reviewMode: true } } } } } })
   if (!a) throw new ActionError('Assignment not found')
+  if (a.entry.stage.reviewMode === 'all') throw new ActionError('In “all judges” stages every eligible judge reviews every submission — switch the stage to random judges to pick')
   if (a.review?.submittedAt) throw new ActionError('This judge already submitted a review — it can’t be removed')
   await prisma.judgeAssignment.delete({ where: { id: a.id } })
   await recordAudit({ actorId: user.id, action: 'hackathon.judging.unassign', entityType: 'StageEntry', entityId: a.entryId, before: { judgeId: a.judgeId } })

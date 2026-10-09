@@ -11,7 +11,7 @@ import { sendMail } from '@/lib/mailer'
 import { shortId, slugify, withSuffix } from '@/lib/slug'
 import { isOwnUpload } from '@/lib/storage'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
-import { fieldsOf, planSave, projectFieldsSchema, versionChanged, type ProjectFields } from './rules'
+import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, fieldsOf, MAX_MILESTONES, milestoneDoneAt, milestoneSchema, planSave, projectFieldsSchema, TEAM_ROLES, versionChanged, type ProjectFields } from './rules'
 
 const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const INVITE_DAYS = 14
@@ -21,6 +21,32 @@ async function membership(projectId: string, userId: string) {
   const m = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } }, select: { role: true } })
   if (!m) throw new ActionError('You are not on this project')
   return m
+}
+
+async function requireWriter(projectId: string, userId: string) {
+  const m = await membership(projectId, userId)
+  if (!canEditProject(m.role)) throw new ActionError('You can only view this project')
+  return m
+}
+
+async function requireOwner(projectId: string, userId: string) {
+  const m = await membership(projectId, userId)
+  if (!canManageTeam(m.role)) throw new ActionError('Only the owner can manage the team')
+  return m
+}
+
+/** A submitted team can't grow past its hackathon's limit, and (unless allowed) nobody may end up on two submissions of one hackathon. */
+async function assertCanJoinTeam(projectId: string, userId: string) {
+  const running = await prisma.submission.findMany({
+    where: { projectId, status: 'active', hackathon: { stages: { some: { judgingClosedAt: null } } } },
+    include: { hackathon: { select: { id: true, teamSizeMax: true, allowMultipleSubmissions: true, event: { select: { name: true } } } }, project: { select: { _count: { select: { members: { where: { role: { in: TEAM_ROLES } } } } } } } },
+  })
+  for (const s of running) {
+    if (s.hackathon.teamSizeMax != null && s.project._count.members + 1 > s.hackathon.teamSizeMax) throw new ActionError(`This team is at the ${s.hackathon.event.name} size limit (${s.hackathon.teamSizeMax})`)
+    if (s.hackathon.allowMultipleSubmissions) continue
+    const other = await prisma.submission.findFirst({ where: { hackathonId: s.hackathon.id, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId, role: { in: TEAM_ROLES } } } } } })
+    if (other) throw new ActionError(`Already on another team in ${s.hackathon.event.name}`)
+  }
 }
 
 function versionData(f: ProjectFields) {
@@ -36,18 +62,23 @@ function assertOwnImages(f: ProjectFields, projectId: string | null, userId: str
   if (f.screenshots.some((u) => !own(u, 'project-screenshot'))) throw new ActionError('Upload screenshots here')
 }
 
-export const createProject = action({ schema: z.object({ fields: projectFieldsSchema }), permission: 'user' }, async ({ fields }, user) => {
+export const createProject = action({ schema: z.object({ fields: projectFieldsSchema, milestones: z.array(milestoneSchema).max(MAX_MILESTONES).default([]) }), permission: 'user' }, async ({ fields, milestones }, user) => {
   assertOwnImages(fields, null, user.id)
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const project = await prisma.$transaction(async (tx) => {
         const p = await tx.project.create({
-          data: { slug: withSuffix(slugify(fields.name), shortId()), ownerId: user.id, members: { create: { userId: user.id, role: 'owner' } } },
+          data: {
+            slug: withSuffix(slugify(fields.name), shortId()),
+            ownerId: user.id,
+            members: { create: { userId: user.id, role: 'owner' } },
+            milestones: { create: milestones.map((m) => ({ ...m, doneAt: milestoneDoneAt(null, m.status, new Date()) })) },
+          },
         })
         const v = await tx.projectVersion.create({ data: { projectId: p.id, number: 1, ...versionData(fields), createdById: user.id } })
         return tx.project.update({ where: { id: p.id }, data: { currentVersionId: v.id } })
       })
-      await recordAudit({ actorId: user.id, action: 'project.create', entityType: 'Project', entityId: project.id, after: { name: fields.name } })
+      await recordAudit({ actorId: user.id, action: 'project.create', entityType: 'Project', entityId: project.id, after: { name: fields.name, milestones: milestones.length } })
       revalidatePath('/projects')
       return { id: project.id, slug: project.slug }
     } catch (err) {
@@ -62,7 +93,7 @@ export const createProject = action({ schema: z.object({ fields: projectFieldsSc
 export const saveProject = action(
   { schema: z.object({ projectId: z.string().min(1), fields: projectFieldsSchema }), permission: 'user' },
   async ({ projectId, fields }, user) => {
-    await membership(projectId, user.id)
+    await requireWriter(projectId, user.id)
     const project = await prisma.project.findUnique({ where: { id: projectId }, include: { currentVersion: true } })
     if (!project || project.archivedAt || !project.currentVersion) throw new ActionError('Project not found')
     assertOwnImages(fields, projectId, user.id)
@@ -85,10 +116,46 @@ export const saveProject = action(
   },
 )
 
+// ── Milestones: live list, writers and the owner edit ───────────────────────
+
+async function editableProject(projectId: string, userId: string) {
+  await requireWriter(projectId, userId)
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { slug: true, archivedAt: true } })
+  if (!project || project.archivedAt) throw new ActionError('Project not found')
+  return project
+}
+
+export const addMilestone = action({ schema: milestoneSchema.extend({ projectId: z.string().min(1) }), permission: 'user' }, async ({ projectId, ...m }, user) => {
+  const project = await editableProject(projectId, user.id)
+  if ((await prisma.projectMilestone.count({ where: { projectId } })) >= MAX_MILESTONES) throw new ActionError(`At most ${MAX_MILESTONES} milestones`)
+  const row = await prisma.projectMilestone.create({ data: { projectId, ...m, doneAt: milestoneDoneAt(null, m.status, new Date()) } })
+  await recordAudit({ actorId: user.id, action: 'project.milestone.add', entityType: 'ProjectMilestone', entityId: row.id, after: m })
+  revalidatePath(`/projects/${project.slug}`)
+  return { id: row.id }
+})
+
+export const updateMilestone = action({ schema: milestoneSchema.extend({ id: z.string().min(1) }), permission: 'user' }, async ({ id, ...m }, user) => {
+  const cur = await prisma.projectMilestone.findUnique({ where: { id } })
+  if (!cur) throw new ActionError('Milestone not found')
+  const project = await editableProject(cur.projectId, user.id)
+  await prisma.projectMilestone.update({ where: { id }, data: { ...m, doneAt: milestoneDoneAt(cur, m.status, new Date()) } })
+  await recordAudit({ actorId: user.id, action: 'project.milestone.update', entityType: 'ProjectMilestone', entityId: id, before: { title: cur.title, description: cur.description, targetDate: cur.targetDate, status: cur.status }, after: m })
+  revalidatePath(`/projects/${project.slug}`)
+})
+
+export const deleteMilestone = action({ schema: z.object({ id: z.string().min(1) }), permission: 'user' }, async ({ id }, user) => {
+  const cur = await prisma.projectMilestone.findUnique({ where: { id } })
+  if (!cur) throw new ActionError('Milestone not found')
+  const project = await editableProject(cur.projectId, user.id)
+  await prisma.projectMilestone.delete({ where: { id } })
+  await recordAudit({ actorId: user.id, action: 'project.milestone.delete', entityType: 'ProjectMilestone', entityId: id, before: { title: cur.title, targetDate: cur.targetDate, status: cur.status } })
+  revalidatePath(`/projects/${project.slug}`)
+})
+
 export const inviteMember = action(
-  { schema: z.object({ projectId: z.string().min(1), email: z.string().trim().toLowerCase().email('Enter a valid email') }), permission: 'user' },
-  async ({ projectId, email }, user) => {
-    await membership(projectId, user.id)
+  { schema: z.object({ projectId: z.string().min(1), email: z.string().trim().toLowerCase().email('Enter a valid email'), role: z.enum(ASSIGNABLE_ROLES) }), permission: 'user' },
+  async ({ projectId, email, role }, user) => {
+    await requireOwner(projectId, user.id)
     const project = await prisma.project.findUnique({ where: { id: projectId }, include: { currentVersion: { select: { name: true } } } })
     if (!project || project.archivedAt) throw new ActionError('Project not found')
     const already = await prisma.projectMember.findFirst({ where: { projectId, user: { email } } })
@@ -96,7 +163,7 @@ export const inviteMember = action(
     const token = crypto.randomBytes(32).toString('base64url')
     await prisma.$transaction([
       prisma.projectInvite.updateMany({ where: { projectId, email, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } }),
-      prisma.projectInvite.create({ data: { projectId, email, tokenHash: hashToken(token), invitedById: user.id, expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000) } }),
+      prisma.projectInvite.create({ data: { projectId, email, role, tokenHash: hashToken(token), invitedById: user.id, expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000) } }),
     ])
     const name = project.currentVersion?.name ?? 'a project'
     await sendMail({
@@ -114,7 +181,7 @@ export const inviteMember = action(
         </td></tr>`,
       }),
     }).catch((err) => console.error('[projects] invite mail failed', err))
-    await recordAudit({ actorId: user.id, action: 'project.invite.create', entityType: 'Project', entityId: projectId, after: { email } })
+    await recordAudit({ actorId: user.id, action: 'project.invite.create', entityType: 'Project', entityId: projectId, after: { email, role } })
     revalidatePath(`/projects/${project.slug}`)
     return null
   },
@@ -123,7 +190,7 @@ export const inviteMember = action(
 export const revokeInvite = action({ schema: z.object({ inviteId: z.string().min(1) }), permission: 'user' }, async ({ inviteId }, user) => {
   const invite = await prisma.projectInvite.findUnique({ where: { id: inviteId }, include: { project: { select: { slug: true } } } })
   if (!invite) throw new ActionError('Invite not found')
-  await membership(invite.projectId, user.id)
+  await requireOwner(invite.projectId, user.id)
   await prisma.projectInvite.update({ where: { id: inviteId }, data: { revokedAt: new Date() } })
   await recordAudit({ actorId: user.id, action: 'project.invite.revoke', entityType: 'Project', entityId: invite.projectId, before: { email: invite.email } })
   revalidatePath(`/projects/${invite.project.slug}`)
@@ -139,26 +206,16 @@ export const acceptInvite = action({ schema: z.object({ token: z.string().min(20
   if (!me?.emailVerified || me.email.toLowerCase() !== invite.email) {
     throw new ActionError(`This invite is for ${invite.email}. Sign in with that email to accept it.`)
   }
-  // A submitted team can't grow past its hackathon's limit, and (unless allowed) nobody may end up on two submissions of one hackathon.
-  const running = await prisma.submission.findMany({
-    where: { projectId: invite.projectId, status: 'active', hackathon: { stages: { some: { judgingClosedAt: null } } } },
-    include: { hackathon: { select: { id: true, teamSizeMax: true, allowMultipleSubmissions: true, event: { select: { name: true } } } }, project: { select: { _count: { select: { members: true } } } } },
-  })
-  for (const s of running) {
-    if (s.hackathon.teamSizeMax != null && s.project._count.members + 1 > s.hackathon.teamSizeMax) throw new ActionError(`This team is at the ${s.hackathon.event.name} size limit (${s.hackathon.teamSizeMax})`)
-    if (s.hackathon.allowMultipleSubmissions) continue
-    const other = await prisma.submission.findFirst({ where: { hackathonId: s.hackathon.id, status: 'active', projectId: { not: invite.projectId }, project: { members: { some: { userId: user.id } } } } })
-    if (other) throw new ActionError(`You're already on another team in ${s.hackathon.event.name}`)
-  }
+  if (canEditProject(invite.role)) await assertCanJoinTeam(invite.projectId, user.id) // readers aren't on the hackathon team
   await prisma.$transaction([
     prisma.projectMember.upsert({
       where: { projectId_userId: { projectId: invite.projectId, userId: user.id } },
-      create: { projectId: invite.projectId, userId: user.id, role: 'member' },
+      create: { projectId: invite.projectId, userId: user.id, role: invite.role },
       update: {}, // already a member: keep their role
     }),
     prisma.projectInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } }),
   ])
-  await recordAudit({ actorId: user.id, action: 'project.member.join', entityType: 'Project', entityId: invite.projectId })
+  await recordAudit({ actorId: user.id, action: 'project.member.join', entityType: 'Project', entityId: invite.projectId, after: { role: invite.role } })
   revalidatePath('/projects', 'layout')
   return { slug: invite.project.slug }
 })
@@ -168,7 +225,7 @@ export const removeMember = action(
   async ({ projectId, userId }, user) => {
     const me = await membership(projectId, user.id)
     const leaving = userId === user.id
-    if (!leaving && me.role !== 'owner') throw new ActionError('Only the owner can remove team members')
+    if (!leaving && !canManageTeam(me.role)) throw new ActionError('Only the owner can remove team members')
     const target = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } } })
     if (!target) throw new ActionError('Not on this team')
     if (target.role === 'owner') throw new ActionError(leaving ? 'Transfer ownership before you leave' : 'The owner cannot be removed')
@@ -182,17 +239,33 @@ export const removeMember = action(
 export const transferOwnership = action(
   { schema: z.object({ projectId: z.string().min(1), userId: z.string().min(1) }), permission: 'user' },
   async ({ projectId, userId }, user) => {
-    const me = await membership(projectId, user.id)
-    if (me.role !== 'owner') throw new ActionError('Only the owner can transfer ownership')
-    await membership(projectId, userId).catch(() => {
+    await requireOwner(projectId, user.id)
+    const target = await membership(projectId, userId).catch(() => {
       throw new ActionError('The new owner must be on the team')
     })
+    if (target.role === 'reader') await assertCanJoinTeam(projectId, userId)
     await prisma.$transaction([
-      prisma.projectMember.update({ where: { projectId_userId: { projectId, userId: user.id } }, data: { role: 'member' } }),
+      prisma.projectMember.update({ where: { projectId_userId: { projectId, userId: user.id } }, data: { role: 'writer' } }),
       prisma.projectMember.update({ where: { projectId_userId: { projectId, userId } }, data: { role: 'owner' } }),
       prisma.project.update({ where: { id: projectId }, data: { ownerId: userId } }),
     ])
     await recordAudit({ actorId: user.id, action: 'project.owner.transfer', entityType: 'Project', entityId: projectId, before: { ownerId: user.id }, after: { ownerId: userId } })
+    revalidatePath('/projects', 'layout')
+    return null
+  },
+)
+
+export const setMemberRole = action(
+  { schema: z.object({ projectId: z.string().min(1), userId: z.string().min(1), role: z.enum(ASSIGNABLE_ROLES) }), permission: 'user' },
+  async ({ projectId, userId, role }, user) => {
+    await requireOwner(projectId, user.id)
+    const target = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } } })
+    if (!target) throw new ActionError('Not on this team')
+    if (target.role === 'owner') throw new ActionError('Transfer ownership to change the owner')
+    if (target.role === role) return null
+    if (target.role === 'reader') await assertCanJoinTeam(projectId, userId) // joins the hackathon team
+    await prisma.projectMember.update({ where: { id: target.id }, data: { role } })
+    await recordAudit({ actorId: user.id, action: 'project.member.role', entityType: 'Project', entityId: projectId, before: { userId, role: target.role }, after: { userId, role } })
     revalidatePath('/projects', 'layout')
     return null
   },

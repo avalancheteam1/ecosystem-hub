@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { deleteCriterion, deleteStage, duplicateStage, saveCriterion, saveStage } from '@/app/(site)/events/_lib/hackathons/setup-actions'
+import { windowChangeWarnings } from '@/app/(site)/events/_lib/hackathons/rules'
+import { deleteCriterion, deleteStage, duplicateStage, saveCriterion, saveStage, setSubmissionsOpen } from '@/app/(site)/events/_lib/hackathons/setup-actions'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
@@ -15,7 +16,24 @@ import { useActionToast } from '@/hooks/use-action-toast'
 import { DateTimeInput, toUtcIso } from '@/components/date-time-input'
 import { utcToZoned } from '@/lib/timezones'
 
-type Stage = { id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean }
+type Stage = {
+  id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean
+  /** Entries and submitted reviews — what a window change affects. */
+  entries: number; reviews: number
+}
+
+/** Consequences of a window change, shown before saving (never blocking). */
+function WindowWarnings({ stage, opensAt, closesAt }: { stage: Stage; opensAt: string; closesAt: string }) {
+  if (!opensAt || !closesAt) return null
+  const warnings = windowChangeWarnings(stage, { opensAt: new Date(opensAt), closesAt: new Date(closesAt) }, new Date())
+  if (!warnings.length) return null
+  return (
+    <div role="status" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+      <p className="mb-1 text-fg-heading">This changes a stage that is already running:</p>
+      <ul className="list-disc space-y-1 pl-5">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+    </div>
+  )
+}
 type Criterion = { id: string; name: string; description: string | null; weight: number }
 
 /** `timeZone`: the hackathon's zone — inputs are wall time there, saved as UTC. `defaults` prefill a new stage's window (the event dates). */
@@ -47,7 +65,7 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }:
         <Field id="st-close" label="Submissions close"><DateTimeInput id="st-close" required value={v.closesAt} onChange={(w) => setV({ ...v, closesAt: w })} timeZone={timeZone} /></Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="st-mode" label="Who reviews" hint={v.reviewMode === 'all' ? 'Every judge reviews every submission.' : 'Random judges per submission.'}>
+        <Field id="st-mode" label="Who reviews" hint={v.reviewMode === 'all' ? 'Every eligible judge reviews every submission — they see them automatically once submissions close.' : 'Random judges per submission — you draw them on the Judging tab.'}>
           <SegmentedControl label="Who reviews" value={v.reviewMode} onChange={(m) => setV({ ...v, reviewMode: m })} options={[{ value: 'all', label: 'All judges' }, { value: 'random', label: 'Random judges' }]} />
         </Field>
         <Field id="st-scale" label="Score scale" hint="Each criterion is scored 0 to this."><Input id="st-scale" type="number" min={1} max={100} value={v.scaleMax} onChange={(e) => setV({ ...v, scaleMax: e.target.value })} className="h-11" /></Field>
@@ -58,9 +76,54 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }:
         </div>
       )}
       <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.showCriteria} onCheckedChange={(c) => setV({ ...v, showCriteria: c === true })} /> Show the judging criteria on the public page</label>
+      {stage && <WindowWarnings stage={stage} opensAt={toUtcIso(v.opensAt, timeZone)} closesAt={toUtcIso(v.closesAt, timeZone)} />}
       <p className="text-xs text-fg-faint">Times are in {timeZone} (the hackathon’s timezone — change it in Overview).</p>
     </FormDialog>
   )
+}
+
+const HOUR = 60 * 60 * 1000
+
+/** Now + 1 h, rounded up to the full hour in the hackathon's zone (half-hour zones round there, not in UTC). */
+function nextFullHour(timeZone: string) {
+  const target = Date.now() + HOUR
+  const floor = Date.parse(toUtcIso(utcToZoned(new Date(target), timeZone).slice(0, 14) + '00', timeZone))
+  return new Date(floor < target ? floor + HOUR : floor)
+}
+
+/** Opens submissions now, until the chosen time (default: now + 1 h, on the full hour). */
+export function OpenSubmissions({ hackathonId, stage, timeZone }: { hackathonId: string; stage: Stage; timeZone: string }) {
+  const initial = () => utcToZoned(nextFullHour(timeZone), timeZone)
+  const [closesAt, setClosesAt] = useState('')
+  const { pending, run } = useActionToast()
+  const closesIso = toUtcIso(closesAt, timeZone)
+  const now = new Date()
+  return (
+    <FormDialog
+      trigger={<Button size="sm" variant="outline">Open submissions</Button>}
+      title={`Open submissions for ${stage.name}`}
+      description="Teams can submit from now until the time below."
+      submitLabel="Open submissions"
+      pending={pending}
+      onOpenChange={(o) => o && setClosesAt(initial())}
+      onSubmit={() => run(() => setSubmissionsOpen({ hackathonId, stageId: stage.id, open: true, closesAt: closesIso }), 'Submissions are open')}
+    >
+      <Field id={`open-${stage.id}`} label="Submissions close"><DateTimeInput id={`open-${stage.id}`} required value={closesAt} onChange={setClosesAt} timeZone={timeZone} /></Field>
+      <WindowWarnings stage={stage} opensAt={(stage.opensAt < now ? stage.opensAt : now).toISOString()} closesAt={closesIso} />
+      <p className="text-xs text-fg-faint">Times are in {timeZone}.</p>
+    </FormDialog>
+  )
+}
+
+/** Closes submissions right now. */
+export function CloseSubmissions({ hackathonId, stage }: { hackathonId: string; stage: Stage }) {
+  const { pending, run } = useActionToast()
+  const confirmClose = () => {
+    const now = new Date()
+    const warnings = windowChangeWarnings(stage, { opensAt: stage.opensAt < now ? stage.opensAt : now, closesAt: now }, now)
+    if (confirm([`Close submissions for "${stage.name}" now?`, ...warnings.map((w) => `• ${w}`)].join('\n\n'))) run(() => setSubmissionsOpen({ hackathonId, stageId: stage.id, open: false }), 'Submissions are closed')
+  }
+  return <Button size="sm" variant="outline" disabled={pending} onClick={confirmClose}>Close submissions</Button>
 }
 
 /** Copies settings, window, criteria and questions into a new last stage. */

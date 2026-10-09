@@ -7,7 +7,7 @@ import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { buildAnswersSchema, stageState } from './rules'
 import { canSubmitToStage } from './submissions'
-import { missingForSubmission, planSeal } from '@/app/(app)/projects/_lib/rules'
+import { canEditProject, missingForSubmission, planSeal, TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
 
 /** Submit (or update) a project to a stage: pins the project's CURRENT version and the team. */
 export const submitToStage = action(
@@ -37,12 +37,13 @@ export const submitToStage = action(
     if (!project || project.archivedAt || !project.currentVersionId || !project.currentVersion) throw new ActionError('Project not found')
     const missing = missingForSubmission(project.currentVersion)
     if (missing.length) throw new ActionError(`Complete your project first — missing: ${missing.join(', ')}`)
-    const team = project.members.map((m) => m.userId)
+    const teamMembers = project.members.filter((m) => canEditProject(m.role)) // readers aren't on the hackathon team
+    const team = teamMembers.map((m) => m.userId)
 
     const [submission, participants, clash] = await Promise.all([
       prisma.submission.findUnique({ where: { hackathonId_projectId: { hackathonId, projectId } }, include: { entries: { select: { stageId: true, advancedAt: true } } } }),
       prisma.participant.findMany({ where: { hackathonId, status: 'active', userId: { in: team } }, select: { userId: true } }),
-      h.allowMultipleSubmissions ? null : prisma.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team } } } } }, select: { id: true } }),
+      h.allowMultipleSubmissions ? null : prisma.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team }, role: { in: TEAM_ROLES } } } } }, select: { id: true } }),
     ])
     const prev = h.stages[idx - 1]
     const check = canSubmitToStage({
@@ -64,12 +65,12 @@ export const submitToStage = action(
     const parsed = buildAnswersSchema(stage.fields).safeParse(answers)
     if (!parsed.success) throw new ActionError(parsed.error.issues[0]?.message ?? 'Check your answers')
 
-    const teamSnapshot = project.members.map((m) => ({ userId: m.userId, name: m.user.name }))
+    const teamSnapshot = teamMembers.map((m) => ({ userId: m.userId, name: m.user.name }))
     const entry = await prisma.$transaction(async (tx) => {
       // Unless multiple submissions are allowed, serialise per hackathon so "one active submission per person" holds under concurrency.
       if (!h.allowMultipleSubmissions) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${hackathonId}))`
-        const clashNow = await tx.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team } } } } }, select: { id: true } })
+        const clashNow = await tx.submission.findFirst({ where: { hackathonId, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId: { in: team }, role: { in: TEAM_ROLES } } } } }, select: { id: true } })
         if (clashNow) throw new ActionError('Someone on this team is already part of another submission in this hackathon')
       }
       // Seal the project's draft (or reuse the latest sealed version if nothing changed since).
@@ -98,9 +99,10 @@ export const submitToStage = action(
 export const withdrawSubmission = action({ schema: z.object({ submissionId: z.string().min(1) }), permission: 'user' }, async ({ submissionId }, user) => {
   const s = await prisma.submission.findUnique({
     where: { id: submissionId },
-    include: { project: { include: { members: { select: { userId: true } } } }, hackathon: { include: { event: { select: { slug: true } }, stages: { orderBy: { order: 'asc' } } } } },
+    include: { project: { include: { members: { select: { userId: true, role: true } } } }, hackathon: { include: { event: { select: { slug: true } }, stages: { orderBy: { order: 'asc' } } } } },
   })
   if (!s || !s.project.members.some((m) => m.userId === user.id)) throw new ActionError('Submission not found')
+  if (!s.project.members.some((m) => m.userId === user.id && canEditProject(m.role))) throw new ActionError('Only writers and the owner can withdraw')
   if (s.status !== 'active') throw new ActionError('This submission is not active')
   const last = s.hackathon.stages.at(-1)
   if (last && stageState(last, new Date()) === 'closed') throw new ActionError('The hackathon is over — submissions can no longer be withdrawn')
