@@ -8,6 +8,7 @@ import { ProjectForm } from '@/app/(app)/projects/_components/project-form'
 import { submitToStage } from '@/app/(site)/events/_lib/hackathons/submission-actions'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ChipToggle } from '@/components/chip-toggle'
+import { StatusPill } from '@/components/status-pill'
 import { AnswerFields, type AnswerField, type Answers } from '@/components/answer-fields'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,7 +18,7 @@ import { useActionToast } from '@/hooks/use-action-toast'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { cn } from '@/lib/utils'
 
-type ProjectOption = { id: string; slug: string; name: string; tagline: string; imageUrl: string | null; maturity: string | null; versionNumber: number; sealed: boolean; members: number; missing: string[] }
+type ProjectOption = { id: string; slug: string; name: string; tagline: string; imageUrl: string | null; maturity: string | null; versionNumber: number; sealed: boolean; members: number; submittedVersion: number | null; missing: string[] }
 
 type CountryProps = { countries: { code: string; name: string }[]; defaultCountry: string | null }
 
@@ -111,7 +112,12 @@ export function SubmitForm(props: {
                 <img src={p.imageUrl} alt="" className="size-12 shrink-0 rounded-lg border border-line object-cover" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-fg-heading">{p.name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-fg-heading">{p.name}</p>
+                  {p.submittedVersion && (p.submittedVersion === p.versionNumber && p.sealed
+                    ? <StatusPill tone="success">Submitted · v{p.submittedVersion}</StatusPill>
+                    : <StatusPill tone="warning">Submitted v{p.submittedVersion} · changed since</StatusPill>)}
+                </div>
                 <p className="truncate text-sm text-fg-muted">{p.tagline}</p>
                 <p className="mt-1 text-xs text-fg-body">Stage: {PROJECT_MATURITY[p.maturity as ProjectMaturity]?.label ?? <span className="text-destructive">not set</span>}</p>
               </div>

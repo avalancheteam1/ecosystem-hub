@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { BackLink } from '@/components/back-link'
 import { notFound } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
+import { DataTerms } from '@/app/(site)/events/_components/hackathon/data-terms'
 import { getJudgeQueue } from '@/app/(site)/events/_lib/hackathons/queries'
 import { PageHeader } from '@/components/layout/page-header'
 import { StatusPill } from '@/components/status-pill'
@@ -15,6 +16,15 @@ export default async function JudgeQueue({ params }: { params: Promise<{ hackath
   const { hackathonId } = await params
   const q = await getJudgeQueue(hackathonId, user.id)
   if (!q) notFound()
+  if (!q.judge.termsAcceptedAt) {
+    return (
+      <>
+        <BackLink href="/judge">Judging</BackLink>
+        <PageHeader title={q.judge.hackathon.event.name} description="One step before you start judging." />
+        <DataTerms hackathonId={hackathonId} role="judge" />
+      </>
+    )
+  }
   const stages = [...new Map(q.assignments.map((a) => [a.entry.stage.id, a.entry.stage])).values()].sort((a, b) => a.order - b.order)
   return (
     <>

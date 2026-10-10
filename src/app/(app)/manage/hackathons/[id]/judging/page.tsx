@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getManagedHackathon, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
-import { judgeEligibility, rankEntries, type Pair } from '@/app/(site)/events/_lib/hackathons/judging'
+import { criterionMeans, judgeEligibility, rankEntries, type Pair } from '@/app/(site)/events/_lib/hackathons/judging'
 import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
 import { StageStateBadge } from '@/components/stage-state-badge'
@@ -26,9 +26,8 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
         const conflicts = active.reduce((a, e) => a + e.assignments.filter((x) => x.review?.conflictDeclared).length, 0)
         const uncovered = active.filter((e) => e.assignments.length === 0).length
         const closed = !!s.judgingClosedAt
-        const ranked = closed
-          ? rankEntries(active.map((e) => ({ entryId: e.id, submittedAt: e.submittedAt, totals: e.assignments.flatMap((a) => (a.review?.submittedAt && !a.review.conflictDeclared && a.review.total != null ? [a.review.total] : [])) })))
-          : []
+        const counted = (e: (typeof active)[number]) => e.assignments.flatMap((a) => (a.review?.submittedAt && !a.review.conflictDeclared && a.review.total != null ? [a.review] : []))
+        const ranked = closed ? rankEntries(active.map((e) => ({ entryId: e.id, submittedAt: e.submittedAt, totals: counted(e).map((r) => r.total!) }))) : []
         const byId = new Map(active.map((e) => [e.id, e]))
         const judges = h.judges.map((j) => ({ id: j.id, label: j.user?.name ?? j.email, userId: j.userId, trackIds: j.trackIds }))
         const matrix = active.map((e) => {
@@ -64,7 +63,12 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
                 hackathonId={h.id}
                 stageId={s.id}
                 canAdvance={i < h.stages.length - 1}
-                rows={ranked.map((r) => ({ ...r, name: byId.get(r.entryId)!.projectVersion.name, advanced: !!byId.get(r.entryId)!.advancedAt }))}
+                criteria={s.criteria.map((c) => ({ id: c.id, name: c.name }))}
+                scaleMax={s.scaleMax}
+                rows={ranked.map((r) => {
+                  const e = byId.get(r.entryId)!
+                  return { ...r, name: e.projectVersion.name, href: `/manage/hackathons/${h.id}/submissions/${e.submission.id}`, advanced: !!e.advancedAt, criterionMeans: criterionMeans(counted(e).map((x) => x.scores as Record<string, unknown>), s.criteria) }
+                })}
               />
             ) : active.length === 0 ? (
               <p className="text-sm text-fg-muted">No submissions yet.</p>

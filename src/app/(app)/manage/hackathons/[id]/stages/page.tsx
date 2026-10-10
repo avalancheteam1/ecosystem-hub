@@ -22,8 +22,8 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-2xl text-fg-muted">Stages run in order and may overlap. Only teams you advance can submit to the next stage.</p>
-        <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
+        <p className="max-w-2xl text-fg-muted">Stages run in order and may overlap. Each later stage is either for the teams you advance or open to every registered team.</p>
+        <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} first={!h.stages.length} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
       </div>
       {h.stages.map((stage, i) => {
         const s = { ...stage, entries: stage._count.entries, reviews: reviews.get(stage.id) ?? 0 }
@@ -33,12 +33,12 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
           <SectionCard
             key={s.id}
             title={`${i + 1}. ${s.name}`}
-            description={`${formatEventRange(s.opensAt, s.closesAt, tz)} - ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} - scored 0–${s.scaleMax}`}
+            description={`${formatEventRange(s.opensAt, s.closesAt, tz)} - ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} - scored 0–${s.scaleMax}${i > 0 ? (s.advancedOnly ? ' - advanced teams only' : ' - open to all teams') : ''}`}
             actions={
               <>
                 <StageStateBadge state={state} />
                 {state === 'open' ? <CloseSubmissions hackathonId={h.id} stage={s} /> : <OpenSubmissions hackathonId={h.id} stage={s} timeZone={tz} />}
-                <StageDialog hackathonId={h.id} timeZone={h.timezone} stage={s} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
+                <StageDialog hackathonId={h.id} timeZone={h.timezone} stage={s} first={i === 0} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
                 <DuplicateStage hackathonId={h.id} stageId={s.id} />
                 {s.entries === 0 && <DeleteStage hackathonId={h.id} stage={s} />}
               </>

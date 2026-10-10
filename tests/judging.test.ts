@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { assignAll, assignRandom, isConflicted, rankEntries, weightedTotal } from '@/app/(site)/events/_lib/hackathons/judging'
+import { assignAll, assignRandom, criterionMeans, isConflicted, rankEntries, weightedTotal } from '@/app/(site)/events/_lib/hackathons/judging'
 
 const criteria = [{ id: 'tech', weight: 2 }, { id: 'ux', weight: 1 }, { id: 'impact', weight: 1 }]
 
@@ -10,6 +10,11 @@ test('weighted total scales to 0–100 and needs every criterion', () => {
   assert.equal(weightedTotal({ tech: 8, ux: 4 }, criteria, 10), null)
   assert.equal(weightedTotal({ tech: 11, ux: 4, impact: 6 }, criteria, 10), null) // out of range
   assert.equal(weightedTotal({ tech: 7, ux: 3, impact: 3 }, criteria, 9), 55.56)
+})
+
+test('criterion means average each criterion over the reviews that scored it', () => {
+  assert.deepEqual(criterionMeans([{ tech: 8, ux: 4 }, { tech: 7, ux: 'x' }, { tech: 6 }], criteria), { tech: 7, ux: 4, impact: null })
+  assert.deepEqual(criterionMeans([{ tech: 1 }, { tech: 2 }, { tech: 2 }], [{ id: 'tech' }]), { tech: 1.67 })
 })
 
 test('conflict of interest: on the submitted team or the current team', () => {

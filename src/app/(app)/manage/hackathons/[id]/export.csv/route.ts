@@ -1,5 +1,6 @@
 import { getManagedHackathon, getStageJudging, listSubmissions } from '@/app/(site)/events/_lib/hackathons/queries'
 import { rankEntries } from '@/app/(site)/events/_lib/hackathons/judging'
+import { placeTitle } from '@/app/(site)/events/_lib/hackathons/rules'
 import { getCurrentUser } from '@/lib/session'
 
 // CSV of every submission with per-stage version, score, rank and advancement.
@@ -34,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       const r = e && ranked.find((x) => x.entryId === e.id)
       return [e?.projectVersion.number ?? '', r?.mean ?? '', r?.rank ?? '', e ? (e.advancedAt ? 'yes' : 'no') : '']
     })
-    const awards = h.prizes.filter((p) => p.award?.submissionId === sub.id).map((p) => p.title).join('; ')
+    const awards = h.prizes.flatMap((p) => p.awards.filter((a) => a.submissionId === sub.id).map((a) => (p.placementTo ? `${p.title} (${placeTitle(a.placement)})` : p.title))).join('; ')
     return [
       sub.project.currentVersion?.name,
       sub.status,

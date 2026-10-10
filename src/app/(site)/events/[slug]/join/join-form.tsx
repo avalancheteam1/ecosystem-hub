@@ -32,6 +32,10 @@ export function JoinForm({ hackathonId, fields, termsUrl, invite, needsApproval 
           <span>I accept the <a href={termsUrl} target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2">terms of this hackathon</a>.</span>
         </label>
       )}
+      <p className="text-sm text-fg-muted">
+        The organisers of this hackathon will see your name, email and answers, and judges the projects you submit. Organisers are responsible for their own use of it - see our{' '}
+        <a href="https://go.team1.network/privacy-policy" target="_blank" rel="noreferrer" className="underline decoration-brand underline-offset-2">privacy policy</a>.
+      </p>
       <div><Button type="submit" size="lg" disabled={pending || (!!termsUrl && !terms)}>Register for Hackathon</Button></div>
     </form>
   )

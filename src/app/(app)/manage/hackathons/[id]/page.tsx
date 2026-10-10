@@ -3,6 +3,7 @@ import { CircleCheck, CircleAlert } from 'lucide-react'
 import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
 import { publishChecklist } from '@/app/(site)/events/_lib/hackathons/rules'
 import { requireUser } from '@/lib/guards'
+import { readLinks } from '@/lib/links'
 import { OverviewForm } from './_components/overview-form'
 
 export default async function ManageOverviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,7 +14,7 @@ export default async function ManageOverviewPage({ params }: { params: Promise<{
   return (
     <div className="grid gap-8 xl:grid-cols-[1fr_320px]">
       <section className="rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
-        <OverviewForm hackathonId={h.id} initial={h} />
+        <OverviewForm hackathonId={h.id} initial={{ ...h, resourceLinks: readLinks(h.resourceLinks) }} />
       </section>
       <aside className="space-y-4 xl:order-last">
         <section className="rounded-xl border border-line bg-surface-2 p-6">

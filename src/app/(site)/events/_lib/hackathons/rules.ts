@@ -16,12 +16,12 @@ export function stageState(s: StageWindow, now: Date): StageState {
 
 /**
  * Stage windows may overlap, so several can be open at once. Index of the open stage this
- * builder submits to: the latest one they qualify for (first stage, or advanced from the
- * previous one), else the first open stage; -1 when none is open.
+ * builder submits to: the latest one they qualify for (first stage, open to all, or advanced
+ * from the previous one), else the first open stage; -1 when none is open.
  */
-export function pickOpenStage(stages: (StageWindow & { id: string })[], now: Date, advancedStageIds: ReadonlySet<string>): number {
+export function pickOpenStage(stages: (StageWindow & { id: string; advancedOnly: boolean })[], now: Date, advancedStageIds: ReadonlySet<string>): number {
   const open = stages.flatMap((s, i) => (stageState(s, now) === 'open' ? [i] : []))
-  return open.findLast((i) => i === 0 || advancedStageIds.has(stages[i - 1]!.id)) ?? open[0] ?? -1
+  return open.findLast((i) => i === 0 || !stages[i]!.advancedOnly || advancedStageIds.has(stages[i - 1]!.id)) ?? open[0] ?? -1
 }
 
 /** Stages from which one of my submissions was advanced. */
@@ -130,8 +130,12 @@ export function canManageHackathon(user: (AuthzUser & { id: string }) | null, or
   return can(user, 'hackathons.manage') || organizers.some((o) => o.userId === user.id)
 }
 
+/** A bound organiser who hasn't accepted the data terms yet. hackathons.manage holders are team1 staff - exempt. */
+export function needsOrganizerTerms(user: AuthzUser & { id: string }, organizers: { userId: string | null; termsAcceptedAt: Date | null }[]): boolean {
+  return !can(user, 'hackathons.manage') && organizers.some((o) => o.userId === user.id && !o.termsAcceptedAt)
+}
+
 type ChecklistInput = {
-  tagline: string
   teamSizeMin: number
   teamSizeMax: number | null
   eventPublished: boolean
@@ -141,7 +145,6 @@ type ChecklistInput = {
 /** Everything that must be fixed before the hackathon can be published. */
 export function publishChecklist(h: ChecklistInput): string[] {
   const problems: string[] = []
-  if (!h.tagline.trim()) problems.push('Add a tagline')
   if (h.teamSizeMin < 1 || (h.teamSizeMax != null && h.teamSizeMin > h.teamSizeMax)) problems.push('Team size: minimum must be between 1 and the maximum')
   if (!h.eventPublished) problems.push('Publish the event first')
   if (h.stages.length === 0) return [...problems, 'Add at least one stage']
@@ -151,4 +154,21 @@ export function publishChecklist(h: ChecklistInput): string[] {
     if (s.reviewMode === 'random' && !(s.judgesPerSubmission && s.judgesPerSubmission >= 1)) problems.push(`${s.name}: set how many judges review each submission`)
   }
   return problems
+}
+
+// ── prizes ─────────────────────────────────────────────────────────────────
+
+const ORDINAL = new Intl.PluralRules('en', { type: 'ordinal' })
+const SUFFIX: Record<string, string> = { one: 'st', two: 'nd', few: 'rd', other: 'th' }
+const ordinal = (n: number) => `${n}${SUFFIX[ORDINAL.select(n)]}`
+
+/** The places a prize covers: [placement] or [placement … placementTo]. */
+export function prizePlaces(p: { placement: number; placementTo: number | null }): number[] {
+  const to = Math.max(p.placement, p.placementTo ?? p.placement)
+  return Array.from({ length: to - p.placement + 1 }, (_, i) => p.placement + i)
+}
+
+/** "1st place", "4th-10th place" - the default prize title. */
+export function placeTitle(from: number, to?: number | null): string {
+  return to && to > from ? `${ordinal(from)}-${ordinal(to)} place` : `${ordinal(from)} place`
 }

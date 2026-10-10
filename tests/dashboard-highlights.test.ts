@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { byUrgency, hackathonMoment } from '@/app/(app)/dashboard/_lib/highlights'
+import { byUrgency, hackathonMoment, projectNudge } from '@/app/(app)/dashboard/_lib/highlights'
 
 const now = new Date('2026-10-09T12:00:00Z')
 const d = (s: string) => new Date(s)
@@ -41,4 +41,14 @@ test('byActivity: active by last update, archived last', async () => {
   const p = (id: string, maturity: string | null, at: string) => ({ id, maturity, updatedAt: d(at) })
   const sorted = [p('old', 'mvp', '2026-09-01'), p('arch', 'archived', '2026-10-08'), p('new', 'live', '2026-10-05'), p('unset', null, '2026-09-15')].sort(byActivity)
   assert.deepEqual(sorted.map((x) => x.id), ['new', 'unset', 'old', 'arch'])
+})
+
+test('projectNudge: archived silent, then stage, missing fields, staleness, milestone', () => {
+  const ok = { daysSinceUpdate: 3, maturity: 'mvp', nextMilestone: { title: 'Mainnet', targetDate: '2026-12-01' }, missing: 0 }
+  assert.equal(projectNudge(ok), null)
+  assert.equal(projectNudge({ ...ok, maturity: 'archived', missing: 4 }), null)
+  assert.equal(projectNudge({ ...ok, maturity: null, missing: 4 }), 'Set the project stage')
+  assert.equal(projectNudge({ ...ok, missing: 1, daysSinceUpdate: 90 }), '1 field missing before you can submit')
+  assert.equal(projectNudge({ ...ok, daysSinceUpdate: 90 }), 'No updates in 90 days - still current?')
+  assert.equal(projectNudge({ ...ok, nextMilestone: null }), 'Add a milestone to show where it is heading')
 })

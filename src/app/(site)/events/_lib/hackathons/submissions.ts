@@ -3,7 +3,7 @@ import { stageState, type Check } from './rules'
 // Pure: may this team submit (or update its entry) to this stage right now?
 
 type SubmitCtx = {
-  stage: { opensAt: Date; closesAt: Date; judgingClosedAt: Date | null }
+  stage: { opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; advancedOnly: boolean }
   isFirstStage: boolean
   /** The team's entry in the previous stage was advanced. */
   advancedFromPrevious: boolean
@@ -25,7 +25,7 @@ export function canSubmitToStage(c: SubmitCtx): Check {
   if (!c.team.includes(c.submitterId)) return { ok: false, reason: "Only the project's writers and owner can submit it" }
   if (c.submissionStatus === 'withdrawn') return { ok: false, reason: 'This submission was withdrawn' }
   if (c.submissionStatus === 'disqualified') return { ok: false, reason: 'This submission was disqualified' }
-  if (!c.isFirstStage && !c.advancedFromPrevious) return { ok: false, reason: 'Only teams advanced from the previous stage can submit here' }
+  if (!c.isFirstStage && c.stage.advancedOnly && !c.advancedFromPrevious) return { ok: false, reason: 'Only teams advanced from the previous stage can submit here' }
   if (c.team.length < c.teamSizeMin) return { ok: false, reason: `Teams need at least ${c.teamSizeMin} members - invite teammates on the project` }
   if (c.teamSizeMax != null && c.team.length > c.teamSizeMax) return { ok: false, reason: `Teams can have at most ${c.teamSizeMax} members` }
   const missing = c.team.filter((u) => !c.activeParticipants.has(u))

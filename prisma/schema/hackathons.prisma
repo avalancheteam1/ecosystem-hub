@@ -23,6 +23,10 @@ model Hackathon {
   inviteToken          String?   @unique
   /// Display text, e.g. "$50,000" - shown alongside (or instead of) per-place prizes
   prizePool            String?
+  /// "Build with" links the organiser adds: [{ label, url }] in display order (src/lib/links.ts)
+  resourceLinks        Json      @default("[]")
+  /// false = hide the default Avalanche Builder Hub links (BUILDER_HUB_LINKS) under "Build with"
+  showBuilderHubLinks  Boolean   @default(true)
   /// IANA zone the organiser enters times in and deadlines are shown in. Times themselves are stored in UTC.
   timezone             String    @default("UTC")
   /// draft | published
@@ -67,12 +71,14 @@ model HackathonPrize {
   trackId     String?
   track       HackathonTrack? @relation(fields: [trackId], references: [id], onDelete: Cascade)
   placement   Int             @default(1)
+  /// last place of a range prize (e.g. 4-10, one winner per place); null = single place
+  placementTo Int?
   title       String
   /// Display text, e.g. "$5,000"
   amount      String?
   description String?
   order       Int             @default(0)
-  award       Award?
+  awards      Award[]
 
   @@index([hackathonId])
   @@map("hackathon_prizes")
@@ -87,6 +93,8 @@ model HackathonOrganizer {
   userId      String?
   user        User?     @relation("OrganizerOf", fields: [userId], references: [id], onDelete: SetNull)
   invitedById String?
+  /// accepted the organiser data terms (DataTerms) - console locked until then
+  termsAcceptedAt DateTime?
   createdAt   DateTime  @default(now())
 
   @@unique([hackathonId, email])
@@ -104,6 +112,8 @@ model HackathonJudge {
   /// empty = judges every track
   trackIds    String[]
   invitedById String?
+  /// accepted the judge confidentiality terms (DataTerms) - queue locked until then
+  termsAcceptedAt DateTime?
   createdAt   DateTime          @default(now())
   assignments JudgeAssignment[]
 
@@ -164,6 +174,8 @@ model HackathonStage {
   reviewMode          String       @default("all")
   judgesPerSubmission Int?
   sameTrackOnly       Boolean      @default(false)
+  /// Only teams advanced from the previous stage may submit (ignored for the first stage)
+  advancedOnly        Boolean      @default(true)
   scaleMax            Int          @default(10)
   /// Show this stage's judging criteria on the public page
   showCriteria        Boolean      @default(true)
@@ -266,11 +278,14 @@ model Review {
 
 model Award {
   id           String         @id @default(cuid())
-  prizeId      String         @unique
+  prizeId      String
   prize        HackathonPrize @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+  /// the place within the prize's range (= prize.placement for single-place prizes)
+  placement    Int
   submissionId String
   submission   Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   createdAt    DateTime       @default(now())
 
+  @@unique([prizeId, placement])
   @@map("hackathon_awards")
 }

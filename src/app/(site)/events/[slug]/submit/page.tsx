@@ -40,16 +40,19 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
   const stage = h.stages[idx]
   if (!stage) return <Notice slug={slug} title="No stage is open">Submissions open with the next stage - see the timeline.</Notice>
   const fields = await prisma.formField.findMany({ where: { stageId: stage.id }, orderBy: { order: 'asc' } })
-  // Which of my projects may be picked: later stages only advanced teams; one submission per person unless multiple are allowed.
-  const advanced = idx > 0 ? mines.filter((m) => m.entries.find((e) => e.stageId === h.stages[idx - 1]!.id)?.advancedAt) : null
+  // Which of my projects may be picked: later "advanced only" stages only advanced teams; one submission per person unless multiple are allowed.
+  const advanced = idx > 0 && stage.advancedOnly ? mines.filter((m) => m.entries.find((e) => e.stageId === h.stages[idx - 1]!.id)?.advancedAt) : null
   if (advanced && !advanced.length) {
     return <Notice slug={slug} title={`${stage.name} is for advanced teams`}>Only teams the organisers advanced from {h.stages[idx - 1]!.name} can submit to this stage.</Notice>
   }
   const only = advanced ?? (!h.allowMultipleSubmissions && mines.length ? mines.slice(0, 1) : null)
-  const projects = only ? myProjects.filter((p) => only.some((m) => m.projectId === p.id)) : myProjects
+  // Version of each project already submitted to this stage; submitted projects first.
+  const submittedTo = (id: string) => mines.find((m) => m.projectId === id)?.entries.find((e) => e.stageId === stage.id)?.projectVersion.number ?? null
+  const projects = (only ? myProjects.filter((p) => only.some((m) => m.projectId === p.id)) : myProjects).toSorted((a, b) => Number(!!submittedTo(b.id)) - Number(!!submittedTo(a.id)))
   const projectId = projects.find((p) => p.id === picked)?.id ?? projects[0]?.id ?? ''
   const mine = mines.find((m) => m.projectId === projectId)
   const entry = mine?.entries.find((e) => e.stageId === stage.id)
+  // Tracks are picked with a team's first submission - usually stage 1, or a later stage open to all.
   return (
     <div className="container-page max-w-3xl py-14">
       <p><Link href={`/events/${slug}`} className="text-fg-muted underline-offset-4 hover:text-fg-heading hover:underline">{event.name}</Link></p>
@@ -62,11 +65,11 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
           submitPath={`/events/${slug}/submit`}
           hackathonId={h.id}
           stageId={stage.id}
-          projects={projects.map((p) => ({ id: p.id, slug: p.slug, name: p.currentVersion?.name ?? '', tagline: p.currentVersion?.shortDescription ?? '', imageUrl: p.currentVersion?.logoUrl ?? p.currentVersion?.coverUrl ?? null, maturity: p.currentVersion?.maturity ?? null, versionNumber: p.currentVersion?.number ?? 0, sealed: !!p.currentVersion?.sealedAt, members: p._count.members, missing: p.currentVersion ? missingForSubmission(p.currentVersion) : [] }))}
+          projects={projects.map((p) => ({ id: p.id, slug: p.slug, name: p.currentVersion?.name ?? '', tagline: p.currentVersion?.shortDescription ?? '', imageUrl: p.currentVersion?.logoUrl ?? p.currentVersion?.coverUrl ?? null, maturity: p.currentVersion?.maturity ?? null, versionNumber: p.currentVersion?.number ?? 0, sealed: !!p.currentVersion?.sealedAt, members: p._count.members, submittedVersion: submittedTo(p.id), missing: p.currentVersion ? missingForSubmission(p.currentVersion) : [] }))}
           projectId={projectId}
           canCreate={!only}
           tracks={h.tracks}
-          chooseTracks={idx === 0}
+          chooseTracks={idx === 0 || !mine}
           initialTrackIds={mine?.trackIds ?? []}
           fields={fields}
           initialAnswers={(entry?.answers as Record<string, unknown>) ?? {}}

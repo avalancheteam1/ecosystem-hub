@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { deletePrize, deleteTrack, savePrize, saveTrack, setPrizePool } from '@/app/(site)/events/_lib/hackathons/setup-actions'
+import { placeTitle } from '@/app/(site)/events/_lib/hackathons/rules'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
@@ -14,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
 
 type Track = { id: string; name: string; descriptionMd: string | null; sponsor: string | null; sponsorLogoUrl: string | null }
-type Prize = { id: string; trackId: string | null; placement: number; title: string; amount: string | null; description: string | null }
+type Prize = { id: string; trackId: string | null; placement: number; placementTo: number | null; title: string; amount: string | null; description: string | null }
 
 export function TrackDialog({ hackathonId, track, trigger }: { hackathonId: string; track?: Track; trigger: React.ReactNode }) {
   const empty = { name: track?.name ?? '', descriptionMd: track?.descriptionMd ?? '', sponsor: track?.sponsor ?? '', sponsorLogoUrl: track?.sponsorLogoUrl ?? null }
@@ -43,10 +44,16 @@ export function DeleteTrack({ hackathonId, track }: { hackathonId: string; track
   return <ConfirmButton disabled={pending} message={`Delete the track "${track.name}" and its prizes?`} onConfirm={() => run(() => deleteTrack({ hackathonId, trackId: track.id }), 'Track deleted')}>Delete</ConfirmButton>
 }
 
+// default title for the typed place(s); '' while the input isn't a valid place
+const autoTitle = (from: string, to: string) => (/^[1-9]\d*$/.test(from) && /^([1-9]\d*)?$/.test(to) ? placeTitle(Number(from), Number(to) || null) : '')
+
 export function PrizeDialog({ hackathonId, tracks, prize, trigger }: { hackathonId: string; tracks: Track[]; prize?: Prize; trigger: React.ReactNode }) {
-  const empty = { trackId: prize?.trackId ?? '', placement: String(prize?.placement ?? 1), title: prize?.title ?? '', amount: prize?.amount ?? '', description: prize?.description ?? '' }
+  const empty = { trackId: prize?.trackId ?? '', placement: String(prize?.placement ?? 1), placementTo: prize?.placementTo ? String(prize.placementTo) : '', title: prize?.title ?? placeTitle(1), amount: prize?.amount ?? '', description: prize?.description ?? '' }
   const [v, setV] = useState(empty)
   const { pending, run } = useActionToast()
+  // the title follows the places until the organiser types their own
+  const setPlaces = (placement: string, placementTo: string) =>
+    setV({ ...v, placement, placementTo, title: !v.title || v.title === autoTitle(v.placement, v.placementTo) ? autoTitle(placement, placementTo) : v.title })
   return (
     <FormDialog
       trigger={trigger}
@@ -62,11 +69,12 @@ export function PrizeDialog({ hackathonId, tracks, prize, trigger }: { hackathon
           {tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </NativeSelect>
       </Field>
-      <div className="grid grid-cols-[100px_1fr] gap-4">
-        <Field id="prize-place" label="Place"><Input id="prize-place" type="number" min={1} value={v.placement} onChange={(e) => setV({ ...v, placement: e.target.value })} className="h-11" /></Field>
-        <Field id="prize-title" label="Title"><Input id="prize-title" value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} required maxLength={80} placeholder="1st place" className="h-11" /></Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field id="prize-place" label="Place"><Input id="prize-place" type="number" min={1} max={100} value={v.placement} onChange={(e) => setPlaces(e.target.value, v.placementTo)} required className="h-11" /></Field>
+        <Field id="prize-place-to" label="To place (optional)" hint="For a range, e.g. 4 to 10."><Input id="prize-place-to" type="number" min={1} max={100} value={v.placementTo} onChange={(e) => setPlaces(v.placement, e.target.value)} className="h-11" /></Field>
       </div>
-      <Field id="prize-amount" label="Amount" hint="Shown as written, e.g. $5,000 or 2,000 AVAX."><Input id="prize-amount" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} maxLength={40} className="h-11" /></Field>
+      <Field id="prize-title" label="Title"><Input id="prize-title" value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} required maxLength={80} placeholder="1st place" className="h-11" /></Field>
+      <Field id="prize-amount" label="Amount" hint="Shown as written, e.g. $5,000 or 2,000 AVAX. For a range: what each place gets."><Input id="prize-amount" value={v.amount} onChange={(e) => setV({ ...v, amount: e.target.value })} maxLength={40} className="h-11" /></Field>
       <Field id="prize-desc" label="Details (optional)"><Textarea id="prize-desc" value={v.description} onChange={(e) => setV({ ...v, description: e.target.value })} rows={3} maxLength={500} /></Field>
     </FormDialog>
   )

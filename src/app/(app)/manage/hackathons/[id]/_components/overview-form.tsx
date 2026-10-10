@@ -10,6 +10,9 @@ import { Label } from '@/components/ui/label'
 import { useActionToast } from '@/hooks/use-action-toast'
 import { DateTimeInput, toUtcIso } from '@/components/date-time-input'
 import { Field } from '@/components/field'
+import { LinkListInput } from '@/components/list-inputs'
+import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
+import type { NamedLink } from '@/lib/links'
 import { TimeZoneSelect } from '@/components/time-zone-select'
 import { utcToZoned } from '@/lib/timezones'
 
@@ -19,6 +22,7 @@ type Initial = {
   registrationOpensAt: Date | null; registrationClosesAt: Date | null
   teamSizeMin: number; teamSizeMax: number | null; maxParticipants: number | null
   allowMultipleSubmissions: boolean
+  resourceLinks: NamedLink[]; showBuilderHubLinks: boolean
 }
 
 export function OverviewForm({ hackathonId, initial }: { hackathonId: string; initial: Initial }) {
@@ -30,6 +34,8 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
   })
   const [multi, setMulti] = useState(initial.allowMultipleSubmissions)
   const [tz, setTz] = useState(initial.timezone)
+  const [links, setLinks] = useState(initial.resourceLinks)
+  const [hubLinks, setHubLinks] = useState(initial.showBuilderHubLinks)
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV((p) => ({ ...p, [k]: e.target.value }))
   const { pending, run } = useActionToast()
   return (
@@ -37,7 +43,7 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
       className="grid gap-6"
       onSubmit={(e) => {
         e.preventDefault()
-        run(() => updateOverview({ hackathonId, ...v, allowMultipleSubmissions: multi, timezone: tz, registrationOpensAt: toUtcIso(v.registrationOpensAt, tz), registrationClosesAt: toUtcIso(v.registrationClosesAt, tz) }), 'Saved')
+        run(() => updateOverview({ hackathonId, ...v, allowMultipleSubmissions: multi, resourceLinks: links, showBuilderHubLinks: hubLinks, timezone: tz, registrationOpensAt: toUtcIso(v.registrationOpensAt, tz), registrationClosesAt: toUtcIso(v.registrationClosesAt, tz) }), 'Saved')
       }}
     >
       <div className="space-y-2">
@@ -73,6 +79,11 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
       <div className="space-y-2">
         <label className="flex items-center gap-3 text-sm"><Checkbox checked={multi} onCheckedChange={(c) => setMulti(c === true)} /> Allow multiple submissions</label>
         <p className="text-xs text-fg-faint">Builders may be on more than one team (project) in this hackathon. Off: one active submission per person.</p>
+      </div>
+      <div className="space-y-3">
+        <LinkListInput id="links" label="Build with - links" value={links} onChange={setLinks} />
+        <p className="text-xs text-fg-faint">Starter kits, docs, APIs. Just type into the empty row, or paste markdown links / several lines at once. Drag to reorder.</p>
+        <label className="flex items-center gap-3 text-sm"><Checkbox checked={hubLinks} onCheckedChange={(c) => setHubLinks(c === true)} /> Show the Avalanche Builder Hub links ({BUILDER_HUB_LINKS.map((l) => l.label).join(', ')}) in their own box</label>
       </div>
       <div><Button type="submit" disabled={pending}>Save overview</Button></div>
     </form>

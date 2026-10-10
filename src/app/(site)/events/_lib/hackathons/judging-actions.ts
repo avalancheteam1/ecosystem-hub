@@ -10,7 +10,7 @@ import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
 import { assignRandom, isConflicted, judgeEligibility, weightedTotal, type Pair } from './judging'
 import { assertManage } from './manage'
-import { stageState } from './rules'
+import { prizePlaces, stageState } from './rules'
 
 const id = z.string().min(1)
 const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
@@ -201,19 +201,21 @@ export const setSubmissionStatus = action({ schema: z.object({ hackathonId: id, 
   return null
 })
 
-export const setAward = action({ schema: z.object({ hackathonId: id, prizeId: id, submissionId: z.string().optional().transform((v) => v || null) }), permission: 'user' }, async ({ hackathonId, prizeId, submissionId }, user) => {
+export const setAward = action({ schema: z.object({ hackathonId: id, prizeId: id, placement: z.number().int().min(1).max(100), submissionId: z.string().optional().transform((v) => v || null) }), permission: 'user' }, async ({ hackathonId, prizeId, placement, submissionId }, user) => {
   const h = await assertManage(hackathonId, user)
   const prize = await prisma.hackathonPrize.findFirst({ where: { id: prizeId, hackathonId } })
   if (!prize) throw new ActionError('Prize not found')
+  if (!prizePlaces(prize).includes(placement)) throw new ActionError('That place isn’t part of this prize')
   if (submissionId) {
     const sub = await prisma.submission.findFirst({ where: { id: submissionId, hackathonId, status: 'active' } })
     if (!sub) throw new ActionError('Submission not found')
     if (prize.trackId && !sub.trackIds.includes(prize.trackId)) throw new ActionError('That team didn’t enter this prize’s track')
-    await prisma.award.upsert({ where: { prizeId }, create: { prizeId, submissionId }, update: { submissionId } })
+    if (await prisma.award.count({ where: { prizeId, submissionId, placement: { not: placement } } })) throw new ActionError('That team already has another place of this prize')
+    await prisma.award.upsert({ where: { prizeId_placement: { prizeId, placement } }, create: { prizeId, placement, submissionId }, update: { submissionId } })
   } else {
-    await prisma.award.deleteMany({ where: { prizeId } })
+    await prisma.award.deleteMany({ where: { prizeId, placement } })
   }
-  await recordAudit({ actorId: user.id, action: 'hackathon.award.set', entityType: 'HackathonPrize', entityId: prizeId, after: { submissionId } })
+  await recordAudit({ actorId: user.id, action: 'hackathon.award.set', entityType: 'HackathonPrize', entityId: prizeId, after: { placement, submissionId } })
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   revalidatePath(`/events/${h.event.slug}`, 'layout')
   return null
@@ -251,6 +253,7 @@ export const saveReview = action(
       },
     })
     if (!a || a.judge.userId !== user.id || a.entry.submission.status !== 'active') throw new ActionError('Assignment not found')
+    if (!a.judge.termsAcceptedAt) throw new ActionError('Accept the judge terms first')
     const stage = a.entry.stage
     if (stage.judgingClosedAt) throw new ActionError('Judging is closed - reviews can no longer change')
     if (new Date() < stage.closesAt) throw new ActionError('Submissions are still open - reviewing starts when the stage closes')

@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { advancedStageIds, buildAnswersSchema, canJoin, canManageHackathon, pickOpenStage, publishChecklist, registrationStatus, reopensJudging, stageState, validateStages, windowChangeWarnings, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
+import { advancedStageIds, buildAnswersSchema, canJoin, canManageHackathon, needsOrganizerTerms, pickOpenStage, placeTitle, prizePlaces, publishChecklist, registrationStatus, reopensJudging, stageState, validateStages, windowChangeWarnings, type FieldDef } from '@/app/(site)/events/_lib/hackathons/rules'
 
 const d = (s: string) => new Date(s)
 const stage = (o: Partial<{ opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; name: string; order: number }> = {}) => ({
@@ -16,13 +16,14 @@ test('stageState walks upcoming → open → judging → closed', () => {
 })
 
 test('pickOpenStage: latest open stage I qualify for, else the first open one', () => {
-  const s1 = { ...stage(), id: 's1' }
-  const s2 = { ...stage({ name: 'Finals', order: 1, opensAt: d('2026-11-05T00:00Z'), closesAt: d('2026-11-20T00:00Z') }), id: 's2' }
+  const s1 = { ...stage(), id: 's1', advancedOnly: true }
+  const s2 = { ...stage({ name: 'Finals', order: 1, opensAt: d('2026-11-05T00:00Z'), closesAt: d('2026-11-20T00:00Z') }), id: 's2', advancedOnly: true }
   const at = d('2026-11-06T00:00Z') // both open
   assert.equal(pickOpenStage([s1, s2], at, new Set()), 0)
   assert.equal(pickOpenStage([s1, s2], at, advancedStageIds([{ entries: [{ stageId: 's1', advancedAt: at }] }])), 1)
   assert.equal(pickOpenStage([s1, s2], d('2026-11-15T00:00Z'), new Set()), 1) // only s2 open - not qualified, still shown
   assert.equal(pickOpenStage([s1, s2], d('2026-12-01T00:00Z'), new Set()), -1)
+  assert.equal(pickOpenStage([s1, { ...s2, advancedOnly: false }], at, new Set()), 1) // open to all: everyone qualifies
 })
 
 test('validateStages: windows must be valid; overlapping a previous stage is fine', () => {
@@ -93,11 +94,19 @@ test('canManageHackathon: global permission or bound organiser', () => {
   assert.equal(canManageHackathon(null, [{ userId: null }]), false)
 })
 
+test('needsOrganizerTerms: bound organisers until they accept, never hackathons.manage', () => {
+  const base = { id: 'u1', isSuperAdmin: false, permissions: new Set<never>() }
+  assert.equal(needsOrganizerTerms(base, [{ userId: 'u1', termsAcceptedAt: null }]), true)
+  assert.equal(needsOrganizerTerms(base, [{ userId: 'u1', termsAcceptedAt: d('2026-10-10T00:00Z') }]), false)
+  assert.equal(needsOrganizerTerms(base, [{ userId: 'u2', termsAcceptedAt: null }]), false)
+  assert.equal(needsOrganizerTerms({ ...base, permissions: new Set(['hackathons.manage'] as never) }, [{ userId: 'u1', termsAcceptedAt: null }]), false)
+})
+
 test('publishChecklist lists what blocks publishing', () => {
-  const ok = { tagline: 'x', teamSizeMin: 1, teamSizeMax: 4, eventPublished: true, stages: [{ ...stage(), criteria: [{ weight: 1 }], reviewMode: 'all', judgesPerSubmission: null }] }
+  const ok = { teamSizeMin: 1, teamSizeMax: 4, eventPublished: true, stages: [{ ...stage(), criteria: [{ weight: 1 }], reviewMode: 'all', judgesPerSubmission: null }] }
   assert.deepEqual(publishChecklist(ok), [])
-  const bad = publishChecklist({ ...ok, tagline: '', teamSizeMin: 5, teamSizeMax: 2, eventPublished: false, stages: [{ ...ok.stages[0]!, criteria: [], reviewMode: 'random', judgesPerSubmission: null }] })
-  assert.equal(bad.length, 5)
+  const bad = publishChecklist({ ...ok, teamSizeMin: 5, teamSizeMax: 2, eventPublished: false, stages: [{ ...ok.stages[0]!, criteria: [], reviewMode: 'random', judgesPerSubmission: null }] })
+  assert.equal(bad.length, 4)
   assert.deepEqual(publishChecklist({ ...ok, teamSizeMin: 5, teamSizeMax: null }), [])
   assert.deepEqual(publishChecklist({ ...ok, stages: [] }), ['Add at least one stage'])
 })
@@ -119,4 +128,20 @@ test('windowChangeWarnings: changing a judged window is allowed but explained', 
   assert.deepEqual(windowChangeWarnings(open, { opensAt: open.opensAt, closesAt: d('2026-11-05T00:00Z') }, d('2026-11-05T00:00Z')), ['Teams can no longer submit or change their submissions.'])
   // An untouched stage has nothing to warn about.
   assert.deepEqual(windowChangeWarnings({ ...stage(), entries: 0, reviews: 0 }, stage(), d('2026-10-01T00:00Z')), [])
+})
+
+test('placeTitle: ordinals and ranges', () => {
+  assert.equal(placeTitle(1), '1st place')
+  assert.equal(placeTitle(2), '2nd place')
+  assert.equal(placeTitle(3), '3rd place')
+  assert.equal(placeTitle(11), '11th place')
+  assert.equal(placeTitle(22), '22nd place')
+  assert.equal(placeTitle(4, 10), '4th-10th place')
+  assert.equal(placeTitle(4, 4), '4th place')
+})
+
+test('prizePlaces: single place or the whole range', () => {
+  assert.deepEqual(prizePlaces({ placement: 2, placementTo: null }), [2])
+  assert.deepEqual(prizePlaces({ placement: 4, placementTo: 7 }), [4, 5, 6, 7])
+  assert.deepEqual(prizePlaces({ placement: 4, placementTo: 3 }), [4])
 })

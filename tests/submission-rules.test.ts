@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { canSubmitToStage } from '@/app/(site)/events/_lib/hackathons/submissions'
 
 const now = new Date('2026-11-05T00:00Z')
-const stage = { id: 's2', order: 1, opensAt: new Date('2026-11-01T00:00Z'), closesAt: new Date('2026-11-10T00:00Z'), judgingClosedAt: null }
+const stage = { id: 's2', order: 1, opensAt: new Date('2026-11-01T00:00Z'), closesAt: new Date('2026-11-10T00:00Z'), judgingClosedAt: null, advancedOnly: true }
 const ok = {
   stage,
   isFirstStage: false,
@@ -37,6 +37,10 @@ test('refuses outside the window', () => {
 
 test('later stages only for advanced teams', () => {
   assert.match(reason({ advancedFromPrevious: false }), /advanced/)
+})
+
+test('a later stage open to all takes teams that were not advanced (or never submitted)', () => {
+  assert.equal(reason({ stage: { ...stage, advancedOnly: false }, advancedFromPrevious: false, submissionStatus: null }), 'ok')
 })
 
 test('withdrawn or disqualified submissions are out', () => {

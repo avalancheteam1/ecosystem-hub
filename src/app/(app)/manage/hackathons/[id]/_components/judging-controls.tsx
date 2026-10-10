@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Plus, Shuffle, X } from 'lucide-react'
 import { applyAssignment, assignAllToEntry, assignJudge, previewAssignment, setAdvanced, setJudgingClosed, unassignJudge } from '@/app/(site)/events/_lib/hackathons/judging-actions'
+import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
 import { useActionToast } from '@/hooks/use-action-toast'
 
 /** Random stages only: draw with the stage's settings (set under Stages), preview, apply. */
@@ -103,59 +103,52 @@ export function CloseJudgingButton({ hackathonId, stageId, closed, canClose }: {
   )
 }
 
-type Row = { entryId: string; rank: number | null; name: string; mean: number | null; min: number | null; max: number | null; reviews: number; advanced: boolean }
+type Row = { entryId: string; rank: number | null; name: string; href: string; criterionMeans: Record<string, number | null>; mean: number | null; min: number | null; max: number | null; reviews: number; advanced: boolean }
 
-export function RankingTable({ hackathonId, stageId, rows, canAdvance }: { hackathonId: string; stageId: string; rows: Row[]; canAdvance: boolean }) {
-  const [selected, setSelected] = useState<string[]>(rows.filter((r) => r.advanced).map((r) => r.entryId))
-  const [topN, setTopN] = useState('')
+export function RankingTable({ hackathonId, stageId, rows, canAdvance, criteria, scaleMax }: { hackathonId: string; stageId: string; rows: Row[]; canAdvance: boolean; criteria: { id: string; name: string }[]; scaleMax: number }) {
   const { pending, run } = useActionToast()
-  const advancedNow = rows.filter((r) => r.advanced).map((r) => r.entryId)
-  const toAdd = selected.filter((id) => !advancedNow.includes(id))
-  const toRemove = advancedNow.filter((id) => !selected.includes(id))
+  const advancedIds = rows.filter((r) => r.advanced).map((r) => r.entryId)
   return (
-    <div className="space-y-4">
-      {canAdvance && (
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
-            <label htmlFor={`top-${stageId}`} className="text-xs text-fg-muted">Select top</label>
-            <Input id={`top-${stageId}`} type="number" min={1} value={topN} onChange={(e) => setTopN(e.target.value)} className="h-10 w-24" />
-          </div>
-          <Button size="sm" variant="outline" onClick={() => setSelected(rows.filter((r) => r.rank != null).slice(0, Number(topN) || 0).map((r) => r.entryId))}>Select</Button>
-          <Button
-            size="sm"
-            disabled={pending || (!toAdd.length && !toRemove.length)}
-            onClick={async () => {
-              if (toRemove.length && !(await run(() => setAdvanced({ hackathonId, stageId, entryIds: toRemove, advanced: false }), `${toRemove.length} removed from the next stage`))) return
-              if (toAdd.length) await run(() => setAdvanced({ hackathonId, stageId, entryIds: toAdd, advanced: true }), `${toAdd.length} advanced - teams notified`)
-            }}
-          >
-            Save advancement{toAdd.length ? ` (+${toAdd.length})` : ''}{toRemove.length ? ` (−${toRemove.length})` : ''}
-          </Button>
-        </div>
-      )}
-      <div className="overflow-x-auto rounded-lg border border-line">
-        <table className="w-full text-sm">
-          <thead className="text-left text-fg-muted">
-            <tr className="border-b border-line">
-              {canAdvance && <th className="w-10 p-3"><span className="sr-only">Advance</span></th>}
-              <th className="p-3">#</th><th className="p-3">Project</th><th className="p-3 text-right">Score</th><th className="p-3 text-right">Range</th><th className="p-3 text-right">Reviews</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.entryId} className="border-b border-line last:border-0">
-                {canAdvance && <td className="p-3"><Checkbox aria-label={`Advance ${r.name}`} checked={selected.includes(r.entryId)} onCheckedChange={(c) => setSelected(c ? [...selected, r.entryId] : selected.filter((x) => x !== r.entryId))} /></td>}
-                <td className="p-3 tabular-nums text-fg-muted">{r.rank ?? '-'}</td>
-                <td className="p-3 text-fg-heading">{r.name}{r.advanced && <span className="ml-2 text-xs text-success">advanced</span>}</td>
-                <td className="p-3 text-right tabular-nums text-fg-heading">{r.mean ?? '-'}</td>
-                <td className="p-3 text-right tabular-nums text-fg-muted">{r.min != null ? `${r.min}–${r.max}` : '-'}</td>
-                <td className="p-3 text-right tabular-nums">{r.reviews}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      id="manage-judging-ranking"
+      empty="No submissions in this stage."
+      selection={canAdvance ? {
+        actions: (ids, clear) => {
+          const add = ids.filter((x) => !advancedIds.includes(x))
+          const remove = ids.filter((x) => advancedIds.includes(x))
+          return (
+            <>
+              <Button size="sm" disabled={pending || !add.length} onClick={() => run(() => setAdvanced({ hackathonId, stageId, entryIds: add, advanced: true }), `${add.length} advanced - teams notified`, clear)}>
+                Advance to next stage{add.length ? ` (${add.length})` : ''}
+              </Button>
+              <Button size="sm" variant="outline" disabled={pending || !remove.length} onClick={() => run(() => setAdvanced({ hackathonId, stageId, entryIds: remove, advanced: false }), `${remove.length} removed from the next stage`, clear)}>
+                Remove from next stage{remove.length ? ` (${remove.length})` : ''}
+              </Button>
+            </>
+          )
+        },
+      } : undefined}
+      columns={[
+        { key: 'rank', label: '#', sortable: true, hideable: false },
+        { key: 'name', label: 'Project', sortable: true, hideable: false },
+        { key: 'mean', label: 'Score', sortable: true, firstDir: 'desc' as const, className: 'text-right' },
+        ...criteria.map((c) => ({ key: `c-${c.id}`, label: `${c.name} (/${scaleMax})`, sortable: true, firstDir: 'desc' as const, className: 'text-right' })),
+        { key: 'range', label: 'Range', className: 'text-right' },
+        { key: 'reviews', label: 'Reviews', sortable: true, firstDir: 'desc' as const, className: 'text-right' },
+      ]}
+      rows={rows.map((r) => ({
+        id: r.entryId,
+        sort: { rank: r.rank, name: r.name, mean: r.mean, reviews: r.reviews, ...Object.fromEntries(criteria.map((c) => [`c-${c.id}`, r.criterionMeans[c.id]])) },
+        cells: {
+          rank: <span className="tabular-nums text-fg-muted">{r.rank ?? '-'}</span>,
+          name: <><Link href={r.href} className="text-fg-heading hover:underline">{r.name}</Link>{r.advanced && <span className="ml-2 text-xs text-success">advanced</span>}</>,
+          mean: <span className="tabular-nums text-fg-heading">{r.mean ?? '-'}</span>,
+          ...Object.fromEntries(criteria.map((c) => [`c-${c.id}`, <span key={c.id} className="tabular-nums">{r.criterionMeans[c.id] ?? '-'}</span>])),
+          range: <span className="tabular-nums text-fg-muted">{r.min != null ? `${r.min}–${r.max}` : '-'}</span>,
+          reviews: <span className="tabular-nums">{r.reviews}</span>,
+        },
+      }))}
+    />
   )
 }
 

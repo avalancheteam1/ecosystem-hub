@@ -45,6 +45,16 @@ export default async function SubmissionPage({ params }: { params: Promise<{ id:
                         <span className="truncate text-fg-heading">{a.judge.user?.name ?? a.judge.email}</span>
                         {a.review?.conflictDeclared ? <StatusPill tone="warning">Conflict</StatusPill> : a.review?.submittedAt ? (showScores ? <span className="tabular-nums">{a.review.total}</span> : <StatusPill tone="success">Done</StatusPill>) : <StatusPill>Pending</StatusPill>}
                       </div>
+                      {showScores && a.review?.submittedAt && !a.review.conflictDeclared && (
+                        <dl className="mt-2 space-y-1 text-fg-muted">
+                          {st.criteria.map((c) => (
+                            <div key={c.id} className="flex justify-between gap-2">
+                              <dt className="truncate">{c.name}</dt>
+                              <dd className="tabular-nums">{(a.review!.scores as Record<string, number>)[c.id] ?? '-'}<span className="text-fg-faint">/{st.scaleMax}</span></dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
                       {showScores && a.review?.comment && <p className="mt-2 whitespace-pre-wrap text-fg-muted">{a.review.comment}</p>}
                     </li>
                   ))}

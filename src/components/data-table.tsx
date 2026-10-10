@@ -4,7 +4,9 @@ import { useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { ChevronDown, ChevronUp, Columns3 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { toggleSelection } from '@/lib/selection'
 import { cn } from '@/lib/utils'
 
 export type DataTableColumn = {
@@ -54,13 +56,16 @@ function compare(a: unknown, b: unknown) {
  * The house table: sortable headers, resizable and hideable columns (remembered per viewer).
  * Rows come pre-rendered from the server. Sorting is client-side, or - pass `sort` - server-side
  * via `?sort=&dir=` for paginated tables (the page maps the key to an orderBy).
+ * Pass `selection` to get row checkboxes (select all / clear, shift-click for a range) and an
+ * action bar that renders `selection.actions(ids, clear)` while rows are selected.
  */
-export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort: serverSort }: {
+export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort: serverSort, selection }: {
   id: string
   columns: DataTableColumn[]
   rows: DataTableRow[]
   empty?: React.ReactNode
   sort?: { key: string | null; dir: Dir }
+  selection?: { actions: (ids: string[], clear: () => void) => React.ReactNode }
 }) {
   const storageKey = `table:${id}`
   const layout = parse(useSyncExternalStore(subscribe, () => read(storageKey), () => null))
@@ -71,6 +76,8 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
   const sort = serverSort ?? local
   const pathname = usePathname()
   const params = useSearchParams()
+  const [picked, setPicked] = useState<string[]>([])
+  const [anchor, setAnchor] = useState<string | null>(null)
 
   const hideable = columns.filter((c) => c.hideable !== false)
   const isShown = (c: DataTableColumn) => c.hideable === false || (layout.visible?.[c.key] ?? !c.defaultHidden)
@@ -89,6 +96,14 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
         return sort.dir === 'asc' ? compare(va, vb) : -compare(va, vb)
       })
     : rows
+  // Rows that disappeared after a refresh drop out of the selection.
+  const selected = picked.filter((x) => rows.some((r) => r.id === x))
+  const allSelected = rows.length > 0 && selected.length === rows.length
+  const clear = () => { setPicked([]); setAnchor(null) }
+  function pick(e: React.MouseEvent, rowId: string) {
+    setPicked(toggleSelection(shownRows.map((r) => r.id), selected, rowId, anchor, e.shiftKey))
+    setAnchor(rowId)
+  }
 
   function sortHref(c: DataTableColumn) {
     const p = new URLSearchParams(params)
@@ -129,84 +144,109 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
     write(storageKey, { ...layout, visible: Object.keys(visibleMap).length ? visibleMap : undefined })
   }
 
-  const tableWidth = widths ? visible.reduce((sum, c) => sum + (widths[c.key] ?? MIN_WIDTH * 2), 0) + 44 : undefined
+  const tableWidth = widths ? visible.reduce((sum, c) => sum + (widths[c.key] ?? MIN_WIDTH * 2), 0) + 44 + (selection ? 44 : 0) : undefined
   const SortIcon = sort.dir === 'asc' ? ChevronUp : ChevronDown
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface-2">
-      <table className={cn('w-full caption-bottom text-sm', widths && 'table-fixed')} style={tableWidth ? { width: tableWidth, minWidth: '100%' } : undefined}>
-        <thead>
-          <tr className="border-b border-line">
-            {visible.map((c) => {
-              const active = sort.key === c.key
-              const label = (
-                <>
-                  {c.label}
-                  {active ? <SortIcon className="size-3.5 text-brand" aria-hidden /> : c.sortable && <ChevronDown className="size-3.5 opacity-0 transition-opacity group-hover/sort:opacity-60" aria-hidden />}
-                </>
-              )
-              const sortClass = 'group/sort -mx-1 inline-flex min-h-8 items-center gap-1 rounded px-1 hover:text-fg-heading'
-              return (
-                <th
-                  key={c.key}
-                  ref={(el) => { if (el) ths.current.set(c.key, el); else ths.current.delete(c.key) }}
-                  style={widths ? { width: widths[c.key] ?? MIN_WIDTH * 2 } : undefined}
-                  aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  className={cn('group/th relative h-11 px-3 text-left align-middle font-medium whitespace-nowrap text-fg-muted', c.className)}
-                >
-                  {!c.sortable ? c.label : serverSort ? (
-                    <Link href={sortHref(c)} scroll={false} className={sortClass}>{label}</Link>
-                  ) : (
-                    <button type="button" onClick={() => setLocal({ key: c.key, dir: nextDir(c) })} className={sortClass}>{label}</button>
-                  )}
-                  {/* Resize grip straddling the column edge; the divider lights up on hover. */}
-                  <span aria-hidden onPointerDown={(e) => startResize(e, c.key)} className="group/grip absolute top-0 -right-1.5 z-[2] flex h-full w-3 cursor-col-resize touch-none justify-center select-none">
-                    <span className="my-auto h-1/2 w-px bg-line transition-all group-hover/th:bg-fg-faint group-hover/grip:h-full group-hover/grip:w-0.5 group-hover/grip:bg-brand group-active/grip:h-full group-active/grip:w-0.5 group-active/grip:bg-brand" />
-                  </span>
+    <div className="space-y-2">
+      {selection && selected.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">
+          <span className="text-fg-heading tabular-nums">{selected.length} selected</span>
+          <button type="button" onClick={clear} className="min-h-8 rounded px-1 text-fg-muted hover:text-fg-heading">Clear</button>
+          <div className="flex flex-wrap gap-2 sm:ml-auto">{selection.actions(selected, clear)}</div>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface-2">
+        <table className={cn('w-full caption-bottom text-sm', widths && 'table-fixed')} style={tableWidth ? { width: tableWidth, minWidth: '100%' } : undefined}>
+          <thead>
+            <tr className="border-b border-line">
+              {selection && (
+                <th className="w-11 px-3 align-middle">
+                  <Checkbox
+                    aria-label={allSelected ? 'Clear selection' : 'Select all'}
+                    disabled={rows.length === 0}
+                    checked={allSelected ? true : selected.length ? 'indeterminate' : false}
+                    onCheckedChange={() => (allSelected ? clear() : setPicked(rows.map((r) => r.id)))}
+                  />
                 </th>
-              )
-            })}
-            <th className="sticky right-0 w-11 px-1 text-right">
-              {hideable.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger aria-label="Table columns" title="Show, hide or reset columns" className="inline-grid size-8 place-items-center rounded-lg text-fg-faint transition-colors hover:bg-surface-hover hover:text-fg-heading">
-                    <Columns3 className="size-4" aria-hidden />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-48">
-                    {hideable.map((c) => (
-                      <DropdownMenuCheckboxItem
-                        key={c.key}
-                        checked={isShown(c)}
-                        // Keep at least one hideable column.
-                        disabled={isShown(c) && hideable.filter(isShown).length <= 1}
-                        onCheckedChange={() => toggle(c)}
-                        onSelect={(e) => e.preventDefault()}
-                      >
-                        {c.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem disabled={!layout.widths && !layout.visible} onSelect={() => write(storageKey, {})}>Reset columns</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               )}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {shownRows.map((r) => (
-            <tr key={r.id} className={cn('border-b border-line transition-colors last:border-0 hover:bg-surface-hover/50', r.className)}>
-              {visible.map((c) => (
-                <td key={c.key} className={cn('px-3 py-2.5 align-middle', c.className, widths && 'overflow-hidden text-ellipsis')}>{r.cells[c.key]}</td>
-              ))}
-              <td />
+              {visible.map((c) => {
+                const active = sort.key === c.key
+                const label = (
+                  <>
+                    {c.label}
+                    {active ? <SortIcon className="size-3.5 text-brand" aria-hidden /> : c.sortable && <ChevronDown className="size-3.5 opacity-0 transition-opacity group-hover/sort:opacity-60" aria-hidden />}
+                  </>
+                )
+                const sortClass = 'group/sort -mx-1 inline-flex min-h-8 items-center gap-1 rounded px-1 hover:text-fg-heading'
+                return (
+                  <th
+                    key={c.key}
+                    ref={(el) => { if (el) ths.current.set(c.key, el); else ths.current.delete(c.key) }}
+                    style={widths ? { width: widths[c.key] ?? MIN_WIDTH * 2 } : undefined}
+                    aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                    className={cn('group/th relative h-11 px-3 text-left align-middle font-medium whitespace-nowrap text-fg-muted', c.className)}
+                  >
+                    {!c.sortable ? c.label : serverSort ? (
+                      <Link href={sortHref(c)} scroll={false} className={sortClass}>{label}</Link>
+                    ) : (
+                      <button type="button" onClick={() => setLocal({ key: c.key, dir: nextDir(c) })} className={sortClass}>{label}</button>
+                    )}
+                    {/* Resize grip straddling the column edge; the divider lights up on hover. */}
+                    <span aria-hidden onPointerDown={(e) => startResize(e, c.key)} className="group/grip absolute top-0 -right-1.5 z-[2] flex h-full w-3 cursor-col-resize touch-none justify-center select-none">
+                      <span className="my-auto h-1/2 w-px bg-line transition-all group-hover/th:bg-fg-faint group-hover/grip:h-full group-hover/grip:w-0.5 group-hover/grip:bg-brand group-active/grip:h-full group-active/grip:w-0.5 group-active/grip:bg-brand" />
+                    </span>
+                  </th>
+                )
+              })}
+              <th className="sticky right-0 w-11 px-1 text-right">
+                {hideable.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger aria-label="Table columns" title="Show, hide or reset columns" className="inline-grid size-8 place-items-center rounded-lg text-fg-faint transition-colors hover:bg-surface-hover hover:text-fg-heading">
+                      <Columns3 className="size-4" aria-hidden />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-48">
+                      {hideable.map((c) => (
+                        <DropdownMenuCheckboxItem
+                          key={c.key}
+                          checked={isShown(c)}
+                          // Keep at least one hideable column.
+                          disabled={isShown(c) && hideable.filter(isShown).length <= 1}
+                          onCheckedChange={() => toggle(c)}
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          {c.label}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem disabled={!layout.widths && !layout.visible} onSelect={() => write(storageKey, {})}>Reset columns</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </th>
             </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr><td colSpan={visible.length + 1} className="py-12 text-center text-fg-muted">{empty}</td></tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {shownRows.map((r) => (
+              <tr key={r.id} className={cn('border-b border-line transition-colors last:border-0 hover:bg-surface-hover/50', r.className)}>
+                {selection && (
+                  <td className="px-3 py-2.5 align-middle">
+                    {/* onClick (not onCheckedChange) to see shiftKey; preventDefault on mousedown stops shift from selecting text. */}
+                    <Checkbox aria-label="Select row" checked={selected.includes(r.id)} onMouseDown={(e) => e.shiftKey && e.preventDefault()} onClick={(e) => pick(e, r.id)} />
+                  </td>
+                )}
+                {visible.map((c) => (
+                  <td key={c.key} className={cn('px-3 py-2.5 align-middle', c.className, widths && 'overflow-hidden text-ellipsis')}>{r.cells[c.key]}</td>
+                ))}
+                <td />
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={visible.length + 1 + (selection ? 1 : 0)} className="py-12 text-center text-fg-muted">{empty}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

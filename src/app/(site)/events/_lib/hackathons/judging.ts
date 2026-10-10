@@ -28,6 +28,16 @@ const median = (xs: number[]) => {
 }
 const round2 = (n: number) => Math.round(n * 100) / 100
 
+/** Average raw score per criterion over the given reviews' scores (null when nobody scored it). */
+export function criterionMeans(scores: Record<string, unknown>[], criteria: { id: string }[]): Record<string, number | null> {
+  return Object.fromEntries(
+    criteria.map((c) => {
+      const xs = scores.map((s) => s[c.id]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+      return [c.id, xs.length ? round2(xs.reduce((a, b) => a + b, 0) / xs.length) : null]
+    }),
+  )
+}
+
 export type Ranked = { entryId: string; rank: number | null; mean: number | null; median: number | null; min: number | null; max: number | null; reviews: number }
 
 /** Rank by mean total; ties → higher median → more reviews → earlier submission. Unreviewed entries come last, unranked. */

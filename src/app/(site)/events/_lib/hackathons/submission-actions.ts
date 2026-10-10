@@ -82,7 +82,7 @@ export const submitToStage = action(
       const sub = await tx.submission.upsert({
         where: { hackathonId_projectId: { hackathonId, projectId } },
         create: { hackathonId, projectId, trackIds, createdById: user.id },
-        update: idx === 0 ? { trackIds } : {}, // tracks are chosen in the first stage
+        update: idx === 0 ? { trackIds } : {}, // tracks are chosen in the first stage (or a team's first submission)
       })
       return tx.stageEntry.upsert({
         where: { submissionId_stageId: { submissionId: sub.id, stageId } },

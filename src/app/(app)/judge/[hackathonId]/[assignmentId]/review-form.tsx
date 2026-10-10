@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { saveReview } from '@/app/(site)/events/_lib/hackathons/judging-actions'
 import { weightedTotal } from '@/app/(site)/events/_lib/hackathons/judging'
 import { Button } from '@/components/ui/button'
@@ -11,8 +12,7 @@ import { useActionToast } from '@/hooks/use-action-toast'
 
 type Criterion = { id: string; name: string; description: string | null; weight: number }
 
-export function ReviewForm(props: { assignmentId: string; criteria: Criterion[]; scaleMax: number; initialScores: Record<string, number>; initialComment: string; locked: string | null; submitted: boolean; nextHref: string | null }) {
-  const router = useRouter()
+export function ReviewForm(props: { assignmentId: string; criteria: Criterion[]; scaleMax: number; initialScores: Record<string, number>; initialComment: string; locked: string | null; submitted: boolean; nextHref: string | null; queueHref: string }) {
   const [scores, setScores] = useState<Record<string, number>>(props.initialScores)
   const [comment, setComment] = useState(props.initialComment)
   const { pending, run } = useActionToast()
@@ -20,11 +20,7 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
   const totalWeight = props.criteria.reduce((a, c) => a + c.weight, 0)
   const save = (submit: boolean, conflictDeclared = false) =>
     run(
-      async () => {
-        const res = await saveReview({ assignmentId: props.assignmentId, scores, comment, conflictDeclared, submit })
-        if (res.ok && (submit || conflictDeclared) && props.nextHref) router.push(props.nextHref)
-        return res
-      },
+      () => saveReview({ assignmentId: props.assignmentId, scores, comment, conflictDeclared, submit }),
       conflictDeclared ? 'Conflict declared - the organisers will reassign it' : submit ? 'Review submitted' : 'Draft saved',
     )
 
@@ -73,6 +69,13 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
           </>
         )}
         {props.locked && <p className="text-sm text-fg-muted">{props.locked}</p>}
+        {props.submitted && (
+          <Button asChild className="w-full">
+            {props.nextHref
+              ? <Link href={props.nextHref}>Next project to review <ArrowRight aria-hidden /></Link>
+              : <Link href={props.queueHref}>All done - back to the queue</Link>}
+          </Button>
+        )}
       </div>
     </form>
   )

@@ -17,7 +17,7 @@ import { DateTimeInput, toUtcIso } from '@/components/date-time-input'
 import { utcToZoned } from '@/lib/timezones'
 
 type Stage = {
-  id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean
+  id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean; advancedOnly: boolean
   /** Entries and submitted reviews - what a window change affects. */
   entries: number; reviews: number
 }
@@ -37,11 +37,12 @@ function WindowWarnings({ stage, opensAt, closesAt }: { stage: Stage; opensAt: s
 type Criterion = { id: string; name: string; description: string | null; weight: number }
 
 /** `timeZone`: the hackathon's zone - inputs are wall time there, saved as UTC. `defaults` prefill a new stage's window (the event dates). */
-export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }: { hackathonId: string; stage?: Stage; trigger: React.ReactNode; timeZone: string; defaults?: { opensAt: Date; closesAt: Date | null } }) {
+/** `first`: the first stage - open to every registered team, so no "advanced only" toggle. */
+export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults, first }: { hackathonId: string; stage?: Stage; trigger: React.ReactNode; timeZone: string; defaults?: { opensAt: Date; closesAt: Date | null }; first: boolean }) {
   const empty = {
     name: stage?.name ?? '', descriptionMd: stage?.descriptionMd ?? '', opensAt: utcToZoned(stage?.opensAt ?? defaults?.opensAt, timeZone), closesAt: utcToZoned(stage?.closesAt ?? defaults?.closesAt, timeZone),
     reviewMode: (stage?.reviewMode ?? 'all') as 'all' | 'random', judgesPerSubmission: stage?.judgesPerSubmission ? String(stage.judgesPerSubmission) : '2',
-    scaleMax: String(stage?.scaleMax ?? 10), showCriteria: stage?.showCriteria ?? true,
+    scaleMax: String(stage?.scaleMax ?? 10), showCriteria: stage?.showCriteria ?? true, advancedOnly: stage?.advancedOnly ?? true,
   }
   const [v, setV] = useState(empty)
   const { pending, run } = useActionToast()
@@ -75,6 +76,7 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }:
           <Field id="st-n" label="Judges per submission" hint="Judges are drawn at random, balanced so everyone gets a similar load. Judges limited to certain tracks only get those."><Input id="st-n" type="number" min={1} max={20} value={v.judgesPerSubmission} onChange={(e) => setV({ ...v, judgesPerSubmission: e.target.value })} className="h-11" /></Field>
         </div>
       )}
+      {!first && <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.advancedOnly} onCheckedChange={(c) => setV({ ...v, advancedOnly: c === true })} /> Only teams advanced from the previous stage can submit</label>}
       <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.showCriteria} onCheckedChange={(c) => setV({ ...v, showCriteria: c === true })} /> Show the judging criteria on the public page</label>
       {stage && <WindowWarnings stage={stage} opensAt={toUtcIso(v.opensAt, timeZone)} closesAt={toUtcIso(v.closesAt, timeZone)} />}
       <p className="text-xs text-fg-faint">Times are in {timeZone} (the hackathon’s timezone - change it in Overview).</p>

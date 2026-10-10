@@ -1,11 +1,13 @@
 import 'server-only'
 import { cache } from 'react'
+import { redirect } from 'next/navigation'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { CurrentUser } from '@/lib/session'
+import { userSearchWhere } from '@/lib/user-search'
 import { assignAll } from './judging'
 import { TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
-import { canManageHackathon } from './rules'
+import { canManageHackathon, needsOrganizerTerms } from './rules'
 
 /** Full hackathon for the organiser console, or null if the user may not manage it. */
 export const getManagedHackathon = cache(async (id: string, user: CurrentUser) => {
@@ -16,13 +18,15 @@ export const getManagedHackathon = cache(async (id: string, user: CurrentUser) =
       organizers: { orderBy: { createdAt: 'asc' }, include: { user: { select: { name: true } } } },
       judges: { orderBy: { createdAt: 'asc' }, include: { user: { select: { name: true } } } },
       tracks: { orderBy: { order: 'asc' } },
-      prizes: { orderBy: [{ trackId: 'asc' }, { placement: 'asc' }], include: { award: true } },
+      prizes: { orderBy: [{ trackId: 'asc' }, { placement: 'asc' }], include: { awards: { orderBy: { placement: 'asc' } } } },
       stages: { orderBy: { order: 'asc' }, include: { criteria: { orderBy: { order: 'asc' } }, fields: { orderBy: { order: 'asc' } }, _count: { select: { entries: true } } } },
       fields: { where: { stageId: null }, orderBy: { order: 'asc' } },
       _count: { select: { participants: { where: { status: 'active' } }, submissions: { where: { status: 'active' } } } },
     },
   })
   if (!h || !canManageHackathon(user, h.organizers)) return null
+  // Organiser data (registrations, emails, CSV) only after the data terms.
+  if (needsOrganizerTerms(user, h.organizers)) redirect(`/manage/terms/${h.id}`)
   return h
 })
 
@@ -34,13 +38,27 @@ export async function stageReviewCounts(stageIds: string[]) {
 
 export type ManagedHackathon = NonNullable<Awaited<ReturnType<typeof getManagedHackathon>>>
 
-/** Registrations awaiting a decision (pending) and rejected ones (approvable as an undo). */
-export async function listRegistrationRequests(hackathonId: string) {
-  return prisma.participant.findMany({
-    where: { hackathonId, status: { in: ['pending', 'rejected'] } },
-    orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
-    include: { user: { select: { name: true, email: true } } },
-  })
+export const REGISTRATION_SORTS = ['name', 'email', 'createdAt'] as const
+
+/** One page of a hackathon's registrations in one status (organiser view), plus counts per status. */
+export async function listRegistrations(hackathonId: string, opts: { status: string; q?: string; sort: { key: (typeof REGISTRATION_SORTS)[number]; dir: 'asc' | 'desc' }; page: number; pageSize: number }) {
+  const { status, q, sort, page, pageSize } = opts
+  const orderBy: Prisma.ParticipantOrderByWithRelationInput = sort.key === 'createdAt' ? { createdAt: sort.dir } : { user: { [sort.key]: sort.dir } }
+  const [rows, counts] = await Promise.all([
+    prisma.participant.findMany({
+      where: { hackathonId, status, user: userSearchWhere(q) },
+      orderBy: [orderBy, { id: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize + 1,
+      include: { user: { select: { name: true, email: true } } },
+    }),
+    prisma.participant.groupBy({ by: ['status'], where: { hackathonId }, _count: true }),
+  ])
+  return {
+    rows: rows.slice(0, pageSize),
+    hasMore: rows.length > pageSize,
+    counts: Object.fromEntries(counts.map((c) => [c.status, c._count])) as Record<string, number>,
+  }
 }
 
 /** Hackathons this user organises (or all, for hackathons.manage holders). */
@@ -76,7 +94,7 @@ export const getPublicHackathon = cache(async (eventId: string, userId: string |
     omit: { inviteToken: true },
     include: {
       tracks: { orderBy: { order: 'asc' } },
-      prizes: { orderBy: [{ placement: 'asc' }, { order: 'asc' }], include: { award: { include: { submission: { include: { entries: { orderBy: { stage: { order: 'desc' } }, take: 1, include: { projectVersion: { select: { name: true, shortDescription: true } } } } } } } } } },
+      prizes: { orderBy: [{ placement: 'asc' }, { order: 'asc' }], include: { awards: { orderBy: { placement: 'asc' }, include: { submission: { include: { entries: { orderBy: { stage: { order: 'desc' } }, take: 1, include: { projectVersion: { select: { name: true, shortDescription: true } } } } } } } } } },
       stages: { orderBy: { order: 'asc' }, include: { criteria: { orderBy: { order: 'asc' }, select: { id: true, name: true, weight: true, description: true } } } },
       fields: { where: { stageId: null }, orderBy: { order: 'asc' } },
       _count: { select: { participants: { where: { status: 'active' } }, submissions: { where: { status: 'active' } } } },
@@ -133,7 +151,7 @@ export async function getStageJudging(stageId: string) {
     include: {
       projectVersion: { select: { name: true, shortDescription: true, number: true } },
       submission: { select: { id: true, status: true, trackIds: true, project: { select: { members: { select: { userId: true } } } } } },
-      assignments: { include: { judge: { select: { email: true, user: { select: { name: true } } } }, review: { select: { total: true, submittedAt: true, conflictDeclared: true } } } },
+      assignments: { include: { judge: { select: { email: true, user: { select: { name: true } } } }, review: { select: { total: true, scores: true, submittedAt: true, conflictDeclared: true } } } },
     },
   })
 }

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { Download, Trophy } from 'lucide-react'
 import { getManagedHackathon, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
 import { rankEntries } from '@/app/(site)/events/_lib/hackathons/judging'
+import { placeTitle, prizePlaces } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/guards'
@@ -52,7 +53,11 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
                     <p className="text-xs text-fg-muted">{p.trackId ? h.tracks.find((t) => t.id === p.trackId)?.name : 'Overall'}</p>
                   </div>
                 </div>
-                <AwardSelect hackathonId={h.id} prizeId={p.id} value={p.award?.submissionId ?? null} options={options(p.trackId)} />
+                <div className="flex flex-col gap-2 sm:w-96">
+                  {prizePlaces(p).map((place) => (
+                    <AwardSelect key={place} hackathonId={h.id} prizeId={p.id} placement={place} label={p.placementTo ? placeTitle(place) : undefined} value={p.awards.find((a) => a.placement === place)?.submissionId ?? null} options={options(p.trackId)} />
+                  ))}
+                </div>
               </li>
             ))}
           </ul>

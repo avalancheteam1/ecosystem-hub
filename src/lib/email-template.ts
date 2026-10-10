@@ -24,7 +24,8 @@ const HEADER_LOGO: Record<HeaderVariant, string> = { red: 'Team1_Text_White.png'
 
 /** Inline logo attachment, referenced in the shell as `cid:logo`. `dir` = where the assets/*.png were copied to. */
 export function logoAttachment(variant: HeaderVariant = 'dark', dir = path.join(process.cwd(), 'public', 'email')) {
-  return { filename: 'team1-logo.png', path: path.join(dir, HEADER_LOGO[variant]), cid: 'logo' }
+  // turbopackIgnore: public/ ships via the Dockerfile, no need to trace the whole project
+  return { filename: 'team1-logo.png', path: path.join(/*turbopackIgnore: true*/ dir, HEADER_LOGO[variant]), cid: 'logo' }
 }
 
 /** A centered call-to-action button. Put it INSIDE a body `<td>` - outside a cell, mail clients hoist it above the card. */

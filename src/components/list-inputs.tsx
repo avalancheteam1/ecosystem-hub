@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { GripVertical, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SocialIcon, type SocialPlatform } from '@/components/social-icon'
 import { NativeSelect } from '@/components/ui/native-select'
+import { isHttpUrl, LINK_LIST_MAX, parseLinks, type NamedLink } from '@/lib/links'
 import { detectPlatform, isSocialPlatform, SOCIAL_PLATFORMS, type SocialPlatformKey } from '@/lib/social-platforms'
 import { cn } from '@/lib/utils'
 
@@ -58,6 +59,84 @@ export function TaggedLinksInput({ label, value, onChange, max = 10 }: { label: 
         </div>
       ))}
       {value.length < max && <Button type="button" variant="outline" size="sm" onClick={() => onChange([...value, { tag: '', url: '' }])}><Plus aria-hidden /> Add</Button>}
+    </fieldset>
+  )
+}
+
+/**
+ * Ordered list of { label, url } (name + link). There is always one empty row at the end - typing in it
+ * makes it a link, so nothing waits for an "Add" click (empty rows are dropped on save, see linkListSchema).
+ * Pasting a markdown link, "name: url" or several lines adds them all (list markers ignored, see parseLinks).
+ * Rows reorder by dragging the grip, or with the arrow keys while it has focus.
+ */
+export function LinkListInput({ id, label, value, onChange, max = LINK_LIST_MAX }: { id: string; label: string; value: NamedLink[]; onChange: (v: NamedLink[]) => void; max?: number }) {
+  const [dragging, setDragging] = useState<number | null>(null)
+  const [armed, setArmed] = useState<number | null>(null) // only the grip starts a drag, so text in the inputs stays selectable
+  const handles = useRef<(HTMLButtonElement | null)[]>([])
+  // The trailing empty row has the same shape as the others, so focus stays put when it turns into a link.
+  const rows = value.length < max ? [...value, { label: '', url: '' }] : value
+
+  const update = (i: number, patch: Partial<NamedLink>) => onChange(i === value.length ? [...value, { label: '', url: '', ...patch }] : value.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+  const onPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text')
+    const links = parseLinks(text).filter((l) => !value.some((v) => v.url === l.url))
+    // A lone bare URL pastes normally; markdown, "name: url" or several lines become rows.
+    if (links.length === 0 || (links.length === 1 && text.trim() === links[0]!.url)) return
+    e.preventDefault()
+    onChange([...value.filter((v) => v.label.trim() || v.url.trim()), ...links].slice(0, max))
+  }
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= value.length || from === to) return
+    const next = [...value]
+    next.splice(to, 0, next.splice(from, 1)[0]!)
+    onChange(next)
+  }
+
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-1 text-sm">{label}</legend>
+      <ul className="space-y-1.5">
+        {rows.map((l, i) => {
+          const empty = i === value.length
+          const urlError = l.url.trim() && !isHttpUrl(l.url.trim()) ? 'Enter a full link starting with https://' : null
+          return (
+            <li
+              key={i}
+              draggable={armed === i}
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragging(i) }}
+              onDragOver={(e) => { if (dragging === null || empty) return; e.preventDefault(); if (dragging !== i) { move(dragging, i); setDragging(i) } }}
+              onDragEnd={() => { setDragging(null); setArmed(null) }}
+              className={cn('rounded-lg border border-line bg-surface-1 p-1', empty && 'border-dashed bg-transparent', dragging === i && 'border-brand opacity-60')}
+            >
+              <div className="flex items-center gap-2">
+                <button
+                  ref={(el) => { handles.current[i] = el }}
+                  type="button"
+                  aria-label={`Move ${l.label || `link ${i + 1}`} (arrow keys)`}
+                  disabled={empty}
+                  tabIndex={empty ? -1 : undefined}
+                  onPointerDown={() => setArmed(i)}
+                  onPointerUp={() => setArmed(null)}
+                  onKeyDown={(e) => {
+                    const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null
+                    if (to === null || to < 0 || to >= value.length) return
+                    e.preventDefault()
+                    move(i, to)
+                    requestAnimationFrame(() => handles.current[to]?.focus())
+                  }}
+                  className={cn('grid h-11 w-8 shrink-0 cursor-grab touch-none place-items-center rounded-md text-fg-faint hover:text-fg-heading active:cursor-grabbing', empty && 'invisible')}
+                >
+                  <GripVertical className="size-4" aria-hidden />
+                </button>
+                <Input id={empty ? id : undefined} aria-label={empty ? 'New link name' : `Link ${i + 1} name`} placeholder={empty ? 'Name' : undefined} value={l.label} onPaste={onPaste} onChange={(e) => update(i, { label: e.target.value })} className="h-11 w-40 shrink-0" />
+                <Input aria-label={empty ? 'New link URL' : `Link ${i + 1} URL`} type="url" placeholder={empty ? 'https://… or paste a list of links' : undefined} value={l.url} onPaste={onPaste} onChange={(e) => update(i, { url: e.target.value })} aria-invalid={!!urlError} aria-describedby={urlError ? `${id}-error-${i}` : undefined} className="h-11 min-w-0 flex-1" />
+                <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${l.label || `link ${i + 1}`}`} disabled={empty} tabIndex={empty ? -1 : undefined} className={cn('shrink-0', empty && 'invisible')} onClick={() => onChange(value.filter((_, j) => j !== i))}><X aria-hidden /></Button>
+              </div>
+              {urlError && <p id={`${id}-error-${i}`} className="px-10 pt-1 pb-0.5 text-xs text-destructive">{urlError}</p>}
+            </li>
+          )
+        })}
+      </ul>
     </fieldset>
   )
 }

@@ -30,7 +30,11 @@ export const byUrgency = (a: HackathonMoment, b: HackathonMoment) => ORDER[a.sta
  * `daysSinceUpdate` = days since the current version was last edited.
  */
 export function projectNudge(p: { daysSinceUpdate: number; maturity: string | null; nextMilestone: { title: string; targetDate: string } | null; missing: number }): string | null {
-  // TODO(you): decide what to nudge about, and in which order.
+  if (p.maturity === 'archived') return null
+  if (!p.maturity) return 'Set the project stage'
+  if (p.missing > 0) return `${p.missing} ${p.missing === 1 ? 'field' : 'fields'} missing before you can submit`
+  if (p.daysSinceUpdate >= 60) return `No updates in ${p.daysSinceUpdate} days - still current?`
+  if (!p.nextMilestone) return 'Add a milestone to show where it is heading'
   return null
 }
 

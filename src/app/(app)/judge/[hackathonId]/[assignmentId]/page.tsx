@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { BackLink } from '@/components/back-link'
 import { AnswerList } from '@/components/answer-fields'
 import { BuiltDuringEvent } from '@/components/built-during-event'
@@ -23,6 +23,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ hackath
   })
   // Only the assigned judge - never other judges or organisers through this page.
   if (!a || a.judge.userId !== user.id || a.judge.hackathonId !== hackathonId || a.entry.submission.status !== 'active') notFound()
+  if (!a.judge.termsAcceptedAt) redirect(`/judge/${hackathonId}`)
   const next = await prisma.judgeAssignment.findFirst({
     where: { judgeId: a.judgeId, id: { not: a.id }, OR: [{ review: null }, { review: { submittedAt: null } }], entry: { stageId: a.entry.stageId, submission: { status: 'active' } } },
     select: { id: true },
@@ -59,7 +60,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ hackath
               : null
             }
             submitted={!!a.review?.submittedAt}
-            nextHref={next ? `/judge/${hackathonId}/${next.id}` : `/judge/${hackathonId}`}
+            nextHref={next ? `/judge/${hackathonId}/${next.id}` : null}
+            queueHref={`/judge/${hackathonId}`}
           />
         </section>
       </div>

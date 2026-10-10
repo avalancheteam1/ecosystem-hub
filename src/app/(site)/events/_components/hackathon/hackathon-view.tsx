@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { Event } from '@prisma/client'
 import { ArrowUpRight, ExternalLink, Trophy } from 'lucide-react'
 import type { getMySubmissions, PublicHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
-import { advancedStageIds, pickOpenStage, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
+import { advancedStageIds, pickOpenStage, placeTitle, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
 import { SectionHeading } from '@/components/section-heading'
@@ -11,6 +11,7 @@ import { StageStateBadge } from '@/components/stage-state-badge'
 import { Button } from '@/components/ui/button'
 import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { formatEventRange, formatShortDate } from '@/lib/dates'
+import { readLinks } from '@/lib/links'
 import { cn } from '@/lib/utils'
 
 type Mine = Awaited<ReturnType<typeof getMySubmissions>>
@@ -39,8 +40,10 @@ function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Min
 export function HackathonView({ event, h, signedIn, mine, share }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine; share: ReactNode }) {
   const now = new Date()
   const step = nextStep(event, h, signedIn, mine, now)
-  const results = h.resultsPublishedAt ? h.prizes.filter((p) => p.award && p.award.submission.status === 'active' && p.award.submission.entries[0]) : []
-  const overall = h.prizes.filter((p) => !p.trackId)
+  const results = h.resultsPublishedAt ? h.prizes.flatMap((p) => p.awards.filter((a) => a.submission.status === 'active' && a.submission.entries[0]).map((a) => ({ p, a }))) : []
+  // ponytail: a place without an amount is just a ranking slot for awards - not advertised as a prize
+  const listed = h.prizes.filter((p) => p.amount)
+  const overall = listed.filter((p) => !p.trackId)
   const sections = [
     ['about', 'About', true],
     ['tracks', 'Tracks', h.tracks.length > 0],
@@ -58,6 +61,11 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
     ...(h.tracks.length ? [[h.tracks.length, h.tracks.length === 1 ? 'track' : 'tracks']] : []),
     [h.stages.length, h.stages.length === 1 ? 'round' : 'rounds'],
   ].slice(0, 4)
+  // The organiser's own links, then the default Avalanche ones in their own block (unless hidden).
+  const linkGroups = ([
+    ['Build with', readLinks(h.resourceLinks)],
+    ['Avalanche Builder Hub', h.showBuilderHubLinks ? BUILDER_HUB_LINKS.map((l) => ({ label: l.label, url: l.href })) : []],
+  ] as const).filter(([, links]) => links.length > 0)
   const location = event.isOnline ? 'Online' : [event.city, event.country].filter(Boolean).join(', ')
 
   return (
@@ -125,11 +133,11 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
           <section id="results">
             <SectionHeading title={<>Winners<Dot /></>}>Picked by the judges across {h.stages.length} {h.stages.length === 1 ? 'round' : 'rounds'}.</SectionHeading>
             <ul className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
-              {results.map((p, i) => (
-                <li key={p.id} className={cn('wash border-b border-line py-8 sm:pr-8', i % 3 !== 0 && 'lg:border-l lg:pl-8', i % 2 === 1 && 'sm:border-l sm:pl-8 lg:border-l-0 lg:pl-0', i % 3 !== 0 && 'lg:border-l lg:pl-8')}>
-                  <p className="meta text-brand">{p.title}{p.trackId ? ` - ${h.tracks.find((t) => t.id === p.trackId)?.name}` : ''}</p>
-                  <p className="mt-3 font-heading text-3xl tracking-[-0.02em] text-fg-heading">{p.award!.submission.entries[0]!.projectVersion.name}</p>
-                  <p className="mt-2 text-fg-muted">{p.award!.submission.entries[0]!.projectVersion.shortDescription}</p>
+              {results.map(({ p, a }, i) => (
+                <li key={a.id} className={cn('wash border-b border-line px-6 py-8 sm:px-8', i % 2 === 1 && 'sm:border-l', i % 2 === 1 && i % 3 === 0 && 'lg:border-l-0', i % 3 !== 0 && 'lg:border-l')}>
+                  <p className="meta text-brand">{p.title}{p.placementTo ? ` - ${placeTitle(a.placement)}` : ''}{p.trackId ? ` - ${h.tracks.find((t) => t.id === p.trackId)?.name}` : ''}</p>
+                  <p className="mt-3 font-heading text-3xl tracking-[-0.02em] text-fg-heading">{a.submission.entries[0]!.projectVersion.name}</p>
+                  <p className="mt-2 text-fg-muted">{a.submission.entries[0]!.projectVersion.shortDescription}</p>
                   {p.amount && <p className="meta mt-5">{p.amount}</p>}
                 </li>
               ))}
@@ -150,12 +158,16 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
               {h.maxParticipants && <div className="flex justify-between gap-4 py-3"><dt className="meta">Spots</dt><dd className="text-fg-heading">{Math.max(h.maxParticipants - h._count.participants, 0)} of {h.maxParticipants} left</dd></div>}
               {h.termsUrl && <div className="py-3"><a href={h.termsUrl} target="_blank" rel="noreferrer" className="group inline-flex items-center gap-1.5 text-fg-body hover:text-fg-heading">Terms <ExternalLink className="size-3.5" aria-hidden /></a></div>}
             </dl>
-            <p className="meta mt-8 border-t border-line pt-3">Build with</p>
-            <ul className="mt-1 text-sm">
-              {BUILDER_HUB_LINKS.map((l) => (
-                <li key={l.href}><a href={l.href} target="_blank" rel="noreferrer" className="group inline-flex min-h-9 items-center gap-1.5 text-fg-body hover:text-fg-heading">Avalanche {l.label} <ArrowUpRight className="arrow-nudge size-3.5 text-fg-faint" aria-hidden /></a></li>
-              ))}
-            </ul>
+            {linkGroups.map(([title, links]) => (
+              <div key={title}>
+                <p className="meta mt-8 border-t border-line pt-3">{title}</p>
+                <ul className="mt-1 text-sm">
+                  {links.map((l) => (
+                    <li key={l.url}><a href={l.url} target="_blank" rel="noreferrer" className="group inline-flex min-h-9 items-center gap-1.5 text-fg-body hover:text-fg-heading">{l.label} <ArrowUpRight className="arrow-nudge size-3.5 text-fg-faint" aria-hidden /></a></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </aside>
         </section>
 
@@ -164,7 +176,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
             <SectionHeading title={<>Tracks<Dot /></>}>Enter one or more. Each track is judged on its own and can carry its own prizes.</SectionHeading>
             <ul className="grid border-t border-line md:grid-cols-2">
               {h.tracks.map((t, i) => {
-                const prizes = h.prizes.filter((p) => p.trackId === t.id)
+                const prizes = listed.filter((p) => p.trackId === t.id)
                 return (
                   <li key={t.id} className={cn('flex flex-col border-b border-line py-8', i % 2 === 1 ? 'md:border-l md:pl-10' : 'md:pr-10')}>
                     <div className="flex items-center gap-4">
@@ -203,7 +215,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
               {overall.map((p, i) => (
                 <li key={p.id} className={cn('flex flex-col-reverse border-b border-line py-8', i % 2 === 1 && 'border-l pl-6', i % 4 !== 0 && 'lg:border-l lg:pl-6', i % 4 === 2 && 'lg:border-l')}>
                   <p className="meta mt-2">{p.title}{p.description ? ` - ${p.description}` : ''}</p>
-                  <p className="font-heading text-[clamp(1.75rem,3.5vw,3rem)] font-medium leading-none tracking-[-0.03em] text-fg-heading">{p.amount ?? '-'}</p>
+                  <p className="font-heading text-[clamp(1.75rem,3.5vw,3rem)] font-medium leading-none tracking-[-0.03em] text-fg-heading">{p.amount}</p>
                 </li>
               ))}
             </ul>}

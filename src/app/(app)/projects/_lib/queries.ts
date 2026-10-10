@@ -8,7 +8,11 @@ export async function listMyProjects(userId: string, roles?: string[]) {
   return prisma.project.findMany({
     where: { archivedAt: null, members: { some: { userId, ...role } } },
     orderBy: { updatedAt: 'desc' },
-    include: { currentVersion: true, _count: { select: { members: { where: role } } } },
+    include: {
+      currentVersion: true,
+      milestones: { where: { status: { in: ['planned', 'in_progress'] } }, orderBy: { targetDate: 'asc' }, take: 1, select: { title: true, targetDate: true } },
+      _count: { select: { members: { where: role } } },
+    },
   })
 }
 

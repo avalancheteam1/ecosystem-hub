@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
 import { sendMail } from '@/lib/mailer'
+import { linkListSchema } from '@/lib/links'
 import { isOwnUpload } from '@/lib/storage'
 import { isTimeZone } from '@/lib/timezones'
 import { verifiedUserIdByEmail } from './bind'
@@ -93,6 +94,8 @@ export const updateOverview = action(
         teamSizeMax: z.union([z.coerce.number().int().min(1).max(50), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
         maxParticipants: z.union([z.coerce.number().int().min(1).max(100_000), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
         allowMultipleSubmissions: z.boolean(),
+        resourceLinks: linkListSchema,
+        showBuilderHubLinks: z.boolean(),
       })
       .refine((v) => v.teamSizeMax == null || v.teamSizeMin <= v.teamSizeMax, { message: 'Minimum team size can’t be above the maximum', path: ['teamSizeMin'] })
       .refine((v) => !v.registrationOpensAt || !v.registrationClosesAt || v.registrationOpensAt < v.registrationClosesAt, { message: 'Registration must open before it closes' }),
@@ -100,9 +103,9 @@ export const updateOverview = action(
   },
   async ({ hackathonId, ...data }, user) => {
     const h = await assertManage(hackathonId, user)
-    const before = await prisma.hackathon.findUnique({ where: { id: hackathonId }, select: { timezone: true, tagline: true, termsUrl: true, teamSizeMin: true, teamSizeMax: true, maxParticipants: true, allowMultipleSubmissions: true, registrationOpensAt: true, registrationClosesAt: true } })
+    const before = await prisma.hackathon.findUnique({ where: { id: hackathonId }, select: { timezone: true, tagline: true, termsUrl: true, teamSizeMin: true, teamSizeMax: true, maxParticipants: true, allowMultipleSubmissions: true, registrationOpensAt: true, registrationClosesAt: true, resourceLinks: true, showBuilderHubLinks: true } })
     await prisma.hackathon.update({ where: { id: hackathonId }, data })
-    await recordAudit({ actorId: user.id, action: 'hackathon.overview.update', entityType: 'Hackathon', entityId: hackathonId, before, after: { timezone: data.timezone, tagline: data.tagline, termsUrl: data.termsUrl, teamSizeMin: data.teamSizeMin, teamSizeMax: data.teamSizeMax, maxParticipants: data.maxParticipants, allowMultipleSubmissions: data.allowMultipleSubmissions, registrationOpensAt: data.registrationOpensAt, registrationClosesAt: data.registrationClosesAt } })
+    await recordAudit({ actorId: user.id, action: 'hackathon.overview.update', entityType: 'Hackathon', entityId: hackathonId, before, after: { timezone: data.timezone, tagline: data.tagline, termsUrl: data.termsUrl, teamSizeMin: data.teamSizeMin, teamSizeMax: data.teamSizeMax, maxParticipants: data.maxParticipants, allowMultipleSubmissions: data.allowMultipleSubmissions, registrationOpensAt: data.registrationOpensAt, registrationClosesAt: data.registrationClosesAt, resourceLinks: data.resourceLinks, showBuilderHubLinks: data.showBuilderHubLinks } })
     revalidate(h)
     return null
   },
@@ -146,10 +149,12 @@ export const savePrize = action(
       prizeId: id.optional(),
       trackId: z.string().optional().transform((v) => v || null),
       placement: z.coerce.number().int().min(1).max(100),
+      placementTo: z.union([z.literal(''), z.coerce.number().int().min(1).max(100)]).optional().transform((v) => v || null),
       title: z.string().trim().min(1, 'Name the prize').max(80),
       amount: optText(40),
       description: optText(500),
-    }),
+    }).refine((d) => !d.placementTo || d.placementTo >= d.placement, { message: 'The range must end at or after its first place', path: ['placementTo'] })
+      .transform((d) => ({ ...d, placementTo: d.placementTo === d.placement ? null : d.placementTo })),
     permission: 'user',
   },
   async ({ hackathonId, prizeId, ...data }, user) => {
@@ -158,6 +163,8 @@ export const savePrize = action(
     if (prizeId) {
       const r = await prisma.hackathonPrize.updateMany({ where: { id: prizeId, hackathonId }, data })
       if (!r.count) throw new ActionError('Prize not found')
+      // places that left the range lose their winner
+      await prisma.award.deleteMany({ where: { prizeId, NOT: { placement: { gte: data.placement, lte: data.placementTo ?? data.placement } } } })
     } else {
       const order = await prisma.hackathonPrize.count({ where: { hackathonId } })
       await prisma.hackathonPrize.create({ data: { hackathonId, order, ...data } })
@@ -199,6 +206,7 @@ const stageSchema = z
     judgesPerSubmission: z.union([z.coerce.number().int().min(1).max(20), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
     scaleMax: z.coerce.number().int().min(1).max(100),
     showCriteria: z.boolean(),
+    advancedOnly: z.boolean(),
   })
   .refine((s) => s.reviewMode !== 'random' || s.judgesPerSubmission, { message: 'Set how many judges review each submission', path: ['judgesPerSubmission'] })
 
@@ -218,7 +226,7 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   if (errors.length) throw new ActionError(errors[0]!)
   if (existing) await prisma.hackathonStage.update({ where: { id: existing.id }, data: { ...data, ...(reopensJudging(existing, data, new Date()) && { judgingClosedAt: null }) } })
   else await prisma.hackathonStage.create({ data: { hackathonId, order: stages.length, ...data } })
-  await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission } })
+  await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission, advancedOnly: existing.advancedOnly } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission, advancedOnly: data.advancedOnly } })
   revalidate(h)
   return null
 })
@@ -259,6 +267,7 @@ export const duplicateStage = action({ schema: z.object({ hackathonId: id, stage
       sameTrackOnly: src.sameTrackOnly,
       scaleMax: src.scaleMax,
       showCriteria: src.showCriteria,
+      advancedOnly: src.advancedOnly,
       criteria: { create: src.criteria.map(({ name, description, weight, order }) => ({ name, description, weight, order })) },
       fields: { create: src.fields.map(({ label, help, type, required, options, maxLength, order }) => ({ hackathonId, label, help, type, required, options, maxLength, order })) },
     },
@@ -378,29 +387,36 @@ export const setInviteLink = action({ schema: z.object({ hackathonId: id, enable
 })
 
 export const reviewRegistration = action(
-  { schema: z.object({ hackathonId: id, participantId: id, approve: z.boolean() }), permission: 'user' },
-  async ({ hackathonId, participantId, approve }, user) => {
+  { schema: z.object({ hackathonId: id, participantIds: z.array(id).min(1).max(100), approve: z.boolean() }), permission: 'user' },
+  async ({ hackathonId, participantIds, approve }, user) => {
     const h = await assertManage(hackathonId, user)
-    const p = await prisma.participant.findFirst({ where: { id: participantId, hackathonId }, include: { user: { select: { email: true } } } })
-    // Approve: pending or (undo) rejected. Reject: pending only — active builders may already be on a team.
-    if (!p || !(approve ? ['pending', 'rejected'] : ['pending']).includes(p.status)) throw new ActionError('Registration not found')
-    if (approve && h.maxParticipants != null && (await prisma.participant.count({ where: { hackathonId, status: 'active' } })) >= h.maxParticipants) {
-      throw new ActionError('The hackathon is full — raise the participant limit first')
+    // Approve: pending or (undo) rejected. Reject: pending only - active builders may already be on a team.
+    const from = approve ? ['pending', 'rejected'] : ['pending']
+    const ps = await prisma.participant.findMany({ where: { id: { in: participantIds }, hackathonId, status: { in: from } }, include: { user: { select: { email: true } } } })
+    if (!ps.length) throw new ActionError('Registration not found')
+    if (approve && h.maxParticipants != null) {
+      const left = h.maxParticipants - (await prisma.participant.count({ where: { hackathonId, status: 'active' } }))
+      if (ps.length > left) throw new ActionError(left > 0 ? `Only ${left} place${left === 1 ? '' : 's'} left - raise the participant limit or approve fewer` : 'The hackathon is full - raise the participant limit first')
     }
     const status = approve ? 'active' : 'rejected'
-    await prisma.participant.update({ where: { id: p.id }, data: { status } })
-    await recordAudit({ actorId: user.id, action: approve ? 'hackathon.registration.approve' : 'hackathon.registration.reject', entityType: 'Participant', entityId: p.id, before: { status: p.status }, after: { status } })
+    await prisma.participant.updateMany({ where: { id: { in: ps.map((p) => p.id) }, status: { in: from } }, data: { status } })
+    for (const p of ps) {
+      await recordAudit({ actorId: user.id, action: approve ? 'hackathon.registration.approve' : 'hackathon.registration.reject', entityType: 'Participant', entityId: p.id, before: { status: p.status }, after: { status } })
+    }
     if (approve) {
       const url = `${siteUrl()}/events/${h.event.slug}`
-      await sendMail({
-        to: p.user.email,
-        subject: `You're in — ${h.event.name}`,
-        text: `Your registration for "${h.event.name}" was approved.\n\n${url}`,
-        html: brandedShell({ preheader: `Your registration for ${h.event.name} was approved`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Your registration for <strong>${esc(h.event.name)}</strong> was approved. Teams form around projects — create one or get invited to one, then submit.</p>${button(url, 'Go to the hackathon')}</td></tr>` }),
-      }).catch((err) => console.error('[hackathons] mail failed', err))
+      // ponytail: sequential mails, up to 100 per call - a job if SMTP gets slow
+      for (const p of ps) {
+        await sendMail({
+          to: p.user.email,
+          subject: `You're in - ${h.event.name}`,
+          text: `Your registration for "${h.event.name}" was approved.\n\n${url}`,
+          html: brandedShell({ preheader: `Your registration for ${h.event.name} was approved`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Your registration for <strong>${esc(h.event.name)}</strong> was approved. Teams form around projects - create one or get invited to one, then submit.</p>${button(url, 'Go to the hackathon')}</td></tr>` }),
+        }).catch((err) => console.error('[hackathons] mail failed', err))
+      }
     }
     revalidate(h)
-    return null
+    return { count: ps.length }
   },
 )
 

@@ -59,6 +59,22 @@
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* 404 / error pages. Under reduced motion the global rule ends these at once:
+     flakes stay invisible (base opacity 0), the snowball stays upright. */
+  --color-snow: light-dark(#dbe2ee, #eef1f6);
+  --animate-snow-fall: snow-fall 10s linear infinite;
+  --animate-wobble: wobble 2.4s ease-in-out infinite alternate;
+
+  @keyframes snow-fall {
+    0% { opacity: 0; transform: translateY(-5vh); }
+    10%, 85% { opacity: 0.8; }
+    100% { opacity: 0; transform: translateY(105vh); }
+  }
+  @keyframes wobble {
+    from { transform: rotate(-5deg); }
+    to { transform: rotate(5deg); }
+  }
 }
 
 /* shadcn variables, mapped to the team1 palette. */
