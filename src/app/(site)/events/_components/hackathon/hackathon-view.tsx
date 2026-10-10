@@ -37,7 +37,7 @@ function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Min
   return { href: `/events/${event.slug}/join`, label: 'Register for Hackathon' }
 }
 
-export function HackathonView({ event, h, signedIn, mine, share }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine; share: ReactNode }) {
+export function HackathonView({ event, h, signedIn, mine, share, manage }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine; share: ReactNode; manage?: ReactNode }) {
   const now = new Date()
   const step = nextStep(event, h, signedIn, mine, now)
   const results = h.resultsPublishedAt ? h.prizes.flatMap((p) => p.awards.filter((a) => a.submission.status === 'active' && a.submission.entries[0]).map((a) => ({ p, a }))) : []
@@ -72,6 +72,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
     <>
       <section className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute -top-48 right-[-15%] h-[34rem] w-[34rem] rounded-full bg-brand/15 blur-[120px]" />
+        {manage}
         <div className="container-page relative grid gap-10 py-12 sm:py-16 lg:grid-cols-[minmax(0,380px)_1fr] lg:items-end lg:gap-16">
           <div className="relative max-w-[380px] before:pointer-events-none before:absolute before:-top-3 before:-left-3 before:size-8 before:border-t before:border-l before:border-brand">
             <EventCover src={event.coverUrl} />

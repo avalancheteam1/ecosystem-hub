@@ -177,17 +177,17 @@ function HackathonCard({ h, now }: { h: NextUp; now: Date }) {
     : 'Results are out'
   const detail = h.state === 'open' ? `${h.stage} closes ${when}` : h.state === 'upcoming' ? `${h.stage ?? 'Kick-off'} - ${when}` : h.state === 'results' ? `Published ${formatRelative(h.at!, now)}` : h.stage
   return (
-    <div className="flex h-full gap-5 rounded-xl border border-line bg-surface-2 p-5 transition duration-200 hover:border-brand hover:shadow-glow">
+    <div className="relative flex h-full gap-5 rounded-xl border border-line bg-surface-2 p-5 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow">
       <EventCover src={h.event.coverUrl} className="size-20 shrink-0 sm:size-24" />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/events/${h.event.slug}`} className="truncate text-lg text-fg-heading hover:underline hover:decoration-brand hover:underline-offset-4">{h.event.name}</Link>
+          <Link href={`/events/${h.event.slug}`} className="truncate text-lg text-fg-heading after:absolute after:inset-0 after:rounded-xl">{h.event.name}</Link>
           {h.pending && <StatusPill tone="warning">Awaiting approval</StatusPill>}
           {h.submitted && <StatusPill tone="success">Submitted</StatusPill>}
         </div>
         <p className={cn('mt-1', h.state === 'open' && !h.submitted ? 'text-brand' : 'text-fg-body')}>{headline}</p>
         {detail && <p className="text-sm text-fg-muted">{detail}</p>}
-        <div className="mt-auto flex flex-wrap gap-2 pt-4">
+        <div className="relative mt-auto flex flex-wrap gap-2 pt-4">
           {h.state === 'open' && !h.pending && (
             <Button asChild size="sm" variant={h.submitted ? 'outline' : 'default'}><Link href={`/events/${h.event.slug}/submit`}>{h.submitted ? 'Update submission' : 'Submit your project'}</Link></Button>
           )}

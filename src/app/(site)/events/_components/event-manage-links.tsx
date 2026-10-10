@@ -17,10 +17,10 @@ export async function EventManageLinks({ eventId, user }: { eventId: string; use
   ].filter((l) => !!l)
   if (links.length === 0) return null
   return (
-    <div className="container-page flex flex-wrap justify-end gap-2 pt-6">
+    <div className="container-page relative flex flex-wrap justify-end gap-2 pt-6">
       {links.map(({ href, label, icon: Icon }) => (
         <Button key={href} asChild variant="outline">
-          <Link href={href}><Icon aria-hidden /> {label}</Link>
+          <Link href={href} title={label}><Icon aria-hidden /><span className="max-sm:sr-only">{label}</span></Link>
         </Button>
       ))}
     </div>

@@ -43,10 +43,7 @@ export default async function EventPage({ params }: Props) {
   if (hackathon) {
     const mine = user && hackathon.joined ? await getMySubmissions(hackathon.id, user.id) : []
     return (
-      <>
-        <EventManageLinks eventId={event.id} user={user} />
-        <HackathonView event={event} h={hackathon} signedIn={!!user} mine={mine} share={share} />
-      </>
+      <HackathonView event={event} h={hackathon} signedIn={!!user} mine={mine} share={share} manage={<EventManageLinks eventId={event.id} user={user} />} />
     )
   }
   const ended = (event.endAt ?? event.startAt) < new Date()
