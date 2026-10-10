@@ -16,7 +16,7 @@ export function withSuffix(base: string, suffix: string): string {
   return base ? `${base}-${suffix}` : suffix
 }
 
-/** 4 lowercase alphanumerics — collision-checked by the caller's unique index. */
+/** 4 lowercase alphanumerics - collision-checked by the caller's unique index. */
 export function shortId(): string {
   return Math.random().toString(36).slice(2, 6).padEnd(4, '0')
 }

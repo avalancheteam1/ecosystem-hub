@@ -48,14 +48,14 @@ export default async function AdminGroupPage({ params }: { params: Promise<{ id:
           </>
         )}
       </PageHeader>
-      {!portalKeyConfigured() && chapter && <p className="mb-6 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">MEMBER_PORTAL_API_KEY is not set — chapter groups get no members and new referrals are snapshotted without them.</p>}
+      {!portalKeyConfigured() && chapter && <p className="mb-6 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">MEMBER_PORTAL_API_KEY is not set - chapter groups get no members and new referrals are snapshotted without them.</p>}
       <div className="grid gap-6 lg:grid-cols-2">
         <SectionCard title="Onboardings"><GroupStats stats={stats} /></SectionCard>
         <SectionCard title="Members" actions={manage && !chapter ? <AddMemberDialog groupId={group.id} /> : undefined}>
           {chapter && <p className="mb-4 text-sm text-fg-muted">Managed in the member portal. Shows hub users who have signed in.</p>}
           {chapter ? (
             chapterMembers.length === 0 ? (
-              <p className="text-sm text-fg-muted">No hub users in this chapter yet — members appear after they sign in to the hub.</p>
+              <p className="text-sm text-fg-muted">No hub users in this chapter yet - members appear after they sign in to the hub.</p>
             ) : (
               <ul className="divide-y divide-line">
                 {chapterMembers.map((m) => (

@@ -25,7 +25,7 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
         if (res.ok && (submit || conflictDeclared) && props.nextHref) router.push(props.nextHref)
         return res
       },
-      conflictDeclared ? 'Conflict declared — the organisers will reassign it' : submit ? 'Review submitted' : 'Draft saved',
+      conflictDeclared ? 'Conflict declared - the organisers will reassign it' : submit ? 'Review submitted' : 'Draft saved',
     )
 
   return (
@@ -52,7 +52,7 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
                   className="h-11 flex-1 accent-[var(--color-brand)]"
                   aria-valuetext={v == null ? 'Not scored' : `${v} of ${props.scaleMax}`}
                 />
-                <output htmlFor={`c-${c.id}`} className={`w-16 text-right text-lg tabular-nums ${v == null ? 'text-fg-faint' : 'text-fg-heading'}`}>{v ?? '—'}<span className="text-sm text-fg-faint">/{props.scaleMax}</span></output>
+                <output htmlFor={`c-${c.id}`} className={`w-16 text-right text-lg tabular-nums ${v == null ? 'text-fg-faint' : 'text-fg-heading'}`}>{v ?? '-'}<span className="text-sm text-fg-faint">/{props.scaleMax}</span></output>
               </div>
             </div>
           )
@@ -64,7 +64,7 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
       </fieldset>
 
       <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center gap-3 border-t border-line bg-surface-2/95 px-6 py-4 backdrop-blur sm:-mx-8 sm:px-8">
-        <p className="mr-auto text-sm text-fg-muted">Score <span className="text-2xl text-fg-heading tabular-nums">{total ?? '—'}</span><span className="text-fg-faint"> / 100</span></p>
+        <p className="mr-auto text-sm text-fg-muted">Score <span className="text-2xl text-fg-heading tabular-nums">{total ?? '-'}</span><span className="text-fg-faint"> / 100</span></p>
         {!props.locked && (
           <>
             <Button type="button" variant="ghost" disabled={pending} onClick={() => confirm('Declare a conflict of interest? Your review won’t count.') && save(false, true)}>Declare conflict</Button>

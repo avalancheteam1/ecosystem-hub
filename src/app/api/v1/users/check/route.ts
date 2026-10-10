@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { requireApiKey, v1Error, v1Json } from '@/lib/api-keys'
 import { prisma } from '@/lib/db'
 
-// POST /api/v1/users/check — scope users:check
+// POST /api/v1/users/check - scope users:check
 // Body: { emailHash: sha256hex(lower(trim(email))) } → { exists: boolean }
 // Takes a hash, never a plain email, so callers don't send us addresses we don't have.
 

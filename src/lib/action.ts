@@ -3,8 +3,8 @@ import { ActionError } from '@/lib/action-error'
 import { can, type Permission } from '@/lib/permissions'
 import { getCurrentUser, type CurrentUser } from '@/lib/session'
 
-// Server-action wrapper. Server actions are public POST endpoints — anyone can
-// call them directly — so EVERY action re-checks auth here; a page-level guard
+// Server-action wrapper. Server actions are public POST endpoints - anyone can
+// call them directly - so EVERY action re-checks auth here; a page-level guard
 // is never enough.
 //
 //   export const createRole = action({ schema, permission: 'superAdmin' }, async (input, user) => { … })

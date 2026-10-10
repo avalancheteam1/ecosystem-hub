@@ -17,7 +17,7 @@ export default async function TracksPage({ params }: { params: Promise<{ id: str
     <div className="grid gap-8 lg:grid-cols-2">
       <SectionCard title="Tracks" description="Optional. Teams pick one or more when they submit." actions={<TrackDialog hackathonId={h.id} trigger={<Button size="sm" variant="outline"><Plus aria-hidden /> Track</Button>} />}>
         {h.tracks.length === 0 ? (
-          <p className="text-sm text-fg-muted">No tracks — everyone competes in one pool.</p>
+          <p className="text-sm text-fg-muted">No tracks - everyone competes in one pool.</p>
         ) : (
           <ul className="divide-y divide-line">
             {h.tracks.map((t) => (
@@ -52,7 +52,7 @@ export default async function TracksPage({ params }: { params: Promise<{ id: str
                       <li key={p.id} className="flex items-center gap-3 py-3">
                         <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-fg-heading">{p.title}{p.amount && <span className="text-fg-muted"> — {p.amount}</span>}</p>
+                          <p className="truncate text-fg-heading">{p.title}{p.amount && <span className="text-fg-muted"> - {p.amount}</span>}</p>
                         </div>
                         <PrizeDialog hackathonId={h.id} tracks={h.tracks} prize={p} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
                         <DeletePrize hackathonId={h.id} prize={p} />

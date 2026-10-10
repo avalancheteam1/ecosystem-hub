@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Menu } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
-/** Main nav below `md` — the inline links don't fit next to the logo on phones. */
+/** Main nav below `md` - the inline links don't fit next to the logo on phones. */
 export function MobileNav({ signedIn }: { signedIn: boolean }) {
   return (
     <DropdownMenu>

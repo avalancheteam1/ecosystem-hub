@@ -47,12 +47,12 @@ function FieldDialog({ hackathonId, stageId, field, trigger }: { hackathonId: st
       {hasLength && (
         <Field id="q-max" label="Character limit" hint={v.type === 'short_text' ? 'Default 280' : 'Default 5000'}><Input id="q-max" type="number" min={1} value={v.maxLength} onChange={(e) => setV({ ...v, maxLength: e.target.value })} className="h-11" /></Field>
       )}
-      <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.required} onCheckedChange={(c) => setV({ ...v, required: c === true })} /> Required{v.type === 'checkbox' && ' (must be ticked — use for agreements)'}</label>
+      <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.required} onCheckedChange={(c) => setV({ ...v, required: c === true })} /> Required{v.type === 'checkbox' && ' (must be ticked - use for agreements)'}</label>
     </FormDialog>
   )
 }
 
-/** Ordered question list with add/edit/delete — registration questions (stageId null) or a stage's fields. */
+/** Ordered question list with add/edit/delete - registration questions (stageId null) or a stage's fields. */
 export function FieldList({ hackathonId, stageId, fields, emptyText }: { hackathonId: string; stageId: string | null; fields: FieldRow[]; emptyText: string }) {
   const { pending, run } = useActionToast()
   return (
@@ -66,7 +66,7 @@ export function FieldList({ hackathonId, stageId, fields, emptyText }: { hackath
               <span className="w-5 shrink-0 text-sm text-fg-faint">{i + 1}.</span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-fg-heading">{f.label}{f.required && <span className="text-brand"> *</span>}</p>
-                <p className="text-xs text-fg-muted">{FIELD_TYPE_LABEL[f.type as keyof typeof FIELD_TYPE_LABEL] ?? f.type}{f.options.length ? ` — ${f.options.join(', ')}` : ''}</p>
+                <p className="text-xs text-fg-muted">{FIELD_TYPE_LABEL[f.type as keyof typeof FIELD_TYPE_LABEL] ?? f.type}{f.options.length ? ` - ${f.options.join(', ')}` : ''}</p>
               </div>
               <FieldDialog hackathonId={hackathonId} stageId={stageId} field={f} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
               <ConfirmButton disabled={pending} message={`Delete "${f.label}"? Answers already given stay stored but are no longer shown.`} onConfirm={() => run(() => deleteField({ hackathonId, fieldId: f.id }), 'Question deleted')}>Delete</ConfirmButton>

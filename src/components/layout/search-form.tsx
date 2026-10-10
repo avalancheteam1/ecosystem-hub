@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 
-/** Plain GET search form — the page reads `?q=` server-side. */
+/** Plain GET search form - the page reads `?q=` server-side. */
 export function SearchForm({ q, placeholder }: { q?: string; placeholder: string }) {
   return (
     <form role="search" className="relative mb-4 max-w-sm">

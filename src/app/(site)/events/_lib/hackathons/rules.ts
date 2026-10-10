@@ -34,7 +34,7 @@ export const reopensJudging = (s: StageWindow, next: { closesAt: Date }, now: Da
 
 /**
  * What moving a stage's submission window does to work already done (empty = nothing to warn about).
- * Organisers may always change it — these are shown before saving, never enforced.
+ * Organisers may always change it - these are shown before saving, never enforced.
  */
 export function windowChangeWarnings(s: StageWindow & { entries: number; reviews: number }, next: { opensAt: Date; closesAt: Date }, now: Date): string[] {
   const before = stageState(s, now)
@@ -45,8 +45,8 @@ export function windowChangeWarnings(s: StageWindow & { entries: number; reviews
   if (before === 'open') w.push('Teams can no longer submit or change their submissions.')
   if (s.judgingClosedAt && after !== 'closed') w.push('Judging reopens: scores and the ranking are hidden again until you close judging.')
   if ((before === 'judging' || before === 'closed') && (after === 'open' || after === 'upcoming')) {
-    if (s.reviews) w.push(`Judges can’t score until submissions close again. The ${s.reviews} review(s) already submitted stay — if a team changes its submission, those scores were given to the earlier version.`)
-    if (s.entries) w.push('New submissions have no judges yet — assign judges again after the stage closes.')
+    if (s.reviews) w.push(`Judges can’t score until submissions close again. The ${s.reviews} review(s) already submitted stay - if a team changes its submission, those scores were given to the earlier version.`)
+    if (s.entries) w.push('New submissions have no judges yet - assign judges again after the stage closes.')
   }
   return w
 }
@@ -110,7 +110,7 @@ export function canJoin(h: JoinHackathon, c: JoinCtx): Check {
   if (h.status !== 'published') return { ok: false, reason: 'This hackathon is not open yet' }
   if (c.existing === 'active') return { ok: false, reason: "You're already registered" }
   if (c.existing === 'pending') return { ok: false, reason: 'Your registration is waiting for approval' }
-  // Rejection is final — only the organisers' invite link lets someone back in.
+  // Rejection is final - only the organisers' invite link lets someone back in.
   if (c.existing === 'rejected' && !c.invited) return { ok: false, reason: "Your registration wasn't accepted" }
   if (h.registrationOpensAt && c.now < h.registrationOpensAt) return { ok: false, reason: 'Registration has not opened yet' }
   if (h.registrationClosesAt && c.now >= h.registrationClosesAt) return { ok: false, reason: 'Registration is closed' }

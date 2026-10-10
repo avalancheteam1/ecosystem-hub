@@ -35,5 +35,5 @@ test('zone list starts with UTC and includes all IANA zones once', () => {
   assert.equal(zones[0]!.id, 'UTC')
   assert.ok(zones.length > 300)
   assert.equal(new Set(zones.map((z) => z.id)).size, zones.length)
-  assert.equal(zones.find((z) => z.id === 'Asia/Kolkata')?.label, 'UTC+05:30 — Asia/Kolkata')
+  assert.equal(zones.find((z) => z.id === 'Asia/Kolkata')?.label, 'UTC+05:30 - Asia/Kolkata')
 })

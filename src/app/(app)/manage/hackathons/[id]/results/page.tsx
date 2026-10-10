@@ -48,7 +48,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
                 <div className="flex min-w-0 flex-1 items-center gap-3">
                   <Trophy className="size-4 shrink-0 text-brand" aria-hidden />
                   <div className="min-w-0">
-                    <p className="truncate text-fg-heading">{p.title}{p.amount && <span className="text-fg-muted"> — {p.amount}</span>}</p>
+                    <p className="truncate text-fg-heading">{p.title}{p.amount && <span className="text-fg-muted"> - {p.amount}</span>}</p>
                     <p className="text-xs text-fg-muted">{p.trackId ? h.tracks.find((t) => t.id === p.trackId)?.name : 'Overall'}</p>
                   </div>
                 </div>

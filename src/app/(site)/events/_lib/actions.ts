@@ -27,7 +27,7 @@ export const importEvent = action(
     // team1 events (the portal tab) are for team1 members only
     if (source === 'portal' && !(await getPortalProfile(user.id))?.tier) throw new ActionError('team1 events are only available to team1 members')
     const parsed = source === 'portal' ? (/^evt-[A-Za-z0-9]{1,100}$/.test(ref) ? ref : null) : parseLumaRef(ref)
-    if (!parsed) throw new ActionError(source === 'portal' ? 'Not a team1 event' : 'Not a Luma event link — it should look like https://luma.com/abc123')
+    if (!parsed) throw new ActionError(source === 'portal' ? 'Not a team1 event' : 'Not a Luma event link - it should look like https://luma.com/abc123')
     try {
       const { event, created } = await upsertEvent(parsed, source, user.id)
       if (created) await recordAudit({ actorId: user.id, action: 'event.import', entityType: 'Event', entityId: event.id, after: { lumaEventId: event.lumaEventId, name: event.name, source } })
@@ -67,7 +67,7 @@ export const refreshEvent = action({ schema: z.object({ id: z.string().min(1) })
 export const deleteEvent = action({ schema: z.object({ id: z.string().min(1) }), permission: 'superAdmin' }, async ({ id }, user) => {
   const before = await prisma.event.findUnique({ where: { id }, select: { lumaEventId: true, name: true, source: true, status: true, hackathon: { select: { id: true } } } })
   if (!before) throw new ActionError('Event not found')
-  if (before.hackathon) throw new ActionError('This event is a hackathon — it can’t be deleted')
+  if (before.hackathon) throw new ActionError('This event is a hackathon - it can’t be deleted')
   await prisma.event.delete({ where: { id } })
   const { hackathon: _, ...snapshot } = before
   await recordAudit({ actorId: user.id, action: 'event.delete', entityType: 'Event', entityId: id, before: snapshot })

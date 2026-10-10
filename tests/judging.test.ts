@@ -16,7 +16,7 @@ test('conflict of interest: on the submitted team or the current team', () => {
   assert.equal(isConflicted('u1', ['u1', 'u2'], []), true)
   assert.equal(isConflicted('u3', ['u1'], ['u3']), true)
   assert.equal(isConflicted('u9', ['u1'], ['u2']), false)
-  assert.equal(isConflicted(null, ['u1'], ['u1']), false) // unbound judge — not yet a user
+  assert.equal(isConflicted(null, ['u1'], ['u1']), false) // unbound judge - not yet a user
 })
 
 test('ranking: mean, then median, then review count, then earliest submission', () => {

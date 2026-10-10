@@ -1,7 +1,7 @@
 // Permission registry + checks. PURE and isomorphic (no DB, no server imports):
 // used by server guards, server actions and client components alike.
 //
-// Keys are persisted (Role.permissions, UserPermission.permission) — only ever
+// Keys are persisted (Role.permissions, UserPermission.permission) - only ever
 // ADD keys, never rename or remove them without a data migration.
 //
 // Adding an area's permissions: create `app/(site)/<area>/_lib/permissions.ts`

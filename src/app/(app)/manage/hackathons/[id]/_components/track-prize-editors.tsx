@@ -77,7 +77,7 @@ export function DeletePrize({ hackathonId, prize }: { hackathonId: string; prize
   return <ConfirmButton disabled={pending} message={`Delete the prize "${prize.title}"?`} onConfirm={() => run(() => deletePrize({ hackathonId, prizeId: prize.id }), 'Prize deleted')}>Delete</ConfirmButton>
 }
 
-/** Total prize pool — enough on its own; per-place prizes are optional detail. */
+/** Total prize pool - enough on its own; per-place prizes are optional detail. */
 export function PrizePoolForm({ hackathonId, initial }: { hackathonId: string; initial: string | null }) {
   const [value, setValue] = useState(initial ?? '')
   const { pending, run } = useActionToast()

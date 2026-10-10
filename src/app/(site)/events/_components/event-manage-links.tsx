@@ -6,7 +6,7 @@ import { canManageEvents } from '../_lib/access'
 import { getEventHackathonRoles } from '../_lib/hackathons/queries'
 import { canManageHackathon } from '../_lib/hackathons/rules'
 
-/** Shortcuts for viewers who can edit the event, run its hackathon or judge it. Links only — each target page guards itself. */
+/** Shortcuts for viewers who can edit the event, run its hackathon or judge it. Links only - each target page guards itself. */
 export async function EventManageLinks({ eventId, user }: { eventId: string; user: CurrentUser | null }) {
   if (!user) return null
   const h = await getEventHackathonRoles(eventId, user.id)

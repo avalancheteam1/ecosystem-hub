@@ -35,7 +35,7 @@ export default async function AdminGroupsPage() {
         {manage && <GroupDialog trigger={<Button><Plus aria-hidden /> New group</Button>} />}
       </PageHeader>
       {syncError && <p className={notice}>Couldn&apos;t load chapters from the member portal: {syncError}</p>}
-      {!portalKeyConfigured() && <p className={notice}>MEMBER_PORTAL_API_KEY is not set — chapter groups get no members and new referrals are snapshotted without them.</p>}
+      {!portalKeyConfigured() && <p className={notice}>MEMBER_PORTAL_API_KEY is not set - chapter groups get no members and new referrals are snapshotted without them.</p>}
       <div className="overflow-x-auto rounded-xl border border-line bg-surface-2">
         <Table>
           <TableHeader>

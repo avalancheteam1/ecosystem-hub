@@ -3,7 +3,7 @@ import { logoAttachment } from '@/lib/email-template'
 
 // SMTP mail. In development without SMTP_HOST the mail is printed to the
 // console (so OTP sign-in works locally); in production a missing SMTP config
-// is an error — never silently drop a sign-in code. `html` is expected to be
+// is an error - never silently drop a sign-in code. `html` is expected to be
 // built with brandedShell() (src/lib/email-template.ts); the logo it references
 // as cid:logo is attached here.
 

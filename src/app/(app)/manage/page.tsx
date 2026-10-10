@@ -21,7 +21,7 @@ export default async function ManageIndex() {
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {hackathons.map((h) => (
             <li key={h.id}>
-              <LinkCard href={`/manage/hackathons/${h.id}`} image={h.event.coverUrl} title={h.event.name} meta={`${formatShortDate(h.event.startAt, h.event.timezone)} — ${h.status === 'published' ? 'Live' : 'Draft'}`} />
+              <LinkCard href={`/manage/hackathons/${h.id}`} image={h.event.coverUrl} title={h.event.name} meta={`${formatShortDate(h.event.startAt, h.event.timezone)} - ${h.status === 'published' ? 'Live' : 'Draft'}`} />
             </li>
           ))}
         </ul>

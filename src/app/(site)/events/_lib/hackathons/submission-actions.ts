@@ -36,7 +36,7 @@ export const submitToStage = action(
     const project = await prisma.project.findUnique({ where: { id: projectId }, include: { currentVersion: true, members: { include: { user: { select: { id: true, name: true } } } } } })
     if (!project || project.archivedAt || !project.currentVersionId || !project.currentVersion) throw new ActionError('Project not found')
     const missing = missingForSubmission(project.currentVersion)
-    if (missing.length) throw new ActionError(`Complete your project first — missing: ${missing.join(', ')}`)
+    if (missing.length) throw new ActionError(`Complete your project first - missing: ${missing.join(', ')}`)
     const teamMembers = project.members.filter((m) => canEditProject(m.role)) // readers aren't on the hackathon team
     const team = teamMembers.map((m) => m.userId)
 
@@ -76,7 +76,7 @@ export const submitToStage = action(
       // Seal the project's draft (or reuse the latest sealed version if nothing changed since).
       const current = await tx.projectVersion.findUniqueOrThrow({ where: { id: project.currentVersionId! } })
       if (planSeal(current) === 'seal-draft') {
-        const stageLabel = h.stages.length > 1 ? ` — ${stage.name}` : ''
+        const stageLabel = h.stages.length > 1 ? ` - ${stage.name}` : ''
         await tx.projectVersion.update({ where: { id: current.id }, data: { sealedAt: new Date(), note: `Submitted to ${h.event.name}${stageLabel}` } })
       }
       const sub = await tx.submission.upsert({
@@ -105,7 +105,7 @@ export const withdrawSubmission = action({ schema: z.object({ submissionId: z.st
   if (!s.project.members.some((m) => m.userId === user.id && canEditProject(m.role))) throw new ActionError('Only writers and the owner can withdraw')
   if (s.status !== 'active') throw new ActionError('This submission is not active')
   const last = s.hackathon.stages.at(-1)
-  if (last && stageState(last, new Date()) === 'closed') throw new ActionError('The hackathon is over — submissions can no longer be withdrawn')
+  if (last && stageState(last, new Date()) === 'closed') throw new ActionError('The hackathon is over - submissions can no longer be withdrawn')
   await prisma.submission.update({ where: { id: s.id }, data: { status: 'withdrawn' } })
   await recordAudit({ actorId: user.id, action: 'hackathon.submission.withdraw', entityType: 'Submission', entityId: s.id })
   revalidatePath(`/events/${s.hackathon.event.slug}`, 'layout')

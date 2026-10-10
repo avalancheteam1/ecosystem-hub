@@ -68,7 +68,7 @@ export default async function AccessPage({ searchParams }: { searchParams: Promi
               permissions: (
                 <span className="space-x-1">
                   {role.permissions.map((p) => (
-                    <Badge key={p} variant={isPermission(p) ? 'secondary' : 'outline'} title={isPermission(p) ? undefined : 'Unknown key — ignored'}>{p}</Badge>
+                    <Badge key={p} variant={isPermission(p) ? 'secondary' : 'outline'} title={isPermission(p) ? undefined : 'Unknown key - ignored'}>{p}</Badge>
                   ))}
                 </span>
               ),

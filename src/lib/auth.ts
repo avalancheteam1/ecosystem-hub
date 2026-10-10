@@ -14,7 +14,7 @@ import { REF_COOKIE } from '@/app/(app)/referrals/_lib/rules'
 
 // Sign-in methods: Google, GitHub, email OTP. Each social provider is enabled
 // only when its credentials are set. Member-portal SSO will be added later via
-// the genericOAuth plugin — one more entry, nothing else changes.
+// the genericOAuth plugin - one more entry, nothing else changes.
 //
 // Authorization is NOT handled by Better Auth (no admin/access plugin): see
 // src/lib/permissions.ts and src/lib/session.ts.
@@ -45,7 +45,7 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      // Managed only via /admin/access — never settable by the client.
+      // Managed only via /admin/access - never settable by the client.
       isSuperAdmin: { type: 'boolean', defaultValue: false, input: false },
     },
   },
@@ -67,7 +67,7 @@ export const auth = betterAuth({
       create: {
         // Linking Google/GitHub to an existing user (e.g. an email-OTP sign-up)
         // doesn't touch the user's picture. Take the provider's picture only if
-        // the user has none — never overwrite an uploaded avatar. Never blocks sign-in.
+        // the user has none - never overwrite an uploaded avatar. Never blocks sign-in.
         after: async (account, ctx) => {
           const provider = ctx?.context.socialProviders.find((p) => p.id === account.providerId)
           if (!provider) return
@@ -100,7 +100,7 @@ export const auth = betterAuth({
     cookieCache: { enabled: false },
   },
   // Better Auth's built-in rate limiter is on in production by default (in-memory,
-  // per instance — move to `storage: 'database'` if the web service is scaled out).
+  // per instance - move to `storage: 'database'` if the web service is scaled out).
   plugins: [
     emailOTP({
       otpLength: 6,

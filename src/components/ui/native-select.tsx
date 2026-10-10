@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-/** Styled native <select> — accessible, mobile-friendly; use for simple option lists. */
+/** Styled native <select> - accessible, mobile-friendly; use for simple option lists. */
 export function NativeSelect({ className, ...props }: React.ComponentProps<'select'>) {
   return (
     <select

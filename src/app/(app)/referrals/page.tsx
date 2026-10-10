@@ -19,7 +19,7 @@ export default async function ReferralsPage() {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
   return (
     <>
-      <PageHeader title="Referrals" description="Share a link with your code. Everyone who signs up through it counts as your onboarding — add ?ref=yourcode to any hub link.">
+      <PageHeader title="Referrals" description="Share a link with your code. Everyone who signs up through it counts as your onboarding - add ?ref=yourcode to any hub link.">
         <CreateCodeDialog disabled={codes.length >= MAX_CODES_PER_USER} />
       </PageHeader>
       {counting.length > 0 && (

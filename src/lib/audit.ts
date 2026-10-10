@@ -43,7 +43,7 @@ async function requestIp(): Promise<string | null> {
 
 const json = (v: unknown) => (v === undefined ? undefined : (v as Prisma.InputJsonValue))
 
-/** Persist an audit entry. Never throws — an audit failure must not break the action. */
+/** Persist an audit entry. Never throws - an audit failure must not break the action. */
 export async function recordAudit(args: AuditArgs): Promise<void> {
   let { before, after } = args
   if (isPlainObject(before) && isPlainObject(after)) ({ before, after } = diffObjects(before, after))

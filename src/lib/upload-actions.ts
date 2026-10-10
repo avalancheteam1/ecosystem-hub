@@ -13,7 +13,7 @@ import type { CurrentUser } from '@/lib/session'
 
 // One upload endpoint for every image kind. The returned URL is then saved by
 // the owning form, whose action checks it is an own upload (isOwnUpload).
-// Orphans (a cancelled form) stay in the bucket — harmless, unguessable keys.
+// Orphans (a cancelled form) stay in the bucket - harmless, unguessable keys.
 
 /** The owner id the key is filed under; throws unless the user may upload for it. */
 async function authorizeOwner(kind: ImageKind, ownerId: string, user: CurrentUser): Promise<string> {
@@ -54,7 +54,7 @@ export const uploadImage = action({ schema: z.instanceof(FormData), permission: 
     await storage.put({ key, body: buf, contentType: checked.contentType })
   } catch (err) {
     console.error('[upload] failed', err)
-    throw new ActionError('Upload failed — try again')
+    throw new ActionError('Upload failed - try again')
   }
   await recordAudit({ actorId: user.id, action: 'image.upload', entityType: kind.data, entityId: owner, after: { key } })
   return { url: storage.publicUrl(key) }

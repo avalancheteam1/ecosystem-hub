@@ -9,7 +9,7 @@ import { chapterGroupSlug, isStale, normalizeTier, type PortalTier } from '@/lib
 
 // Member portal (members.team1.network). The hub keeps a READ-ONLY copy of each
 // user's tier + chapters incl. primary flag (PortalProfile / PortalChapterMembership), refreshed on
-// sign-in and after 24 h — pages never wait on the portal. Only the sha256 of a
+// sign-in and after 24 h - pages never wait on the portal. Only the sha256 of a
 // VERIFIED email leaves the hub; never log email/hash/key.
 
 const PORTAL_URL = (process.env.MEMBER_PORTAL_URL || 'https://members.team1.network').replace(/\/$/, '')
@@ -99,7 +99,7 @@ export const getPortalProfile = cache(async (userId: string): Promise<PortalProf
     try {
       after(() => refreshPortalProfile(userId))
     } catch {
-      // outside a request scope (scripts) — skip the refresh
+      // outside a request scope (scripts) - skip the refresh
     }
   }
   if (!row) return null
@@ -112,4 +112,15 @@ export async function listPortalChapters(): Promise<{ slug: string; name: string
   if (!res.ok) throw new Error(`Member portal answered ${res.status}`)
   const body = z.object({ data: z.array(z.object({ slug: z.string(), name: z.string() })) }).parse(await res.json())
   return body.data
+}
+
+/** Admin-curated public stats (anonymous), already formatted ("60+"). Empty on failure - the home page must not break. */
+export async function getPortalStats(): Promise<Record<string, string>> {
+  try {
+    const res = await fetch(`${PORTAL_URL}/api/v1/data/stats`, { signal: AbortSignal.timeout(5_000), next: { revalidate: 3600 } })
+    if (!res.ok) return {}
+    return z.record(z.string(), z.string()).parse(await res.json())
+  } catch {
+    return {}
+  }
 }

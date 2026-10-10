@@ -48,7 +48,7 @@ export function RoleDialog({ role, trigger }: { role?: RoleRow; trigger: React.R
           <div className="space-y-2">
             <Label htmlFor="role-slug">Slug</Label>
             <Input id="role-slug" value={slug} onChange={(e) => setSlug(e.target.value)} disabled={!!role} required placeholder="e.g. hackathon-organizer" />
-            {!role && <p className="text-xs text-fg-faint">Permanent identifier — can&apos;t be changed later.</p>}
+            {!role && <p className="text-xs text-fg-faint">Permanent identifier - can&apos;t be changed later.</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="role-label">Label</Label>

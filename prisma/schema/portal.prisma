@@ -4,7 +4,7 @@
 model PortalProfile {
   userId    String   @id
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// collaborator | member | core — null = not a current member ('senior' arrives as 'core')
+  /// collaborator | member | core - null = not a current member ('senior' arrives as 'core')
   tier      String?
   fetchedAt DateTime
 
@@ -19,7 +19,7 @@ model PortalChapterMembership {
   chapterSlug String
   chapterName String
   lead        Boolean       @default(false)
-  /// the person's primary chapter in the portal — onboardings count only for this one
+  /// the person's primary chapter in the portal - onboardings count only for this one
   primary     Boolean       @default(false)
 
   @@id([userId, chapterSlug])

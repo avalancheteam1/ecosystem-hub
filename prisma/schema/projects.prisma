@@ -21,7 +21,7 @@ model Project {
   @@map("projects")
 }
 
-/// One mutable DRAFT per project (sealedAt null) + SEALED versions (sealedAt set) —
+/// One mutable DRAFT per project (sealedAt null) + SEALED versions (sealedAt set) -
 /// sealed rows are IMMUTABLE: never update or delete them (submissions point at them).
 model ProjectVersion {
   id                String    @id @default(cuid())
@@ -32,7 +32,7 @@ model ProjectVersion {
   shortDescription  String
   /// Markdown
   fullDescription   String
-  /// "How it's made" — stack, APIs, hacky parts
+  /// "How it's made" - stack, APIs, hacky parts
   techDescription   String    @default("")
   techStack         String[]
   categories        String[]
@@ -40,7 +40,7 @@ model ProjectVersion {
   maturity          String?
   /// Calendar day it launched (mainnet / public), `YYYY-MM-DD`; null = not launched / not set
   launchDate        String?
-  /// Where the team is based — ISO 3166-1 alpha-2 (src/lib/countries.ts); null = not set
+  /// Where the team is based - ISO 3166-1 alpha-2 (src/lib/countries.ts); null = not set
   country           String?
   otherCategory     String?
   githubRepos       String[]
@@ -106,7 +106,7 @@ model ProjectInvite {
   @@map("project_invites")
 }
 
-/// The project's roadmap — a live list edited in place by the team (not versioned).
+/// The project's roadmap - a live list edited in place by the team (not versioned).
 model ProjectMilestone {
   id          String    @id @default(cuid())
   projectId   String

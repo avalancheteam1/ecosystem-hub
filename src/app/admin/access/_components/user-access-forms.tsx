@@ -31,7 +31,7 @@ export function SuperAdminSwitch({ userId, value, envLocked, isSelf }: { userId:
       />
       <label htmlFor="super-admin" className="text-sm">
         Super admin
-        {envLocked && <span className="block text-xs text-fg-muted">Via SUPER_ADMIN_EMAILS — change it in the deployment env.</span>}
+        {envLocked && <span className="block text-xs text-fg-muted">Via SUPER_ADMIN_EMAILS - change it in the deployment env.</span>}
         {isSelf && value && !envLocked && <span className="block text-xs text-fg-muted">You can&apos;t remove your own access.</span>}
       </label>
     </div>

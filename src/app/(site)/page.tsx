@@ -7,6 +7,7 @@ import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session'
 import { Button } from '@/components/ui/button'
 import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
+import { getPortalStats } from '@/lib/member-portal'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 
@@ -20,7 +21,7 @@ const jsonLd = {
   ],
 }
 
-// The builder's path through the hub — a real sequence, in the order people go through it.
+// The builder's path through the hub - a real sequence, in the order people go through it.
 // Areas replace `soon` with a link once they ship.
 const PATH = [
   { step: 'Learn', body: 'Courses and hands-on workshops, from your first contract to mainnet.' },
@@ -30,12 +31,14 @@ const PATH = [
 ]
 
 export default async function HomePage() {
-  const [user, upcoming, stats] = await Promise.all([
+  const [user, upcoming, stats, portalStats] = await Promise.all([
     getCurrentUser(),
     listPublicEvents('upcoming', 3),
-    Promise.all([prisma.event.count({ where: { status: 'published', ...upcomingEventWhere() } }), prisma.user.count(), prisma.project.count({ where: { archivedAt: null } }), prisma.hackathon.count({ where: { status: 'published', event: { status: 'published', ...upcomingEventWhere() } } })]),
+    // builders + projects counts are hidden for now (still low) - re-add prisma.user.count() and prisma.project.count({ where: { archivedAt: null } }) here to bring them back
+    Promise.all([prisma.event.count({ where: { status: 'published', ...upcomingEventWhere() } }), prisma.hackathon.count({ where: { status: 'published', event: { status: 'published', ...upcomingEventWhere() } } })]),
+    getPortalStats(),
   ])
-  const [events, builders, projects, hackathons] = stats
+  const [events, hackathons] = stats
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -49,13 +52,13 @@ export default async function HomePage() {
               Where Avalanche builders learn, hack and ship<span className="text-brand">.</span>
             </h1>
             <p className="animate-fade-in-up mt-8 max-w-[46ch] text-lg text-fg-body [animation-delay:120ms] sm:text-xl">
-              Hackathons, workshops, bounties and courses from team1 — and one builder profile for everything you make.
+              Hackathons, workshops, bounties and courses from team1 - and one builder profile for everything you make.
             </p>
             <div className="animate-fade-in-up mt-10 flex flex-col gap-3 [animation-delay:240ms] sm:flex-row sm:flex-wrap">
               {user ? (
                 <Button asChild size="lg"><Link href="/dashboard">Open your dashboard</Link></Button>
               ) : (
-                <Button asChild size="lg"><Link href="/sign-in">Join the Ecosystem Hub — it&apos;s free</Link></Button>
+                <Button asChild size="lg"><Link href="/sign-in">Join the Ecosystem Hub - it&apos;s free</Link></Button>
               )}
               <Button asChild size="lg" variant="outline"><a href="https://team1.network">What is team1?</a></Button>
             </div>
@@ -68,7 +71,7 @@ export default async function HomePage() {
                 <p className="text-sm text-fg-muted">Opening step by step</p>
               </div>
               <ol className="relative mt-8 space-y-8">
-                {/* the path line — draws in once on load */}
+                {/* the path line - draws in once on load */}
                 <span aria-hidden className="path-line absolute top-2 bottom-2 left-[7px] w-px bg-gradient-to-b from-brand via-brand/60 to-brand/10" />
                 {PATH.map(({ step, body }, i) => (
                   <li key={step} className="path-step relative pl-10" style={{ animationDelay: `${400 + i * 140}ms` }}>
@@ -87,15 +90,20 @@ export default async function HomePage() {
 
       <section aria-label="The Ecosystem Hub in numbers" className="border-y border-line">
         <dl className="container-page grid grid-cols-2 lg:grid-cols-4 [&>div]:border-line [&>div:nth-child(n+3)]:border-t lg:[&>div:nth-child(n+3)]:border-t-0 [&>div+div]:border-l [&>div:nth-child(3)]:border-l-0 lg:[&>div:nth-child(3)]:border-l">
-          {[
-            [builders, 'builders signed up'],
-            [projects, 'projects in the making'],
-            [events, 'upcoming events'],
-            [hackathons, 'upcoming hackathons'],
-          ].map(([n, label]) => (
-            <div key={label as string} className="flex flex-col-reverse items-center justify-end px-4 py-8 text-center lg:items-start lg:px-8 lg:text-left lg:first:pl-0">
+          {([
+            // [builders, 'builders signed up'],
+            // [projects, 'projects in the making'],
+            [portalStats.official_chapters ?? '–', 'Team1 chapters'],
+            [portalStats.countries ?? '–', 'countries'],
+            [events, 'upcoming events', '/events'],
+            [hackathons, 'upcoming hackathons', '/events?type=hackathons'],
+          ] as const).map(([n, label, href]) => (
+            <div key={label} className="relative flex flex-col-reverse items-center justify-end px-4 py-8 text-center lg:items-start lg:px-8 lg:text-left lg:first:pl-0">
               <dt className="meta mt-2">{label}</dt>
-              <dd className="font-heading text-5xl font-medium tracking-[-0.03em] text-fg-heading tabular-nums">{n}</dd>
+              <dd className="font-heading text-5xl font-medium tracking-[-0.03em] text-fg-heading tabular-nums">
+                {/* stretched link: the whole tile is clickable, dl/dt/dd structure stays valid */}
+                {href ? <Link href={href} className="transition-colors after:absolute after:inset-0 hover:text-brand">{n}</Link> : n}
+              </dd>
             </div>
           ))}
         </dl>

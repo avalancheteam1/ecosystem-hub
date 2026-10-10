@@ -21,7 +21,7 @@ test('pickOpenStage: latest open stage I qualify for, else the first open one', 
   const at = d('2026-11-06T00:00Z') // both open
   assert.equal(pickOpenStage([s1, s2], at, new Set()), 0)
   assert.equal(pickOpenStage([s1, s2], at, advancedStageIds([{ entries: [{ stageId: 's1', advancedAt: at }] }])), 1)
-  assert.equal(pickOpenStage([s1, s2], d('2026-11-15T00:00Z'), new Set()), 1) // only s2 open — not qualified, still shown
+  assert.equal(pickOpenStage([s1, s2], d('2026-11-15T00:00Z'), new Set()), 1) // only s2 open - not qualified, still shown
   assert.equal(pickOpenStage([s1, s2], d('2026-12-01T00:00Z'), new Set()), -1)
 })
 
@@ -75,7 +75,7 @@ test('canJoin: pending waits, rejected is final unless invited, withdrawn may re
   assert.equal(canJoin(hack, { ...c, existing: 'rejected' }).ok, false)
   assert.equal(canJoin(hack, { ...c, existing: 'rejected', invited: true }).ok, true)
   assert.equal(canJoin(hack, { ...c, existing: 'withdrawn' }).ok, true)
-  // The invite link skips approval only — not the cap.
+  // The invite link skips approval only - not the cap.
   assert.equal(canJoin(hack, { ...c, participants: 2, existing: null, invited: true }).ok, false)
 })
 

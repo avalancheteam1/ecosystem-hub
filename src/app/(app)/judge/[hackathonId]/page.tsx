@@ -20,7 +20,7 @@ export default async function JudgeQueue({ params }: { params: Promise<{ hackath
     <>
       <BackLink href="/judge">Judging</BackLink>
       <PageHeader title={q.judge.hackathon.event.name} description="Score each submission on every criterion. Your scores stay private until the organisers close the round." />
-      {stages.length === 0 && <p className="text-fg-muted">Nothing assigned to you yet — submissions show up here once they close.</p>}
+      {stages.length === 0 && <p className="text-fg-muted">Nothing assigned to you yet - submissions show up here once they close.</p>}
       <div className="space-y-8">
         {stages.map((s) => {
           const items = q.assignments.filter((a) => a.entry.stage.id === s.id)
@@ -29,7 +29,7 @@ export default async function JudgeQueue({ params }: { params: Promise<{ hackath
             <section key={s.id}>
               <div className="mb-3 flex items-baseline justify-between gap-3">
                 <h2 className="text-lg">{s.name}</h2>
-                <p className="text-sm text-fg-muted">{done}/{items.length} done{s.judgingClosedAt ? ' — closed' : ''}</p>
+                <p className="text-sm text-fg-muted">{done}/{items.length} done{s.judgingClosedAt ? ' - closed' : ''}</p>
               </div>
               <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface-2">
                 {items.map((a) => (
@@ -39,7 +39,7 @@ export default async function JudgeQueue({ params }: { params: Promise<{ hackath
                         <p className="truncate text-fg-heading">{a.entry.projectVersion.name}</p>
                         <p className="truncate text-sm text-fg-muted">{a.entry.projectVersion.shortDescription}</p>
                       </div>
-                      {a.review?.conflictDeclared ? <StatusPill tone="warning">Conflict</StatusPill> : a.review?.submittedAt ? <StatusPill tone="success">Submitted{a.review.total != null ? ` — ${a.review.total}` : ''}</StatusPill> : a.review ? <StatusPill tone="info">Draft</StatusPill> : <StatusPill tone="brand">To do</StatusPill>}
+                      {a.review?.conflictDeclared ? <StatusPill tone="warning">Conflict</StatusPill> : a.review?.submittedAt ? <StatusPill tone="success">Submitted{a.review.total != null ? ` - ${a.review.total}` : ''}</StatusPill> : a.review ? <StatusPill tone="info">Draft</StatusPill> : <StatusPill tone="brand">To do</StatusPill>}
                       <ChevronRight className="size-4 text-fg-faint" aria-hidden />
                     </Link>
                   </li>

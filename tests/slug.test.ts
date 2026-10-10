@@ -4,7 +4,7 @@ import { slugify, withSuffix } from '@/lib/slug'
 
 test('slugify makes readable kebab-case, transliterating accents', () => {
   assert.equal(slugify('Team1 Istanbul Hack 2026!'), 'team1-istanbul-hack-2026')
-  assert.equal(slugify('  Ünïcödé — Café  '), 'unicode-cafe')
+  assert.equal(slugify('  Ünïcödé - Café  '), 'unicode-cafe')
   assert.equal(slugify('🚀🚀'), '')
 })
 

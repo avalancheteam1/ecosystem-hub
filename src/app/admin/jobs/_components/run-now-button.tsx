@@ -19,7 +19,7 @@ export function RunNowButton({ name }: { name: string }) {
         start(async () => {
           const res = await runJobNow({ name })
           if (!res.ok) return void toast.error(res.error)
-          toast.success(`${name} queued — refresh in a moment`)
+          toast.success(`${name} queued - refresh in a moment`)
           setTimeout(() => router.refresh(), 2000)
         })
       }

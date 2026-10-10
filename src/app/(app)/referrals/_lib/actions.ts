@@ -10,7 +10,7 @@ import { MAX_CODES_PER_USER } from './rules'
 
 const label = z.string().trim().max(60).optional().transform((v) => v || null)
 
-// Codes are always random — never user-chosen (no squatting, no lookalikes).
+// Codes are always random - never user-chosen (no squatting, no lookalikes).
 export const createReferralCode = action({ schema: z.object({ label }), permission: 'user' }, async (input, user) => {
   if ((await prisma.referralCode.count({ where: { userId: user.id } })) >= MAX_CODES_PER_USER) throw new ActionError(`You can have at most ${MAX_CODES_PER_USER} codes`)
   const code = await insertReferralCode(user.id, input.label)

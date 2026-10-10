@@ -1,5 +1,5 @@
 // Scopes of server-to-server API keys (/api/v1). Pure. A key's power is exactly
-// its scopes — it never inherits the power of the admin who created it.
+// its scopes - it never inherits the power of the admin who created it.
 // Persisted in ApiKey.scopes: only ever ADD scopes.
 
 export const API_SCOPES = {

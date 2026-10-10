@@ -30,7 +30,7 @@ export function validateImageBuffer(buf: Buffer, r: ImageRules): ValidImage | { 
   const { width, height } = dims
   if (!width || !height) return { ok: false, error: 'Could not read the image size' }
   const off = r.aspect === 1 ? width !== height : Math.abs(width / height / r.aspect - 1) > 0.02
-  if (off) return { ok: false, error: r.aspect === 1 ? 'Image must be square' : 'Image has the wrong shape — crop it again' }
+  if (off) return { ok: false, error: r.aspect === 1 ? 'Image must be square' : 'Image has the wrong shape - crop it again' }
   if (width > r.maxDimension || height > r.maxDimension) return { ok: false, error: `Image must be at most ${r.maxDimension}px wide` }
   if (r.minDimension && Math.min(width, height) < r.minDimension) return { ok: false, error: `Image must be at least ${r.minDimension}px` }
   return { ok: true, contentType, extension: TYPES[contentType]!, width, height }

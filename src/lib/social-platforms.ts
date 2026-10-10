@@ -1,6 +1,6 @@
 // Social platforms of a link, detected from its host. Pure, isomorphic.
 // Detection ported from avalanche-cascade (SocialLinksForm detectLinkTypeFromUrl).
-// Keys are persisted (ProjectVersion.socials[].tag) — only add, never rename.
+// Keys are persisted (ProjectVersion.socials[].tag) - only add, never rename.
 
 export const SOCIAL_PLATFORMS = {
   x: { label: 'X', hosts: ['x.com', 'twitter.com'] },

@@ -29,7 +29,7 @@ export default async function SubmissionPage({ params }: { params: Promise<{ id:
         if (!e) return null
         const showScores = !!st.judgingClosedAt
         return (
-          <SectionCard key={st.id} title={`${st.name} — version ${e.projectVersion.number}`} description={`Team at submission: ${(e.teamSnapshot as { name: string }[]).map((m) => m.name).join(', ')}`} actions={e.advancedAt ? <StatusPill tone="success">Advanced</StatusPill> : undefined}>
+          <SectionCard key={st.id} title={`${st.name} - version ${e.projectVersion.number}`} description={`Team at submission: ${(e.teamSnapshot as { name: string }[]).map((m) => m.name).join(', ')}`} actions={e.advancedAt ? <StatusPill tone="success">Advanced</StatusPill> : undefined}>
             <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
               <div className="min-w-0 space-y-8">
                 <ProjectVersionView version={e.projectVersion} />

@@ -13,7 +13,7 @@ import { authCleanupJob } from './auth-cleanup'
  * add it to `JOBS`. No worker or deploy changes needed.
  */
 export interface Job {
-  /** Stable identifier — pg-boss queue name and JobRun.job. Never rename. */
+  /** Stable identifier - pg-boss queue name and JobRun.job. Never rename. */
   name: string
   /** One-line explanation of what the job does, shown at /admin/jobs. */
   description: string
@@ -29,7 +29,7 @@ export interface Job {
 
 export const JOBS: Job[] = [authCleanupJob, eventsRefreshJob, eventsPortalImportJob]
 
-/** Run a job wrapped in a JobRun record. Never throws — failures are recorded. */
+/** Run a job wrapped in a JobRun record. Never throws - failures are recorded. */
 export async function executeJob(job: Job, data?: Record<string, unknown>): Promise<void> {
   const run = await prisma.jobRun.create({ data: { job: job.name, status: 'running' } })
   try {

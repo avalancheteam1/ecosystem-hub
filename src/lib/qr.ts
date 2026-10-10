@@ -1,7 +1,7 @@
 import QRCode from 'qrcode'
 
 // QR codes as self-contained SVG, ported from the member portal (src/lib/qr.ts
-// there) without its custom-logo variants — the hub only uses the team1 symbol.
+// there) without its custom-logo variants - the hub only uses the team1 symbol.
 
 // Team1 symbol inlined with explicit fills (no <style> classes, which would
 // clash when several QR SVGs are inlined on one page).
@@ -24,7 +24,7 @@ export type QrOptions = {
 const QUIET_ZONE = 3 // modules of padding around the code
 const BADGE_FRACTION = 0.24 // badge width relative to code width; safe with EC level H (30%)
 
-/** Build a self-contained QR SVG string for `value`. Pure — safe in tests and on the server. */
+/** Build a self-contained QR SVG string for `value`. Pure - safe in tests and on the server. */
 export function buildQrSvg(value: string, { size = 2000, mode = 'light', logo = true, transparent = false }: QrOptions = {}): string {
   const { modules } = QRCode.create(value, { errorCorrectionLevel: 'H' })
   const n = modules.size

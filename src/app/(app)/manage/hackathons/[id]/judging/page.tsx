@@ -17,7 +17,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
   const stages = await Promise.all(h.stages.map(async (s) => ({ s, entries: await getStageJudging(s.id) })))
   return (
     <div className="space-y-8">
-      {h.judges.length === 0 && <p className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">No judges yet — invite them under People.</p>}
+      {h.judges.length === 0 && <p className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">No judges yet - invite them under People.</p>}
       {stages.map(({ s, entries }, i) => {
         const state = stageState(s, now)
         const active = entries.filter((e) => e.submission.status === 'active')
@@ -46,7 +46,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
           <SectionCard
             key={s.id}
             title={`${i + 1}. ${s.name}`}
-            description={`${active.length} submissions — ${done} of ${assigned - conflicts} reviews done${conflicts ? ` — ${conflicts} conflict${conflicts === 1 ? '' : 's'} declared${s.reviewMode === 'random' ? ' (draw again to replace)' : ''}` : ''}${uncovered ? ` — ${uncovered} without judges` : ''}`}
+            description={`${active.length} submissions - ${done} of ${assigned - conflicts} reviews done${conflicts ? ` - ${conflicts} conflict${conflicts === 1 ? '' : 's'} declared${s.reviewMode === 'random' ? ' (draw again to replace)' : ''}` : ''}${uncovered ? ` - ${uncovered} without judges` : ''}`}
             actions={
               <>
                 <StageStateBadge state={state} />
@@ -73,7 +73,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
                 {s.reviewMode === 'random' ? (
                   <AssignPanel hackathonId={h.id} stageId={s.id} perEntry={s.judgesPerSubmission} hasAssignments={assigned > 0} />
                 ) : (
-                  <p className="text-sm text-fg-muted">All judges — every eligible judge sees every submission automatically once submissions close. <span className="text-fg-faint">(Change under Stages.)</span></p>
+                  <p className="text-sm text-fg-muted">All judges - every eligible judge sees every submission automatically once submissions close. <span className="text-fg-faint">(Change under Stages.)</span></p>
                 )}
                 {judges.length > 0 && <AssignmentMatrix hackathonId={h.id} judges={judges.map((j) => ({ id: j.id, label: j.label }))} rows={matrix} manual={s.reviewMode === 'random'} />}
               </div>

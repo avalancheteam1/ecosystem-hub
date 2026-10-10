@@ -20,7 +20,7 @@ export function getStorage(): StorageProvider {
   return instance
 }
 
-/** `category/ownerId/<uuid>.ext` — unguessable, and ownership is checkable from the key. */
+/** `category/ownerId/<uuid>.ext` - unguessable, and ownership is checkable from the key. */
 export function storageKey(category: string, ownerId: string, ext: string): string {
   return `${category}/${ownerId}/${randomUUID()}.${ext}`
 }

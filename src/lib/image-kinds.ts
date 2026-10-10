@@ -2,7 +2,7 @@ import type { ImageRules } from '@/lib/image-upload'
 
 // Every kind of uploadable image: rules (shared by the crop UI and the server
 // check) + the storage category. Who may upload is decided in upload-actions.ts.
-// Pure — safe to import on the client.
+// Pure - safe to import on the client.
 
 export const IMAGE_KINDS = {
   avatar: { category: 'avatars', aspect: 1, maxDimension: 1000, maxBytes: 1_000_000, shape: 'round' },

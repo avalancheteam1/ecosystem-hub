@@ -1,5 +1,5 @@
 // Search-param parsing for server pages. Next passes string | string[] | undefined
-// (a repeated ?q=a&q=b becomes an array) — never call string methods on it raw.
+// (a repeated ?q=a&q=b becomes an array) - never call string methods on it raw.
 
 type Param = string | string[] | undefined
 

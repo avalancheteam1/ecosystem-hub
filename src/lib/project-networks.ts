@@ -1,4 +1,4 @@
-/** Where a project's contract is deployed. Keys are persisted (in ProjectVersion.deployedAddresses) — only add, never rename. */
+/** Where a project's contract is deployed. Keys are persisted (in ProjectVersion.deployedAddresses) - only add, never rename. */
 export const PROJECT_NETWORKS = {
   'c-chain': { label: 'C-Chain' },
   fuji: { label: 'Fuji testnet' },

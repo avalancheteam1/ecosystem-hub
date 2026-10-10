@@ -41,7 +41,7 @@ export function ImageUploadField({ kind, ownerId, value, onChange, label, classN
       </button>
       <div className="space-y-1">
         <p className="text-sm text-fg-body">{label}</p>
-        <p className="text-xs text-fg-faint">{square ? 'Square' : '16:9'}, JPG/PNG/WebP — you can crop after picking.</p>
+        <p className="text-xs text-fg-faint">{square ? 'Square' : '16:9'}, JPG/PNG/WebP - you can crop after picking.</p>
         {value && (
           <Button type="button" variant="ghost" size="sm" className="-ml-3" onClick={() => onChange(null)}>
             <X aria-hidden /> Remove

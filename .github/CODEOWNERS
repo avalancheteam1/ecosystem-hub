@@ -1,11 +1,11 @@
-# Code owners — GitHub requests their review automatically.
+# Code owners - GitHub requests their review automatically.
 # One block per area; an area's code lives in folders named after it:
 #
 #   /src/app/(site)/hackathons/        @AvalancheTeam1/hackathons
 #   /src/app/admin/hackathons/         @AvalancheTeam1/hackathons
 #   /prisma/schema/hackathons.prisma   @AvalancheTeam1/hackathons
 #
-# Shared core (auth, permissions, db, layout) — changes here affect every area:
+# Shared core (auth, permissions, db, layout) - changes here affect every area:
 #
 #   /src/lib/                          @AvalancheTeam1/hub-core
 #   /src/components/                   @AvalancheTeam1/hub-core

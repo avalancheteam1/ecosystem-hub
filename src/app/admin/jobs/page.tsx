@@ -21,7 +21,7 @@ function Status({ status }: { status: string }) {
   return <Badge className={`rounded-full border-0 ${STATUS_CLASS[status] ?? ''}`}>{status}</Badge>
 }
 
-const fmt = (d: Date | null) => (d ? d.toISOString().slice(0, 16).replace('T', ' ') : '—')
+const fmt = (d: Date | null) => (d ? d.toISOString().slice(0, 16).replace('T', ' ') : '-')
 
 export default async function JobsPage() {
   await requireSuperAdmin()

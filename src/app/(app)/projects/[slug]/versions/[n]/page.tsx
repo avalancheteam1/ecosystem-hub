@@ -20,7 +20,7 @@ export default async function VersionPage({ params }: { params: Promise<{ slug: 
     <div className="mx-auto max-w-3xl">
       <BackLink href={`/projects/${slug}`}>Current version</BackLink>
       <p className="mb-6 rounded-lg border border-line bg-surface-1 px-4 py-3 text-sm text-fg-muted">
-        {version.sealedAt ? `Version ${version.number}, sealed ${version.sealedAt.toISOString().slice(0, 10)}${version.note ? ` — ${version.note}` : ''}. Sealed versions never change.` : `Version ${version.number} is your draft — it changes as you edit.`}
+        {version.sealedAt ? `Version ${version.number}, sealed ${version.sealedAt.toISOString().slice(0, 10)}${version.note ? ` - ${version.note}` : ''}. Sealed versions never change.` : `Version ${version.number} is your draft - it changes as you edit.`}
       </p>
       <section className="rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
         <ProjectVersionView version={version} />

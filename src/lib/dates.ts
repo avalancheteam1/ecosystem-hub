@@ -37,11 +37,11 @@ export function formatShortDate(d: Date, tz: string, now = new Date()): string {
 
 /** Admin/UTC timestamps: "2026-10-08 05:30 UTC". */
 export function formatUtc(d: Date | null): string {
-  return d ? `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC` : '—'
+  return d ? `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC` : '-'
 }
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31_536_000], ['month', 2_592_000], ['week', 604_800], ['day', 86_400], ['hour', 3600], ['minute', 60]]
-/** "3 days ago", "in 2 hours", "just now" — largest whole unit. */
+/** "3 days ago", "in 2 hours", "just now" - largest whole unit. */
 export function formatRelative(d: Date, now = new Date()): string {
   const secs = (d.getTime() - now.getTime()) / 1000
   const rtf = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' })

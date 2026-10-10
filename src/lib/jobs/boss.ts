@@ -1,7 +1,7 @@
 import 'server-only'
 import { PgBoss } from 'pg-boss'
 
-// Send-only pg-boss client for the web app: "run now" just enqueues — the
+// Send-only pg-boss client for the web app: "run now" just enqueues - the
 // worker service executes. No supervision/migration here; the worker owns the
 // pgboss schema (so a send fails clearly if the worker has never run).
 // The start *promise* is cached so concurrent first calls share one client.

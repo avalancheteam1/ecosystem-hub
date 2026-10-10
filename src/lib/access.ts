@@ -20,7 +20,7 @@ export const permissionListSchema = z
 
 /**
  * Super admin = DB flag, or an email in SUPER_ADMIN_EMAILS (comma-separated,
- * bootstrap / break-glass) — the env list only counts for a VERIFIED email.
+ * bootstrap / break-glass) - the env list only counts for a VERIFIED email.
  */
 export function isSuperAdminUser(
   u: { isSuperAdmin: boolean; email: string; emailVerified: boolean },

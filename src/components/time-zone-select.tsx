@@ -6,8 +6,8 @@ import { canonicalTimeZone, listTimeZones } from '@/lib/timezones'
 
 /**
  * Every IANA timezone (UTC first), labelled with its current offset.
- * The option list is built in the browser only — server and browser ICU data
- * differ, which would break hydration — so the first render shows just `value`.
+ * The option list is built in the browser only - server and browser ICU data
+ * differ, which would break hydration - so the first render shows just `value`.
  */
 export function TimeZoneSelect({ id, value, onChange, className }: { id: string; value: string; onChange: (tz: string) => void; className?: string }) {
   const [zones, setZones] = useState<{ id: string; label: string }[] | null>(null)

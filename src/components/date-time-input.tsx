@@ -7,7 +7,7 @@ import { zonedToUtc } from '@/lib/timezones'
 /**
  * Date + time as wall-clock time in `timeZone` (shown next to the input).
  * `value` is "YYYY-MM-DDTHH:mm" in that zone; convert with `toUtcIso` when
- * saving — the database always stores UTC. Initialise with `utcToZoned`.
+ * saving - the database always stores UTC. Initialise with `utcToZoned`.
  * Typed by hand or picked via the calendar button (the browser's native picker).
  */
 export function DateTimeInput({ id, value, onChange, timeZone, required }: { id: string; value: string; onChange: (wall: string) => void; timeZone: string; required?: boolean }) {

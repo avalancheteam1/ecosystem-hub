@@ -56,7 +56,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     prisma.referral.count({ where: { referrerId: user.id } }),
     getUserGroups(user.id),
   ])
-  // ponytail: sorts all of the user's projects in memory — fine for a handful, paginate if builders get dozens
+  // ponytail: sorts all of the user's projects in memory - fine for a handful, paginate if builders get dozens
   const projects = allProjects.filter((p) => p.currentVersion).sort((a, b) => byActivity(a.currentVersion!, b.currentVersion!)).slice(0, 6)
   // Nothing joined or created yet: lead with next steps instead of empty lists.
   const fresh = projects.length === 0 && hackathons.length === 0
@@ -80,14 +80,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </Avatar>
         <div className="min-w-0 flex-1">
           <h1 className={cn('text-3xl sm:text-4xl', !welcome && 'truncate')}>{welcome ? <>Welcome to team1, {first}<span className="text-brand">.</span></> : `Hi, ${first}`}</h1>
-          <p className={cn('mt-1 text-fg-muted', !welcome && 'truncate')}>{welcome ? 'You’re in. Glad to have you — here’s where to start.' : meta.length ? meta.join(' — ') : user.email}</p>
+          <p className={cn('mt-1 text-fg-muted', !welcome && 'truncate')}>{welcome ? 'You’re in. Glad to have you - here’s where to start.' : meta.length ? meta.join(' - ') : user.email}</p>
         </div>
         <Button asChild variant="outline"><Link href="/profile">Edit profile</Link></Button>
       </header>
 
       {!hasCompleteBasicProfile(u) && (
         <p className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-          Add your country and roles to your <Link href="/profile" className="underline decoration-brand underline-offset-2">profile</Link> — you need them to join hackathons.
+          Add your country and roles to your <Link href="/profile" className="underline decoration-brand underline-offset-2">profile</Link> - you need them to join hackathons.
         </p>
       )}
 
@@ -172,7 +172,7 @@ function ReferralsCard({ onboardings, leadGroups }: { onboardings: number; leadG
       {leadGroups.length > 0 && (
         <ul className="mt-4 divide-y divide-line">
           {leadGroups.map((g) => (
-            <li key={g.group.id}><Link href={`/groups/${g.group.slug}`} className="flex min-h-12 items-center text-fg-body hover:text-fg-heading">{g.group.name} — group stats</Link></li>
+            <li key={g.group.id}><Link href={`/groups/${g.group.slug}`} className="flex min-h-12 items-center text-fg-body hover:text-fg-heading">{g.group.name} - group stats</Link></li>
           ))}
         </ul>
       )}
@@ -185,11 +185,11 @@ type NextUp = HackathonMoment & { pending: boolean; event: { name: string; slug:
 function HackathonCard({ h, now }: { h: NextUp; now: Date }) {
   const when = h.at && `${formatShortDate(h.at, h.timezone, now)} · ${formatRelative(h.at, now)}`
   const headline =
-    h.state === 'open' ? (h.submitted ? 'Submitted — you can still update it' : 'Submissions are open')
+    h.state === 'open' ? (h.submitted ? 'Submitted - you can still update it' : 'Submissions are open')
     : h.state === 'upcoming' ? (h.stage ? 'Submissions open soon' : 'Starts soon')
     : h.state === 'judging' ? (h.submitted ? 'Judges are reviewing your project' : 'Judging in progress')
     : 'Results are out'
-  const detail = h.state === 'open' ? `${h.stage} closes ${when}` : h.state === 'upcoming' ? `${h.stage ?? 'Kick-off'} — ${when}` : h.state === 'results' ? `Published ${formatRelative(h.at!, now)}` : h.stage
+  const detail = h.state === 'open' ? `${h.stage} closes ${when}` : h.state === 'upcoming' ? `${h.stage ?? 'Kick-off'} - ${when}` : h.state === 'results' ? `Published ${formatRelative(h.at!, now)}` : h.stage
   return (
     <div className="flex h-full gap-5 rounded-xl border border-line bg-surface-2 p-5 transition duration-200 hover:border-brand hover:shadow-glow">
       <EventCover src={h.event.coverUrl} className="size-20 shrink-0 sm:size-24" />
@@ -212,7 +212,7 @@ function HackathonCard({ h, now }: { h: NextUp; now: Date }) {
   )
 }
 
-// The maturity ladder without "archived" — the steps a project climbs.
+// The maturity ladder without "archived" - the steps a project climbs.
 const LADDER: ProjectMaturity[] = (Object.keys(PROJECT_MATURITY) as ProjectMaturity[]).filter((k) => k !== 'archived')
 type DashProject = {
   slug: string

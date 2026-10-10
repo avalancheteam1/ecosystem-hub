@@ -33,7 +33,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
           <SectionCard
             key={s.id}
             title={`${i + 1}. ${s.name}`}
-            description={`${formatEventRange(s.opensAt, s.closesAt, tz)} — ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} — scored 0–${s.scaleMax}`}
+            description={`${formatEventRange(s.opensAt, s.closesAt, tz)} - ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} - scored 0–${s.scaleMax}`}
             actions={
               <>
                 <StageStateBadge state={state} />
@@ -48,7 +48,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
               <div>
                 <h3 className="mb-3 text-sm text-fg-muted">Judging criteria</h3>
                 {s.criteria.length === 0 ? (
-                  <p className="text-sm text-fg-muted">No criteria yet — judges need at least one.</p>
+                  <p className="text-sm text-fg-muted">No criteria yet - judges need at least one.</p>
                 ) : (
                   <ul className="divide-y divide-line">
                     {s.criteria.map((c) => (
@@ -68,7 +68,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
               </div>
               <div>
                 <h3 className="mb-3 text-sm text-fg-muted">Extra questions for this stage</h3>
-                <FieldList hackathonId={h.id} stageId={s.id} fields={s.fields} emptyText="Teams submit their project version — add questions for anything else (pitch deck link, contract address…)." />
+                <FieldList hackathonId={h.id} stageId={s.id} fields={s.fields} emptyText="Teams submit their project version - add questions for anything else (pitch deck link, contract address…)." />
               </div>
             </div>
           </SectionCard>

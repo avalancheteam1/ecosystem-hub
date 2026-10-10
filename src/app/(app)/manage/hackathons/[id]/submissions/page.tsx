@@ -44,8 +44,8 @@ export default async function SubmissionsPage({ params }: { params: Promise<{ id
               </>
             ),
             team,
-            maturity: maturity ?? <span className="text-fg-faint">—</span>,
-            ...Object.fromEntries(entries.map(([id, e]) => [`stage-${id}`, e ? <>v{e.projectVersion.number}{e.advancedAt && <StatusPill tone="success" className="ml-2">Advanced</StatusPill>}</> : <span className="text-fg-faint">—</span>])),
+            maturity: maturity ?? <span className="text-fg-faint">-</span>,
+            ...Object.fromEntries(entries.map(([id, e]) => [`stage-${id}`, e ? <>v{e.projectVersion.number}{e.advancedAt && <StatusPill tone="success" className="ml-2">Advanced</StatusPill>}</> : <span className="text-fg-faint">-</span>])),
             status: <StatusPill tone={s.status === 'active' ? 'success' : s.status === 'disqualified' ? 'danger' : 'neutral'}>{s.status}</StatusPill>,
             actions: <SubmissionStatusButton hackathonId={h.id} submissionId={s.id} status={s.status} />,
           },

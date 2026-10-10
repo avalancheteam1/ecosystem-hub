@@ -14,7 +14,7 @@ export function normalizeCode(input: string | null | undefined): string | null {
   return CODE_RE.test(code) && !RESERVED.has(code) ? code : null
 }
 
-const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789' // no i/l/o/0/1 — readable when spoken
+const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789' // no i/l/o/0/1 - readable when spoken
 /** 8 random chars; uniqueness is the DB's job (the caller retries on P2002). */
 export function generateCode(): string {
   // ponytail: modulo bias over 31 chars is irrelevant for non-secret codes.

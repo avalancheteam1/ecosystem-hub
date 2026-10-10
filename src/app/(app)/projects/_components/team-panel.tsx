@@ -76,7 +76,7 @@ export function TeamPanel({ projectId, members, invites, meId }: { projectId: st
         <ul className="space-y-2 border-t border-line pt-4">
           {invites.map((i) => (
             <li key={i.id} className="flex items-center justify-between gap-3 text-sm">
-              <span className="truncate text-fg-muted">{i.email} <span className="text-fg-faint">— invited as {roleLabel(i.role).toLowerCase()}</span></span>
+              <span className="truncate text-fg-muted">{i.email} <span className="text-fg-faint">- invited as {roleLabel(i.role).toLowerCase()}</span></span>
               <Button variant="ghost" size="sm" disabled={pending} onClick={() => run(() => revokeInvite({ inviteId: i.id }), 'Invite revoked')}>Revoke</Button>
             </li>
           ))}

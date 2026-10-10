@@ -28,7 +28,7 @@ function Prefixed({ prefix, platform, ...props }: React.ComponentProps<typeof In
 }
 
 // `countries` comes from the server: Intl country names differ between Node and browsers (hydration).
-// `onboarding`: the first-visit step — required fields + basics only, the rest comes later.
+// `onboarding`: the first-visit step - required fields + basics only, the rest comes later.
 export function ProfileForm({ userId, initial, next, countries, onboarding = false }: { userId: string; initial: ProfileFormValues; next: string | null; countries: { code: string; name: string }[]; onboarding?: boolean }) {
   const router = useRouter()
   const [p, setP] = useState(initial)
@@ -52,7 +52,7 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
           </Field>
           <fieldset className="space-y-3">
             <legend className="text-sm">What roles describe you? <span aria-hidden className="text-destructive">*</span><span className="sr-only">(required, pick at least one)</span></legend>
-            <p className="text-sm text-fg-muted">Pick all that fit — business folks, students and the curious are as welcome as developers.</p>
+            <p className="text-sm text-fg-muted">Pick all that fit - business folks, students and the curious are as welcome as developers.</p>
             <ChipToggle label="Roles" options={BUILDER_ROLES.map((r) => ({ value: r.id, label: r.name }))} value={roles} onChange={(v) => set('builderRoles', v as ProfileFormValues['builderRoles'])} />
             <div className="grid gap-4 sm:grid-cols-2">
               {roles.includes('university') && <Field id="p-inst" label="Institution name"><Input id="p-inst" value={p.institution ?? ''} onChange={(e) => set('institution', e.target.value)} className="h-11" /></Field>}
@@ -82,7 +82,7 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
           <Field id="p-tg" label="Telegram"><Prefixed id="p-tg" prefix="@" platform="telegram" value={p.telegramAccount ?? ''} onChange={(e) => set('telegramAccount', e.target.value)} placeholder="username" /></Field>
           <Field id="p-li" label="LinkedIn"><Input id="p-li" type="url" value={p.linkedinAccount ?? ''} onChange={(e) => set('linkedinAccount', e.target.value)} placeholder="https://www.linkedin.com/in/username" className="h-11" /></Field>
           <Field id="p-other" label="Other socials" hint="Personal site or other links."><ValueListInput id="p-other" value={p.otherSocials as string[]} onChange={(v) => set('otherSocials', v)} placeholder="https://…" max={5} /></Field>
-          <Field id="p-wallet" label="Wallets" hint="EVM addresses — the first one is your primary (used for rewards)."><ValueListInput id="p-wallet" type="text" value={p.wallets as string[]} onChange={(v) => set('wallets', v)} placeholder="0x…" max={5} mono validate={(v) => (EVM_ADDRESS.test(v) ? null : WALLET_ERROR)} /></Field>
+          <Field id="p-wallet" label="Wallets" hint="EVM addresses - the first one is your primary (used for rewards)."><ValueListInput id="p-wallet" type="text" value={p.wallets as string[]} onChange={(v) => set('wallets', v)} placeholder="0x…" max={5} mono validate={(v) => (EVM_ADDRESS.test(v) ? null : WALLET_ERROR)} /></Field>
         </div>
       </SectionCard>}
 

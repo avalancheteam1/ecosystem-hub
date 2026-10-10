@@ -63,7 +63,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         </ul>
       ) : (
         <p className="mt-12 text-fg-muted">
-          {hackathonsOnly ? `No ${when} hackathons${when === 'upcoming' ? ' right now — check back soon' : ' yet'}.` : when === 'upcoming' ? 'No upcoming events right now — check back soon.' : 'No past events yet.'}
+          {hackathonsOnly ? `No ${when} hackathons${when === 'upcoming' ? ' right now - check back soon' : ' yet'}.` : when === 'upcoming' ? 'No upcoming events right now - check back soon.' : 'No past events yet.'}
         </p>
       )}
       <Pager page={page} hasMore={rows.length > PAGE_SIZE} params={{ when: when === 'past' ? 'past' : undefined, type: hackathonsOnly ? 'hackathons' : undefined }} />

@@ -1,4 +1,4 @@
-minimumReleaseAge: 1440 # minutes (1 day) — delay installing freshly published versions
+minimumReleaseAge: 1440 # minutes (1 day) - delay installing freshly published versions
 
 allowBuilds:
   '@prisma/client': true

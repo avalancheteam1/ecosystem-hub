@@ -27,9 +27,9 @@ function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Min
       return { href: `/events/${event.slug}/submit`, label: done && h.allowMultipleSubmissions ? 'Submit or update a project' : done ? (single ? 'Update your submission' : `Update your ${open.name} submission`) : single ? 'Submit your project' : `Submit to ${open.name}` }
     }
     if (h.stages.some((s) => stageState(s, now) === 'upcoming')) return { label: 'You’re in. Submissions open with the next stage.' }
-    return { label: h.resultsPublishedAt ? 'The hackathon is over — see the winners below.' : 'Submissions are closed. Results are coming.' }
+    return { label: h.resultsPublishedAt ? 'The hackathon is over - see the winners below.' : 'Submissions are closed. Results are coming.' }
   }
-  if (h.registration === 'pending') return { label: 'Registration received — the organisers will review it. We’ll email you once you’re in.' }
+  if (h.registration === 'pending') return { label: 'Registration received - the organisers will review it. We’ll email you once you’re in.' }
   if (h.registration === 'rejected') return { label: 'Your registration wasn’t accepted.' }
   if (h.registrationClosesAt && now >= h.registrationClosesAt) return { label: 'Registration is closed.' }
   if (h.maxParticipants != null && h._count.participants >= h.maxParticipants) return { label: 'This hackathon is full.' }
@@ -58,6 +58,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
     ...(h.tracks.length ? [[h.tracks.length, h.tracks.length === 1 ? 'track' : 'tracks']] : []),
     [h.stages.length, h.stages.length === 1 ? 'round' : 'rounds'],
   ].slice(0, 4)
+  const location = event.isOnline ? 'Online' : [event.city, event.country].filter(Boolean).join(', ')
 
   return (
     <>
@@ -68,14 +69,14 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
             <EventCover src={event.coverUrl} />
           </div>
           <div className="min-w-0">
-            <p className="meta inline-flex items-center gap-2"><Trophy className="size-3.5 text-brand" aria-hidden /> Hackathon — {formatEventRange(event.startAt, event.endAt, event.timezone)}</p>
+            <p className="meta inline-flex items-center gap-2"><Trophy className="size-3.5 text-brand" aria-hidden /> Hackathon - {formatEventRange(event.startAt, event.endAt, event.timezone)}</p>
             <h1 className="mt-4 text-4xl leading-[1.02] tracking-[-0.015em] sm:text-6xl">{event.name}</h1>
             {h.tagline && <p className="mt-5 max-w-[52ch] text-xl text-fg-body">{h.tagline}</p>}
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
               {step.href ? <Button asChild size="lg"><Link href={step.href}>{step.label}</Link></Button> : <p className="text-fg-body">{step.label}</p>}
               {share}
               <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="group inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
-                {event.isOnline ? 'Online' : [event.city, event.country].filter(Boolean).join(', ')} — event page on Luma <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden />
+                Event page on Luma <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden />
               </a>
             </div>
           </div>
@@ -126,7 +127,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
             <ul className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
               {results.map((p, i) => (
                 <li key={p.id} className={cn('wash border-b border-line py-8 sm:pr-8', i % 3 !== 0 && 'lg:border-l lg:pl-8', i % 2 === 1 && 'sm:border-l sm:pl-8 lg:border-l-0 lg:pl-0', i % 3 !== 0 && 'lg:border-l lg:pl-8')}>
-                  <p className="meta text-brand">{p.title}{p.trackId ? ` — ${h.tracks.find((t) => t.id === p.trackId)?.name}` : ''}</p>
+                  <p className="meta text-brand">{p.title}{p.trackId ? ` - ${h.tracks.find((t) => t.id === p.trackId)?.name}` : ''}</p>
                   <p className="mt-3 font-heading text-3xl tracking-[-0.02em] text-fg-heading">{p.award!.submission.entries[0]!.projectVersion.name}</p>
                   <p className="mt-2 text-fg-muted">{p.award!.submission.entries[0]!.projectVersion.shortDescription}</p>
                   {p.amount && <p className="meta mt-5">{p.amount}</p>}
@@ -143,6 +144,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
           </div>
           <aside className="self-start border-t border-line lg:sticky lg:top-36">
             <dl className="divide-y divide-line text-sm">
+              {location && <div className="flex justify-between gap-4 py-3"><dt className="meta">Location</dt><dd className="text-right text-fg-heading">{location}</dd></div>}
               <div className="flex justify-between gap-4 py-3"><dt className="meta">Teams</dt><dd className="text-fg-heading">{teamSize(h)} people</dd></div>
               {h.registrationClosesAt && <div className="flex justify-between gap-4 py-3"><dt className="meta">Register until</dt><dd className="text-right text-fg-heading">{formatEventRange(h.registrationClosesAt, null, h.timezone)}</dd></div>}
               {h.maxParticipants && <div className="flex justify-between gap-4 py-3"><dt className="meta">Spots</dt><dd className="text-fg-heading">{Math.max(h.maxParticipants - h._count.participants, 0)} of {h.maxParticipants} left</dd></div>}
@@ -171,7 +173,7 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
                         <img src={t.sponsorLogoUrl} alt={t.sponsor ?? ''} className="size-12 shrink-0 rounded-lg border border-line object-cover" />
                       )}
                       <div className="min-w-0">
-                        <p className="meta">Track {String(i + 1).padStart(2, '0')}{t.sponsor ? ` — by ${t.sponsor}` : ''}</p>
+                        <p className="meta">Track {String(i + 1).padStart(2, '0')}{t.sponsor ? ` - by ${t.sponsor}` : ''}</p>
                         <h3 className="mt-1 text-2xl">{t.name}</h3>
                       </div>
                     </div>
@@ -200,8 +202,8 @@ export function HackathonView({ event, h, signedIn, mine, share }: { event: Even
             {overall.length > 0 && <ul className="grid grid-cols-2 border-t border-line lg:grid-cols-4">
               {overall.map((p, i) => (
                 <li key={p.id} className={cn('flex flex-col-reverse border-b border-line py-8', i % 2 === 1 && 'border-l pl-6', i % 4 !== 0 && 'lg:border-l lg:pl-6', i % 4 === 2 && 'lg:border-l')}>
-                  <p className="meta mt-2">{p.title}{p.description ? ` — ${p.description}` : ''}</p>
-                  <p className="font-heading text-[clamp(1.75rem,3.5vw,3rem)] font-medium leading-none tracking-[-0.03em] text-fg-heading">{p.amount ?? '—'}</p>
+                  <p className="meta mt-2">{p.title}{p.description ? ` - ${p.description}` : ''}</p>
+                  <p className="font-heading text-[clamp(1.75rem,3.5vw,3rem)] font-medium leading-none tracking-[-0.03em] text-fg-heading">{p.amount ?? '-'}</p>
                 </li>
               ))}
             </ul>}

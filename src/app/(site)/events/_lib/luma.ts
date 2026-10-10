@@ -2,7 +2,7 @@ import { proseMirrorToMarkdown } from './prosemirror'
 
 // Luma, public data only: the unauthenticated web API behind lu.ma
 // (`api.lu.ma/url?url=<slug>`), the same source luma-sync falls back to.
-// It is unofficial — it may change or block bots — so every failure is a
+// It is unofficial - it may change or block bots - so every failure is a
 // LumaError the UI shows, never a silent miss.
 
 const LUMA_HOSTS = new Set(['lu.ma', 'www.lu.ma', 'luma.com', 'www.luma.com'])
@@ -82,10 +82,10 @@ export class LumaError extends Error {
   constructor(public code: 'not_found' | 'unreachable' | 'not_event') {
     super(
       code === 'not_found'
-        ? "Luma didn't return this event — is the link right, and is the event public or link-shared?"
+        ? "Luma didn't return this event - is the link right, and is the event public or link-shared?"
         : code === 'not_event'
           ? 'That Luma link is not an event (calendar or profile?)'
-          : 'Luma is unreachable right now — try again in a minute',
+          : 'Luma is unreachable right now - try again in a minute',
     )
   }
 }

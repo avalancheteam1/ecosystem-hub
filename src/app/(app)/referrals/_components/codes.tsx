@@ -72,7 +72,7 @@ export function CodeTable({ codes, siteUrl }: { codes: CodeRow[]; siteUrl: strin
           {codes.map((c) => (
             <TableRow key={c.id} className={c.active ? undefined : 'opacity-60'}>
               <TableCell><code className="text-fg-heading">{c.code}</code>{!c.active && <span className="ml-2 text-xs text-fg-faint">inactive</span>}</TableCell>
-              <TableCell className="text-fg-muted">{c.label ?? '—'}</TableCell>
+              <TableCell className="text-fg-muted">{c.label ?? '-'}</TableCell>
               <TableCell className="text-right tabular-nums">{c.onboardings}</TableCell>
               <TableCell>
                 <div className="flex justify-end gap-1">

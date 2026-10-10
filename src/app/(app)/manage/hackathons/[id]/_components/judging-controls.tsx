@@ -20,7 +20,7 @@ export function AssignPanel({ hackathonId, stageId, perEntry, hasAssignments }: 
     }, 'Preview ready')
   return (
     <div className="space-y-4">
-      <p className="text-sm">Random, balanced — {perEntry ?? '?'} judge{perEntry === 1 ? '' : 's'} per submission <span className="text-fg-faint">(change under Stages)</span></p>
+      <p className="text-sm">Random, balanced - {perEntry ?? '?'} judge{perEntry === 1 ? '' : 's'} per submission <span className="text-fg-faint">(change under Stages)</span></p>
       <p className="text-xs text-fg-faint">Never assigns a judge who is on the team, declared a conflict, or judges other tracks. Submitted reviews are always kept. You can adjust single assignments in the table.</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={pending} onClick={draw}><Shuffle aria-hidden /> {preview ? 'Draw again' : hasAssignments ? 'Preview a new draw' : 'Preview assignment'}</Button>
@@ -126,7 +126,7 @@ export function RankingTable({ hackathonId, stageId, rows, canAdvance }: { hacka
             disabled={pending || (!toAdd.length && !toRemove.length)}
             onClick={async () => {
               if (toRemove.length && !(await run(() => setAdvanced({ hackathonId, stageId, entryIds: toRemove, advanced: false }), `${toRemove.length} removed from the next stage`))) return
-              if (toAdd.length) await run(() => setAdvanced({ hackathonId, stageId, entryIds: toAdd, advanced: true }), `${toAdd.length} advanced — teams notified`)
+              if (toAdd.length) await run(() => setAdvanced({ hackathonId, stageId, entryIds: toAdd, advanced: true }), `${toAdd.length} advanced - teams notified`)
             }}
           >
             Save advancement{toAdd.length ? ` (+${toAdd.length})` : ''}{toRemove.length ? ` (−${toRemove.length})` : ''}
@@ -145,10 +145,10 @@ export function RankingTable({ hackathonId, stageId, rows, canAdvance }: { hacka
             {rows.map((r) => (
               <tr key={r.entryId} className="border-b border-line last:border-0">
                 {canAdvance && <td className="p-3"><Checkbox aria-label={`Advance ${r.name}`} checked={selected.includes(r.entryId)} onCheckedChange={(c) => setSelected(c ? [...selected, r.entryId] : selected.filter((x) => x !== r.entryId))} /></td>}
-                <td className="p-3 tabular-nums text-fg-muted">{r.rank ?? '—'}</td>
+                <td className="p-3 tabular-nums text-fg-muted">{r.rank ?? '-'}</td>
                 <td className="p-3 text-fg-heading">{r.name}{r.advanced && <span className="ml-2 text-xs text-success">advanced</span>}</td>
-                <td className="p-3 text-right tabular-nums text-fg-heading">{r.mean ?? '—'}</td>
-                <td className="p-3 text-right tabular-nums text-fg-muted">{r.min != null ? `${r.min}–${r.max}` : '—'}</td>
+                <td className="p-3 text-right tabular-nums text-fg-heading">{r.mean ?? '-'}</td>
+                <td className="p-3 text-right tabular-nums text-fg-muted">{r.min != null ? `${r.min}–${r.max}` : '-'}</td>
                 <td className="p-3 text-right tabular-nums">{r.reviews}</td>
               </tr>
             ))}

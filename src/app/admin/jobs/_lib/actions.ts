@@ -12,7 +12,7 @@ export const runJobNow = action({ schema: z.object({ name: z.string() }), permis
     await enqueueJob(name)
   } catch (err) {
     console.error('[jobs] enqueue failed', err)
-    throw new ActionError('Could not enqueue — has the worker ever started against this database?')
+    throw new ActionError('Could not enqueue - has the worker ever started against this database?')
   }
   await recordAudit({ actorId: user.id, action: 'job.run', entityType: 'Job', entityId: name })
   return null

@@ -59,7 +59,7 @@ export const addGroupMember = action(
   async ({ groupId, email, isLead }, user) => {
     await assertManualGroup(groupId)
     const target = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } }, select: { id: true } })
-    if (!target) throw new ActionError('No hub user with this email — they need to sign up first')
+    if (!target) throw new ActionError('No hub user with this email - they need to sign up first')
     try {
       await prisma.groupMember.create({ data: { groupId, userId: target.id, isLead } })
     } catch (err) {

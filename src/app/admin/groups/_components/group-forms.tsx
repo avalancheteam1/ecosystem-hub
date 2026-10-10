@@ -78,7 +78,7 @@ export function AddMemberDialog({ groupId }: { groupId: string }) {
         <Input id="member-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
       </Field>
       <label className="flex min-h-11 items-center gap-3 text-sm">
-        <Checkbox checked={isLead} onCheckedChange={(c) => setIsLead(c === true)} /> Lead — sees this group&apos;s onboardings
+        <Checkbox checked={isLead} onCheckedChange={(c) => setIsLead(c === true)} /> Lead - sees this group&apos;s onboardings
       </label>
     </FormDialog>
   )

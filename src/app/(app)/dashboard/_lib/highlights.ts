@@ -22,7 +22,7 @@ export function hackathonMoment(stages: Stage[], resultsPublishedAt: Date | null
 }
 
 const ORDER = { open: 0, upcoming: 1, judging: 2, results: 3, closed: 4 }
-/** Open submissions first, then upcoming, judging, results — soonest date first within each. */
+/** Open submissions first, then upcoming, judging, results - soonest date first within each. */
 export const byUrgency = (a: HackathonMoment, b: HackathonMoment) => ORDER[a.state] - ORDER[b.state] || (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)
 
 /**
@@ -34,6 +34,6 @@ export function projectNudge(p: { daysSinceUpdate: number; maturity: string | nu
   return null
 }
 
-/** Active projects first, archived (stage) last — most recently updated first within each. */
+/** Active projects first, archived (stage) last - most recently updated first within each. */
 export const byActivity = (a: { maturity: string | null; updatedAt: Date }, b: { maturity: string | null; updatedAt: Date }) =>
   Number(a.maturity === 'archived') - Number(b.maturity === 'archived') || b.updatedAt.getTime() - a.updatedAt.getTime()

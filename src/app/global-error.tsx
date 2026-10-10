@@ -1,7 +1,7 @@
 'use client'
 
 // Last-resort boundary for errors in the root layout itself. It replaces the
-// whole document, so it can't rely on globals.css or fonts — inline styles only.
+// whole document, so it can't rely on globals.css or fonts - inline styles only.
 export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <html lang="en">

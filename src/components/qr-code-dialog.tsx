@@ -29,7 +29,7 @@ export function QrCodeDialog({ value, filename, title = 'QR code', label = 'QR c
   )
 }
 
-/** The dialog's body on its own — mount it only while visible (it builds a 2000px SVG). */
+/** The dialog's body on its own - mount it only while visible (it builds a 2000px SVG). */
 export function QrCodePanel({ value, filename }: { value: string; filename: string }) {
   const [mode, setMode] = useState<'light' | 'dark'>('light')
   const [transparent, setTransparent] = useState(false)

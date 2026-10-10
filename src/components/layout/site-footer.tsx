@@ -41,7 +41,7 @@ export function SiteFooter() {
         <div className="container-page flex flex-wrap items-center justify-between gap-4 py-6">
           <Logo />
           <p className="meta flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>© {new Date().getFullYear()} team1 — hub.team1.network</span>
+            <span>© {new Date().getFullYear()} team1 - hub.team1.network</span>
             <a href="https://go.team1.network/privacy-policy" target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center hover:text-fg-heading">Privacy policy</a>
           </p>
         </div>

@@ -62,7 +62,7 @@ function SubmissionReadiness({ f }: { f: ProjectFields }) {
   const missing = [...(f.name.trim() ? [] : ['Project name']), ...(f.shortDescription.trim() ? [] : ['Short description']), ...missingForSubmission(f)]
   return (
     <section aria-label="What this project needs" className="grid gap-5 rounded-xl border border-line p-5">
-      <Checklist title="Basic data — required to save" items={BASICS} missing={missing} />
+      <Checklist title="Basic data - required to save" items={BASICS} missing={missing} />
       <Checklist title="For hackathon or grant submissions" items={FOR_SUBMISSION} missing={missing} />
       <p className="text-xs text-fg-faint"><span aria-hidden className="text-destructive">*</span> required to save · “for submissions” needed to submit · the rest is optional.</p>
     </section>
@@ -71,7 +71,7 @@ function SubmissionReadiness({ f }: { f: ProjectFields }) {
 
 /**
  * `next`: where to go after saving (e.g. back to a hackathon submission).
- * `onSaved`: embedded use (dialog) — called instead of navigating.
+ * `onSaved`: embedded use (dialog) - called instead of navigating.
  * `countries` comes from the server (Intl names differ between Node and browsers); `defaultCountry` prefills a new project (the creator's profile country).
  */
 export function ProjectForm({ projectId, initial, next, onSaved, onCancel, countries, defaultCountry }: { projectId?: string; initial?: ProjectFields; next?: string | null; onSaved?: (p: { id: string; slug: string }) => void; onCancel?: () => void; countries: { code: string; name: string }[]; defaultCountry?: string | null }) {
@@ -122,13 +122,13 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
             <Field id="name" label="Project name" required>
               <Input id="name" value={f.name} onChange={(e) => set('name', e.target.value)} required maxLength={60} placeholder="Enter your project name" className="h-11" />
             </Field>
-            <Field id="short" label="Short description" required hint="A short and engaging overview — shown on cards and to judges first.">
+            <Field id="short" label="Short description" required hint="A short and engaging overview - shown on cards and to judges first.">
               <Textarea id="short" value={f.shortDescription} onChange={(e) => set('shortDescription', e.target.value)} required maxLength={280} rows={2} />
               <div className="flex justify-end"><Counter value={f.shortDescription} max={280} /></div>
             </Field>
             <MarkdownField id="full" label="Full description (for submissions)" hint="The problem, how it works, what's built on Avalanche." value={f.fullDescription} onChange={(t) => set('fullDescription', t)} rows={10} />
             <div className="grid gap-6 sm:grid-cols-2">
-              <Field id="maturity" label="Project stage" required hint={f.maturity ? PROJECT_MATURITY[f.maturity].hint : 'How far the project is — from idea to established with users.'}>
+              <Field id="maturity" label="Project stage" required hint={f.maturity ? PROJECT_MATURITY[f.maturity].hint : 'How far the project is - from idea to established with users.'}>
                 <NativeSelect id="maturity" required value={f.maturity ?? ''} onChange={(e) => set('maturity', e.target.value as ProjectMaturity)}>
                   <option value="" disabled>Pick a stage</option>
                   {Object.entries(PROJECT_MATURITY).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
@@ -188,7 +188,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
             </Field>
             <ImageUploadField kind="project-cover" ownerId={owner} value={f.coverUrl} onChange={(v) => set('coverUrl', v)} label="Cover image" />
             <fieldset className="space-y-3">
-              <legend className="text-sm">Screenshots <span className="text-fg-faint">— up to 5</span></legend>
+              <legend className="text-sm">Screenshots <span className="text-fg-faint">- up to 5</span></legend>
               <div className="flex flex-wrap gap-4">
                 {f.screenshots.map((u, i) => (
                   <ImageUploadField key={u} kind="project-screenshot" ownerId={owner} value={u} label={`Screenshot ${i + 1}`} onChange={(v) => set('screenshots', v ? f.screenshots.map((x, j) => (j === i ? v : x)) : f.screenshots.filter((_, j) => j !== i))} />

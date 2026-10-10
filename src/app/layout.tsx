@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const kanit = Kanit({ subsets: ['latin', 'latin-ext'], weight: ['300', '400', '500', '600'], variable: '--font-kanit' })
-// Metadata layer only (dates, counts, numbering) — Kanit stays the brand face.
+// Metadata layer only (dates, counts, numbering) - Kanit stays the brand face.
 // Self-hosted (variable latin woff2, wght 400–500): next/font/google failed for it in the Railway build.
 const mono = localFont({ src: './_fonts/jetbrains-mono-latin.woff2', weight: '400 500', variable: '--font-jetbrains' })
 
@@ -18,7 +18,7 @@ const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: { default: 'Team1 Ecosystem Hub', template: '%s · team1 Ecosystem Hub' },
-  description: 'Hackathons, workshops, bounties and education for builders in the Avalanche ecosystem — by team1.',
+  description: 'Hackathons, workshops, bounties and education for builders in the Avalanche ecosystem - by team1.',
   openGraph: { type: 'website', siteName: 'team1 Ecosystem Hub' },
   twitter: { card: 'summary_large_image' },
 }

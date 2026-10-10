@@ -1,4 +1,4 @@
-// Avalanche Builder Hub (build.avax.network) — docs, academy and dev tools live there;
+// Avalanche Builder Hub (build.avax.network) - docs, academy and dev tools live there;
 // this hub is for hackathons, events and community. Link out instead of duplicating.
 export const BUILDER_HUB_URL = 'https://build.avax.network'
 

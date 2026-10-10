@@ -32,10 +32,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const leadGroups = groups.filter((g) => g.lead)
   const portalUrl = process.env.MEMBER_PORTAL_URL || 'https://members.team1.network'
   const next = nextParam ? safeNext(nextParam) : null
-  // First visit (fresh account, or sent here to finish it): a short welcome step — only what's
+  // First visit (fresh account, or sent here to finish it): a short welcome step - only what's
   // required plus the basics; socials, wallets and skills wait for a later visit.
   if (next && !hasCompleteBasicProfile(u)) {
-    // Email sign-ups start with the email's local part as name (auth.ts) — don't greet with that, ask instead.
+    // Email sign-ups start with the email's local part as name (auth.ts) - don't greet with that, ask instead.
     const placeholder = u.name === u.email.split('@')[0]
     const first = placeholder ? '' : u.name.trim().split(/\s+/)[0]
     return (
@@ -43,7 +43,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         <div className="animate-fade-in-up mb-10">
           <p className="meta">One quick step · about a minute</p>
           <h1 className="mt-3 text-4xl leading-[1.05] tracking-[-0.02em] sm:text-5xl">Welcome to team1{first ? `, ${first}` : ''}<span className="text-brand">.</span></h1>
-          <p className="mt-4 max-w-[52ch] text-lg text-fg-body">Tell us who you are and where you&apos;re based — so we can point you to the right events, programs and people. You can add socials and wallets anytime later.</p>
+          <p className="mt-4 max-w-[52ch] text-lg text-fg-body">Tell us who you are and where you&apos;re based - so we can point you to the right events, programs and people. You can add socials and wallets anytime later.</p>
         </div>
         <ProfileForm userId={u.id} countries={COUNTRIES} next={next} onboarding initial={{ ...formValues(u), name: placeholder ? '' : u.name }} />
       </div>

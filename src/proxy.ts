@@ -5,7 +5,7 @@ import { REF_COOKIE, REF_COOKIE_MAX_AGE, shouldSetRefCookie } from '@/app/(app)/
 // Next 16's renamed middleware. Three jobs:
 //  1. per-request CSP nonce (script-src without 'unsafe-inline'),
 //  2. a coarse AUTHENTICATION wall for /dashboard and /admin (cookie presence
-//     only). It is NOT authorization — guards in src/lib/guards.ts and
+//     only). It is NOT authorization - guards in src/lib/guards.ts and
 //     action() are authoritative,
 //  3. remember ?ref= for sign-up attribution (a cookie, no DB).
 

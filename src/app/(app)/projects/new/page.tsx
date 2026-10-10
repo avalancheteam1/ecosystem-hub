@@ -14,7 +14,7 @@ export default async function NewProjectPage({ searchParams }: { searchParams: P
   const me = await prisma.user.findUnique({ where: { id: user.id }, select: { country: true } })
   return (
     <div>
-      <PageHeader title="New project" description="You can change everything later — each save becomes a new version." />
+      <PageHeader title="New project" description="You can change everything later - each save becomes a new version." />
       <ProjectForm next={nextParam ? safeNext(nextParam) : null} countries={COUNTRIES} defaultCountry={me?.country} />
     </div>
   )

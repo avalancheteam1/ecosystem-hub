@@ -31,7 +31,7 @@ function NewProjectDialog({ onCreated, primary, countries, defaultCountry }: { o
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
-          <DialogDescription>Create it here — it’s selected for this submission when you save. Invite teammates from the project page.</DialogDescription>
+          <DialogDescription>Create it here - it’s selected for this submission when you save. Invite teammates from the project page.</DialogDescription>
         </DialogHeader>
         <ProjectForm
           countries={countries}
@@ -79,7 +79,7 @@ export function SubmitForm(props: {
   if (!props.projects.length) {
     return (
       <div className="text-center">
-        <p className="text-fg-body">You need a project to submit. Create one — your teammates join it by invite.</p>
+        <p className="text-fg-body">You need a project to submit. Create one - your teammates join it by invite.</p>
         <div className="mt-6"><NewProjectDialog primary onCreated={setProjectId} countries={props.countries} defaultCountry={props.defaultCountry} /></div>
       </div>
     )
@@ -121,7 +121,7 @@ export function SubmitForm(props: {
         </div>
         {project && project.missing.length > 0 && (
           <p role="alert" className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-            This project isn&apos;t complete yet — missing: {project.missing.join(', ')}.{' '}
+            This project isn&apos;t complete yet - missing: {project.missing.join(', ')}.{' '}
             <Link href={`/projects/${project.slug}/edit?next=${back}`} className="underline decoration-brand underline-offset-2">Complete it</Link>
           </p>
         )}
@@ -131,7 +131,7 @@ export function SubmitForm(props: {
               ? `You submitted version ${project.versionNumber} and haven’t changed the project since.`
               : project.sealed
                 ? `Submits version ${project.versionNumber}.`
-                : `Submitting seals your project as version ${project.versionNumber} — exactly what judges see. Later edits start a new draft and don’t change this submission unless you update it here.`}{' '}
+                : `Submitting seals your project as version ${project.versionNumber} - exactly what judges see. Later edits start a new draft and don’t change this submission unless you update it here.`}{' '}
             <Link href={`/projects/${project.slug}/edit?next=${back}`} className="underline decoration-brand underline-offset-2">Edit the project first</Link>
           </p>
         )}

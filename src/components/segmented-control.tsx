@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 
-/** A few mutually exclusive options shown side by side — for 2–4 short choices; longer lists use `NativeSelect`. */
+/** A few mutually exclusive options shown side by side - for 2–4 short choices; longer lists use `NativeSelect`. */
 export function SegmentedControl<T extends string>({ label, options, value, onChange, className }: {
   /** Accessible name of the group (the visible label is usually a `Field`). */
   label: string

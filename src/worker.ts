@@ -1,5 +1,5 @@
 /**
- * Background worker — a plain Node entrypoint, deliberately outside Next.js.
+ * Background worker - a plain Node entrypoint, deliberately outside Next.js.
  *
  * Deployed as a second Railway service from the same Docker image (start
  * command `node /worker/worker.mjs`, see railway.worker.toml). pg-boss uses the
@@ -42,10 +42,10 @@ async function main() {
     })
   }
 
-  console.log(`[worker] started — ${JOBS.map((j) => `${j.name} (${j.cron})`).join(', ')}`)
+  console.log(`[worker] started - ${JOBS.map((j) => `${j.name} (${j.cron})`).join(', ')}`)
 
   const shutdown = async (signal: string) => {
-    console.log(`[worker] ${signal} — shutting down`)
+    console.log(`[worker] ${signal} - shutting down`)
     await boss.stop({ graceful: true, timeout: 30_000 })
     process.exit(0)
   }

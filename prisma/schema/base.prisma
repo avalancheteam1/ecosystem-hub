@@ -1,5 +1,5 @@
 // Generator + datasource. Models live in one file per area next to this one.
-// Single Postgres schema (`public`) on purpose — see AGENTS.md "Database".
+// Single Postgres schema (`public`) on purpose - see AGENTS.md "Database".
 
 generator client {
   provider = "prisma-client-js"

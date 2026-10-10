@@ -11,7 +11,7 @@ export type DataTableColumn = {
   key: string
   label: string
   sortable?: boolean
-  /** Direction of the first click (default asc) — e.g. desc for dates and counts. */
+  /** Direction of the first click (default asc) - e.g. desc for dates and counts. */
   firstDir?: 'asc' | 'desc'
   className?: string
   /** false = always shown, not in the "Columns" menu. */
@@ -39,7 +39,7 @@ function write(key: string, layout: Layout) {
   try {
     if (!layout.widths && !layout.visible) localStorage.removeItem(key)
     else localStorage.setItem(key, JSON.stringify(layout))
-  } catch { /* storage blocked — layout just won't persist */ }
+  } catch { /* storage blocked - layout just won't persist */ }
   listeners.forEach((cb) => cb())
 }
 const parse = (raw: string | null): Layout => { try { return raw ? JSON.parse(raw) : {} } catch { return {} } }
@@ -52,7 +52,7 @@ function compare(a: unknown, b: unknown) {
 
 /**
  * The house table: sortable headers, resizable and hideable columns (remembered per viewer).
- * Rows come pre-rendered from the server. Sorting is client-side, or — pass `sort` — server-side
+ * Rows come pre-rendered from the server. Sorting is client-side, or - pass `sort` - server-side
  * via `?sort=&dir=` for paginated tables (the page maps the key to an orderBy).
  */
 export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort: serverSort }: {

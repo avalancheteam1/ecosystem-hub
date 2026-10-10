@@ -26,7 +26,7 @@ export const getManagedHackathon = cache(async (id: string, user: CurrentUser) =
   return h
 })
 
-/** Submitted reviews per stage (a hackathon has a handful of stages — one count each). */
+/** Submitted reviews per stage (a hackathon has a handful of stages - one count each). */
 export async function stageReviewCounts(stageIds: string[]) {
   const counts = await Promise.all(stageIds.map((stageId) => prisma.review.count({ where: { submittedAt: { not: null }, assignment: { entry: { stageId } } } })))
   return new Map(stageIds.map((sid, i) => [sid, counts[i]!]))
@@ -105,7 +105,7 @@ export async function getMySubmissions(hackathonId: string, userId: string) {
 /**
  * "All judges" stages need no draw: once submissions close, every eligible judge
  * reviews every active submission. Reviews hang on a JudgeAssignment row, so the
- * rows are created on read (idempotent) by every judging read below — judges and
+ * rows are created on read (idempotent) by every judging read below - judges and
  * organisers see them live, no button, no job. Existing rows (declared conflicts
  * included) are skipped by the unique key.
  */

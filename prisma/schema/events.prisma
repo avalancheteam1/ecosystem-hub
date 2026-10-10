@@ -1,9 +1,9 @@
-// Events — the hub's own copy of Luma events (public data only, see
+// Events - the hub's own copy of Luma events (public data only, see
 // src/app/(site)/events/_lib/luma.ts). Edited on Luma, refreshed daily.
 
 model Event {
   id             String     @id @default(cuid())
-  /// Luma's evt-… id — the same id the member portal uses.
+  /// Luma's evt-… id - the same id the member portal uses.
   lumaEventId    String     @unique
   lumaUrl        String
   slug           String     @unique

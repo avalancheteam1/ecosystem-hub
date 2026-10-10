@@ -22,7 +22,7 @@ export default async function GroupPage({ params }: { params: Promise<{ slug: st
   const stats = await getGroupStats(group.id)
   return (
     <>
-      <PageHeader title={group.name} description="New hub accounts brought in by this group's members — counted for every group the referrer was in when the person signed up." />
+      <PageHeader title={group.name} description="New hub accounts brought in by this group's members - counted for every group the referrer was in when the person signed up." />
       <SectionCard title="Onboardings"><GroupStats stats={stats} /></SectionCard>
     </>
   )

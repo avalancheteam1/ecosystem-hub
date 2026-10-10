@@ -39,7 +39,7 @@ export const leaveHackathon = action({ schema: z.object({ hackathonId: z.string(
   const p = await prisma.participant.findUnique({ where: { hackathonId_userId: { hackathonId, userId: user.id } }, include: { hackathon: { select: { event: { select: { slug: true } } } } } })
   if (!p || p.status !== 'active') throw new ActionError("You haven't joined this hackathon")
   const onTeam = await prisma.submission.count({ where: { hackathonId, status: 'active', project: { members: { some: { userId: user.id, role: { in: TEAM_ROLES } } } } } })
-  if (onTeam) throw new ActionError('Your team has a submission — leave the project team or withdraw the submission first')
+  if (onTeam) throw new ActionError('Your team has a submission - leave the project team or withdraw the submission first')
   await prisma.participant.update({ where: { id: p.id }, data: { status: 'withdrawn' } })
   await recordAudit({ actorId: user.id, action: 'hackathon.leave', entityType: 'Hackathon', entityId: hackathonId })
   revalidatePath(`/events/${p.hackathon.event.slug}`, 'layout')

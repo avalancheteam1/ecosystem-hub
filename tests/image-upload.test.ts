@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import zlib from 'node:zlib'
 import { validateImageBuffer } from '@/lib/image-upload'
 
-// Minimal valid PNG of the given size (IHDR + empty IDAT + IEND) — enough for sniffing + image-size.
+// Minimal valid PNG of the given size (IHDR + empty IDAT + IEND) - enough for sniffing + image-size.
 function png(w: number, h: number) {
   const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0 })
   const crc = (b: Buffer) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff]! ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }

@@ -1,5 +1,5 @@
 # Railway config for the WORKER service (pg-boss job runner).
-# Set the worker service's "Config-as-code file path" to this file — otherwise it
+# Set the worker service's "Config-as-code file path" to this file - otherwise it
 # inherits railway.toml, whose /api/health check can never pass here (no HTTP).
 
 [build]

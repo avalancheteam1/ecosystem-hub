@@ -19,7 +19,7 @@ export default async function JoinPage({ params, searchParams }: { params: Promi
   if (!event) notFound()
   const h = await getPublicHackathon(event.id, user.id)
   if (!h) notFound()
-  // Only to pick the copy — joinHackathon re-checks the invite.
+  // Only to pick the copy - joinHackathon re-checks the invite.
   const invited = typeof invite === 'string' && (await prisma.hackathon.count({ where: { id: h.id, inviteToken: invite } })) > 0
   if (h.joined || h.registration === 'pending' || (h.registration === 'rejected' && !invited)) redirect(`/events/${slug}`)
   const profile = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true } })
@@ -37,8 +37,8 @@ export default async function JoinPage({ params, searchParams }: { params: Promi
       <p className="text-fg-muted">{event.name}</p>
       <h1 className="mt-2 text-3xl sm:text-4xl">Register for Hackathon</h1>
       <p className="mt-3 text-fg-muted">
-        You register as {user.name} ({user.email}). Teams form around projects — you can create or join one after this.
-        {h.requireApproval && !invited && ' The organisers review every registration — we’ll email you once you’re in.'}
+        You register as {user.name} ({user.email}). Teams form around projects - you can create or join one after this.
+        {h.requireApproval && !invited && ' The organisers review every registration - we’ll email you once you’re in.'}
       </p>
       <div className="mt-10 rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
         <JoinForm hackathonId={h.id} fields={h.fields} termsUrl={h.termsUrl} invite={invited ? invite : undefined} needsApproval={h.requireApproval && !invited} />

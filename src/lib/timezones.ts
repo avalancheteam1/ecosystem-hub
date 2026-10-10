@@ -73,7 +73,7 @@ export function listTimeZones(at = new Date()): { id: string; label: string; off
     .filter((z) => z !== 'UTC' && z !== 'Etc/UTC' && isTimeZone(z))
     .map((id) => {
       const offset = offsetMinutes(at, id)
-      return { id, offset, label: `${fmtOffset(offset)} — ${id}` }
+      return { id, offset, label: `${fmtOffset(offset)} - ${id}` }
     })
     .sort((a, b) => a.offset - b.offset || a.id.localeCompare(b.id))
   return [{ id: 'UTC', offset: 0, label: 'UTC' }, ...zones]

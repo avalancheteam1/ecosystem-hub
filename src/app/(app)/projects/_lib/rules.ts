@@ -4,7 +4,7 @@ import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { DEFAULT_NETWORK, PROJECT_NETWORKS, type ProjectNetwork } from '@/lib/project-networks'
 import { detectPlatform, isSocialPlatform, type SocialPlatformKey } from '@/lib/social-platforms'
 
-// Project fields — builders-hub's submission fields (battle-tested), stored as
+// Project fields - builders-hub's submission fields (battle-tested), stored as
 // real arrays instead of comma-joined strings. Pure. A save creates a new
 // immutable ProjectVersion unless nothing changed (versionChanged).
 
@@ -30,12 +30,12 @@ const linkList = (max: number, label: string) =>
 
 const tagged = z.array(z.object({ tag: z.string().trim().max(40), url: httpUrl })).max(10, 'At most 10 links')
 
-// Socials: the tag is a stable platform key — the user's pick if it's a known key, otherwise detected from the URL (or 'other').
+// Socials: the tag is a stable platform key - the user's pick if it's a known key, otherwise detected from the URL (or 'other').
 const socials = z
   .array(z.object({ tag: z.string().optional(), url: httpUrl }).transform(({ tag, url }): { tag: SocialPlatformKey; url: string } => ({ tag: tag && isSocialPlatform(tag) ? tag : (detectPlatform(url) ?? 'other'), url })))
   .max(10, 'At most 10 links')
 
-/** A calendar date as `YYYY-MM-DD` (no time, no zone — a launch day or a milestone's target day). */
+/** A calendar date as `YYYY-MM-DD` (no time, no zone - a launch day or a milestone's target day). */
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date').refine((d) => !Number.isNaN(Date.parse(d)) && new Date(d).toISOString().startsWith(d), 'Pick a valid date')
 
 const NETWORK_KEYS = Object.keys(PROJECT_NETWORKS) as [ProjectNetwork, ...ProjectNetwork[]]
@@ -112,7 +112,7 @@ export function planSave(current: VersionState, changed: boolean): 'noop' | 'upd
   return current.sealedAt ? 'new-draft' : 'update-draft'
 }
 
-/** On submit: seal the draft — or, if the latest version is already sealed (no edits since), reuse it. */
+/** On submit: seal the draft - or, if the latest version is already sealed (no edits since), reuse it. */
 export function planSeal(current: VersionState): 'seal-draft' | 'reuse-sealed' {
   return current.sealedAt ? 'reuse-sealed' : 'seal-draft'
 }
@@ -125,7 +125,7 @@ export function versionLabel(v: { number: number; sealedAt: Date | null }): stri
 // reader: sees the project · writer: + edits, milestones, submits · owner (exactly one): + manages the team.
 // Readers are not part of the hackathon team (size, join, snapshot) but still count for judges' COI.
 
-/** Keys are persisted (ProjectMember.role, ProjectInvite.role) — only add. */
+/** Keys are persisted (ProjectMember.role, ProjectInvite.role) - only add. */
 export const PROJECT_ROLES = {
   owner: { label: 'Owner' },
   writer: { label: 'Writer' },
@@ -134,7 +134,7 @@ export const PROJECT_ROLES = {
 export type ProjectRole = keyof typeof PROJECT_ROLES
 /** Roles an owner can give by invite or change to (ownership moves only via transfer). */
 export const ASSIGNABLE_ROLES = ['writer', 'reader'] as const
-/** Roles that make up the hackathon team — use in Prisma filters: `{ role: { in: TEAM_ROLES } }`. */
+/** Roles that make up the hackathon team - use in Prisma filters: `{ role: { in: TEAM_ROLES } }`. */
 export const TEAM_ROLES: string[] = ['owner', 'writer']
 
 export const canEditProject = (role: string) => TEAM_ROLES.includes(role)
@@ -143,7 +143,7 @@ export const canManageTeam = (role: string) => role === 'owner'
 // ── Milestones ─────────────────────────────────────────────────────────────
 // A live roadmap (own table, not versioned): edited in place by the team.
 
-/** Keys are persisted — only add. */
+/** Keys are persisted - only add. */
 export const MILESTONE_STATUS = {
   planned: { label: 'Planned', tone: 'neutral' },
   in_progress: { label: 'In progress', tone: 'info' },

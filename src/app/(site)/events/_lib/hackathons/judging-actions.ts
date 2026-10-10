@@ -32,7 +32,7 @@ type LoadedStage = Awaited<ReturnType<typeof loadStage>>
 /** A random, balanced draw with the stage's "judges per submission" ("all judges" stages assign themselves, see queries.ts). */
 async function computePairs(stage: LoadedStage, seed: string) {
   const perEntry = stage.judgesPerSubmission
-  if (stage.reviewMode !== 'random' || !perEntry) throw new ActionError('This stage assigns every judge automatically — switch it to random judges under Stages to draw')
+  if (stage.reviewMode !== 'random' || !perEntry) throw new ActionError('This stage assigns every judge automatically - switch it to random judges under Stages to draw')
   const entries = stage.entries.map((e) => ({
     id: e.id,
     trackIds: e.submission.trackIds,
@@ -84,7 +84,7 @@ export const applyAssignment = action({ schema: z.object({ hackathonId: id, stag
   for (const j of stage.hackathon.judges.filter((x) => judgeIds.has(x.id))) {
     await sendMail({
       to: j.email,
-      subject: `Submissions are ready for you to judge — ${h.event.name}`,
+      subject: `Submissions are ready for you to judge - ${h.event.name}`,
       text: `You have submissions to review for "${h.event.name}" (${stage.name}).\n\n${siteUrl()}/judge`,
       html: brandedShell({ preheader: `Submissions to review for ${h.event.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">You have submissions to review for <strong>${esc(h.event.name)}</strong> (${esc(stage.name)}).</p>${button(`${siteUrl()}/judge`, 'Start judging')}</td></tr>` }),
     }).catch((err) => console.error('[judging] mail failed', err))
@@ -132,13 +132,13 @@ export const assignAllToEntry = action({ schema: z.object({ hackathonId: id, ent
   return { count: ids.length }
 })
 
-/** Remove an assignment — only while no review was submitted on it. */
+/** Remove an assignment - only while no review was submitted on it. */
 export const unassignJudge = action({ schema: z.object({ hackathonId: id, assignmentId: id }), permission: 'user' }, async ({ hackathonId, assignmentId }, user) => {
   await assertManage(hackathonId, user)
   const a = await prisma.judgeAssignment.findFirst({ where: { id: assignmentId, entry: { stage: { hackathonId, judgingClosedAt: null } } }, include: { review: { select: { submittedAt: true } }, entry: { select: { stage: { select: { reviewMode: true } } } } } })
   if (!a) throw new ActionError('Assignment not found')
-  if (a.entry.stage.reviewMode === 'all') throw new ActionError('In “all judges” stages every eligible judge reviews every submission — switch the stage to random judges to pick')
-  if (a.review?.submittedAt) throw new ActionError('This judge already submitted a review — it can’t be removed')
+  if (a.entry.stage.reviewMode === 'all') throw new ActionError('In “all judges” stages every eligible judge reviews every submission - switch the stage to random judges to pick')
+  if (a.review?.submittedAt) throw new ActionError('This judge already submitted a review - it can’t be removed')
   await prisma.judgeAssignment.delete({ where: { id: a.id } })
   await recordAudit({ actorId: user.id, action: 'hackathon.judging.unassign', entityType: 'StageEntry', entityId: a.entryId, before: { judgeId: a.judgeId } })
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
@@ -149,7 +149,7 @@ export const setJudgingClosed = action({ schema: z.object({ hackathonId: id, sta
   await assertManage(hackathonId, user)
   const stage = await prisma.hackathonStage.findFirst({ where: { id: stageId, hackathonId } })
   if (!stage) throw new ActionError('Stage not found')
-  if (closed && new Date() < stage.closesAt) throw new ActionError('Submissions are still open — close judging after the stage ends')
+  if (closed && new Date() < stage.closesAt) throw new ActionError('Submissions are still open - close judging after the stage ends')
   await prisma.hackathonStage.update({ where: { id: stageId }, data: { judgingClosedAt: closed ? new Date() : null } })
   await recordAudit({ actorId: user.id, action: closed ? 'hackathon.judging.close' : 'hackathon.judging.reopen', entityType: 'HackathonStage', entityId: stageId })
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
@@ -163,7 +163,7 @@ export const setAdvanced = action({ schema: z.object({ hackathonId: id, stageId:
   if (!stage) throw new ActionError('Stage not found')
   if (!stage.judgingClosedAt) throw new ActionError('Close judging before advancing teams')
   const next = stage.hackathon.stages[stage.hackathon.stages.findIndex((s) => s.id === stageId) + 1]
-  if (!next) throw new ActionError('This is the last stage — award prizes instead')
+  if (!next) throw new ActionError('This is the last stage - award prizes instead')
   if (!advanced) {
     const subs = await prisma.stageEntry.findMany({ where: { id: { in: entryIds }, stageId }, select: { submissionId: true } })
     if (await prisma.stageEntry.count({ where: { stageId: next.id, submissionId: { in: subs.map((x) => x.submissionId) } } })) throw new ActionError('Some of these teams already submitted to the next stage')
@@ -180,8 +180,8 @@ export const setAdvanced = action({ schema: z.object({ hackathonId: id, stageId:
         await sendMail({
           to: m.user.email,
           subject: `${e.submission.project.currentVersion?.name} advanced to ${next.name}`,
-          text: `Congrats — your team advanced to "${next.name}" in ${h.event.name}.\n\n${siteUrl()}/events/${h.event.slug}`,
-          html: brandedShell({ preheader: `You advanced to ${next.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Congrats — <strong>${esc(e.submission.project.currentVersion?.name ?? 'your project')}</strong> advanced to <strong>${esc(next.name)}</strong> in ${esc(h.event.name)}.</p>${button(`${siteUrl()}/events/${h.event.slug}`, 'See what’s next')}</td></tr>` }),
+          text: `Congrats - your team advanced to "${next.name}" in ${h.event.name}.\n\n${siteUrl()}/events/${h.event.slug}`,
+          html: brandedShell({ preheader: `You advanced to ${next.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Congrats - <strong>${esc(e.submission.project.currentVersion?.name ?? 'your project')}</strong> advanced to <strong>${esc(next.name)}</strong> in ${esc(h.event.name)}.</p>${button(`${siteUrl()}/events/${h.event.slug}`, 'See what’s next')}</td></tr>` }),
         }).catch((err) => console.error('[judging] mail failed', err))
       }
     }
@@ -252,8 +252,8 @@ export const saveReview = action(
     })
     if (!a || a.judge.userId !== user.id || a.entry.submission.status !== 'active') throw new ActionError('Assignment not found')
     const stage = a.entry.stage
-    if (stage.judgingClosedAt) throw new ActionError('Judging is closed — reviews can no longer change')
-    if (new Date() < stage.closesAt) throw new ActionError('Submissions are still open — reviewing starts when the stage closes')
+    if (stage.judgingClosedAt) throw new ActionError('Judging is closed - reviews can no longer change')
+    if (new Date() < stage.closesAt) throw new ActionError('Submissions are still open - reviewing starts when the stage closes')
     if (isConflicted(user.id, (a.entry.teamSnapshot as { userId: string }[]).map((m) => m.userId), a.entry.submission.project.members.map((m) => m.userId))) {
       throw new ActionError('You are on this team and can’t review it')
     }
@@ -262,7 +262,7 @@ export const saveReview = action(
     const total = conflictDeclared ? null : weightedTotal(clean, stage.criteria, stage.scaleMax)
     if (submit && !conflictDeclared && total == null) throw new ActionError('Score every criterion before submitting')
     const existing = await prisma.review.findUnique({ where: { assignmentId }, select: { submittedAt: true } })
-    if (existing?.submittedAt && !submit && !conflictDeclared) throw new ActionError('This review is submitted — update it instead of saving a draft')
+    if (existing?.submittedAt && !submit && !conflictDeclared) throw new ActionError('This review is submitted - update it instead of saving a draft')
     const data = { scores: clean, total, comment, conflictDeclared, submittedAt: submit || conflictDeclared ? new Date() : null }
     await prisma.review.upsert({ where: { assignmentId }, create: { assignmentId, ...data }, update: data })
     await recordAudit({ actorId: user.id, action: conflictDeclared ? 'hackathon.review.conflict' : submit ? 'hackathon.review.submit' : 'hackathon.review.draft', entityType: 'JudgeAssignment', entityId: assignmentId, after: { total } })

@@ -29,7 +29,7 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
   const q = textParam(sp.q)
   const page = pageParam(sp.page)
   const sort = sortParams(sp, SORTS, { key: 'startAt', dir: 'desc' })
-  // team1 events (the portal tab) are for team1 members only — importEvent re-checks
+  // team1 events (the portal tab) are for team1 members only - importEvent re-checks
   const isMember = !!(await getPortalProfile(user.id))?.tier
   const [rows, imported, portal] = await Promise.all([
     prisma.event.findMany({

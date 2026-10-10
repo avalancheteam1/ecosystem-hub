@@ -23,13 +23,13 @@ function lumaFields(e: LumaEventData) {
 }
 
 /** Create the hub event, or update the existing one (import is idempotent; a re-import switches luma → portal, never back).
- *  `publish` only applies to a newly created event — an existing one keeps its status. */
+ *  `publish` only applies to a newly created event - an existing one keeps its status. */
 export async function upsertEvent(ref: string, source: EventSource, createdById: string | null, publish = false) {
   const data = await fetchers[source](ref)
   const existing = await prisma.event.findUnique({ where: { lumaEventId: data.lumaEventId } })
   if (existing) {
     // Never portal → luma: it would drop the portal publish block (blocksPublish) and the member-only gate.
-    if (existing.source === 'portal' && source !== 'portal') throw new PortalEventError('Already imported as a team1 event — refresh it instead')
+    if (existing.source === 'portal' && source !== 'portal') throw new PortalEventError('Already imported as a team1 event - refresh it instead')
     const updated = await prisma.event.update({ where: { id: existing.id }, data: { ...lumaFields(data), source, lastSyncedAt: new Date(), ...unpublishIfBlocked(existing.status, { source, ...data }) } })
     return { event: updated, created: false }
   }

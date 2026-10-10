@@ -1,7 +1,7 @@
 // Pure judging rules: conflicts of interest, weighted totals, ranking and
 // reviewer assignment. Unit-tested in tests/judging.test.ts.
 
-/** A judge may never review a project they're on — at submission time or now. Unbound judges (no user yet) can't conflict. */
+/** A judge may never review a project they're on - at submission time or now. Unbound judges (no user yet) can't conflict. */
 export function isConflicted(judgeUserId: string | null, teamSnapshotUserIds: string[], currentMemberIds: string[]): boolean {
   if (!judgeUserId) return false
   return teamSnapshotUserIds.includes(judgeUserId) || currentMemberIds.includes(judgeUserId)
@@ -57,7 +57,7 @@ type AssignEntry = { id: string; trackIds: string[]; teamUserIds: string[] }
 type AssignJudge = { id: string; userId: string | null; trackIds: string[] }
 export type Pair = [judgeId: string, entryId: string]
 
-/** Can this judge review this entry — and if not, why (shown to organisers)? */
+/** Can this judge review this entry - and if not, why (shown to organisers)? */
 export function judgeEligibility(j: AssignJudge, e: AssignEntry, declared: Pair[]): { ok: true } | { ok: false; reason: string } {
   if (isConflicted(j.userId, e.teamUserIds, [])) return { ok: false, reason: 'On this team' }
   if (declared.some(([jj, ee]) => jj === j.id && ee === e.id)) return { ok: false, reason: 'Declared a conflict' }

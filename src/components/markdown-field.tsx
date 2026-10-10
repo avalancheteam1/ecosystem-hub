@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-/** Markdown textarea with Write / Preview — use for every Markdown field. */
+/** Markdown textarea with Write / Preview - use for every Markdown field. */
 export function MarkdownField({ id, label, hint, value, onChange, rows = 8, maxLength, placeholder, required }: {
   id: string
   label: string

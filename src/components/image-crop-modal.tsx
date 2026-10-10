@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 // Crop to the exact aspect, then re-encode (strips EXIF/animation) under the
-// byte limit — so the server's strict shape check always passes.
+// byte limit - so the server's strict shape check always passes.
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

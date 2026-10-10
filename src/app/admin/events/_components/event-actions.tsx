@@ -35,7 +35,7 @@ export function EventActions({ id, status, canPublish, canDelete, isPortal }: { 
         <ConfirmButton
           size="default"
           disabled={pending}
-          message={isPortal ? 'Delete this event? Public member-portal events are re-imported (published) within the hour — archive it instead to hide it for good.' : 'Delete this event? This can’t be undone.'}
+          message={isPortal ? 'Delete this event? Public member-portal events are re-imported (published) within the hour - archive it instead to hide it for good.' : 'Delete this event? This can’t be undone.'}
           onConfirm={() => start(async () => {
             const res = await deleteEvent({ id })
             if (!res.ok) return void toast.error(res.error)

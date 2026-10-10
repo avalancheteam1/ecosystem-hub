@@ -13,7 +13,7 @@ import { DateTimeInput, toUtcIso } from '@/components/date-time-input'
 import { TimeZoneSelect } from '@/components/time-zone-select'
 import { canonicalTimeZone, utcToZoned } from '@/lib/timezones'
 
-/** Turn an event into a hackathon — the submission window is required up front. */
+/** Turn an event into a hackathon - the submission window is required up front. */
 export function HackathonButton({ eventId, hackathonId, eventStart, eventEnd, eventTimezone }: { eventId: string; hackathonId: string | null; eventStart: Date; eventEnd: Date | null; eventTimezone: string }) {
   const router = useRouter()
   const [opensAt, setOpens] = useState('')
@@ -42,7 +42,7 @@ export function HackathonButton({ eventId, hackathonId, eventStart, eventEnd, ev
           const res = await createHackathon({ eventId, opensAt: toUtcIso(opensAt, tz), closesAt: toUtcIso(closesAt, tz), timezone: tz })
           if (res.ok) router.push(`/manage/hackathons/${res.data.id}`)
           return res
-        }, 'Hackathon created — set it up next')
+        }, 'Hackathon created - set it up next')
       }
     >
       <Field id="h-tz" label="Timezone" hint="Times below are in this zone; deadlines are shown in it on the public page. Starts as the Luma event's zone.">

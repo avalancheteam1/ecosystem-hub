@@ -28,7 +28,7 @@ export function ImportEventDialog({ portalEvents, portalError, importedIds }: { 
       const res = await importEvent({ ref, source })
       setBusy(null)
       if (!res.ok) return void toast.error(res.error)
-      toast.success(res.data.created ? 'Event imported as draft' : 'Already imported — refreshed')
+      toast.success(res.data.created ? 'Event imported as draft' : 'Already imported - refreshed')
       setOpen(false)
       router.push(`/admin/events/${res.data.id}`)
     })
@@ -89,7 +89,7 @@ export function ImportEventDialog({ portalEvents, portalError, importedIds }: { 
                           <p className="truncate text-xs text-fg-muted">
                             {new Date(e.startAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             {e.location.city ? ` in ${e.location.city}` : ''}
-                            {e.chapter ? ` — ${e.chapter.name}` : ''}
+                            {e.chapter ? ` - ${e.chapter.name}` : ''}
                           </p>
                         </div>
                         {imported.has(e.id) ? (

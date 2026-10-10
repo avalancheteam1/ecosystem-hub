@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { isCountryCode } from '@/lib/countries'
 
-// Builder profile fields — taken from builders-hub (battle-tested), with its
+// Builder profile fields - taken from builders-hub (battle-tested), with its
 // inconsistencies fixed: one bio limit (250), ISO country codes, role flags as
 // one list, handles normalised to the bare username. Pure.
 

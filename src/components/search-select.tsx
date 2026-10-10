@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 export type SearchSelectOption = { value: string; label: string; icon?: React.ReactNode }
 
-/** Single-select dropdown with type-ahead search — for long lists (countries, time zones). Looks like `NativeSelect`. */
+/** Single-select dropdown with type-ahead search - for long lists (countries, time zones). Looks like `NativeSelect`. */
 export function SearchSelect({ id, value, onChange, options, placeholder = 'Select…', searchPlaceholder = 'Search…', className }: {
   id?: string
   value: string | null | undefined

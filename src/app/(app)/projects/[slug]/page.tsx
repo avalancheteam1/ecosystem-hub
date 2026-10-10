@@ -33,7 +33,7 @@ function VersionItem({ slug, v }: { slug: string; v: { number: number; note: str
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-fg-muted">{v.sealedAt ? v.note : 'Your current edits — not submitted yet'}</p>
+        <p className="text-sm text-fg-muted">{v.sealedAt ? v.note : 'Your current edits - not submitted yet'}</p>
       )}
       <p className="meta">{(v.sealedAt ?? v.updatedAt).toISOString().slice(0, 10)}</p>
     </li>
@@ -64,7 +64,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </section>
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="mb-1 text-lg">Milestones</h2>
-          <p className="mb-4 text-sm text-fg-muted">{canEdit ? 'Your roadmap — changes save right away.' : 'The team’s roadmap.'}</p>
+          <p className="mb-4 text-sm text-fg-muted">{canEdit ? 'Your roadmap - changes save right away.' : 'The team’s roadmap.'}</p>
           <MilestonesPanel projectId={project.id} readOnly={!canEdit} milestones={project.milestones.map((m) => ({ ...m, status: m.status as MilestoneStatus }))} />
         </section>
         <section className="rounded-xl border border-line bg-surface-2 p-6">

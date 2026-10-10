@@ -30,7 +30,7 @@ export function canViewGroup(user: AuthzUser, groupId: string, groups: UserGroup
   return can(user, 'referrals.view') || isGroupLead(groups, groupId)
 }
 
-/** Portal tiers the hub knows. 'senior' exists in the portal but is super-admin-only there — always shown as 'core'. */
+/** Portal tiers the hub knows. 'senior' exists in the portal but is super-admin-only there - always shown as 'core'. */
 export type PortalTier = 'collaborator' | 'member' | 'core'
 export const TIER_LABELS: Record<PortalTier, string> = { collaborator: 'Collaborator', member: 'Member', core: 'Core Member' }
 

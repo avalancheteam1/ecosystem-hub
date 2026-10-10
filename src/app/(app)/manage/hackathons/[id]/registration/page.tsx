@@ -45,8 +45,8 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
           )}
         </SectionCard>
       )}
-      <SectionCard title="Registration questions" description="Asked when a builder registers. Their name and email come from their account — don't ask again.">
-        <FieldList hackathonId={h.id} stageId={null} fields={h.fields} emptyText="No questions — registering is one click." />
+      <SectionCard title="Registration questions" description="Asked when a builder registers. Their name and email come from their account - don't ask again.">
+        <FieldList hackathonId={h.id} stageId={null} fields={h.fields} emptyText="No questions - registering is one click." />
       </SectionCard>
     </div>
   )

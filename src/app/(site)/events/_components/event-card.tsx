@@ -17,7 +17,7 @@ export function EventCard({ event, hackathon }: { event: Event; hackathon?: bool
           </span>
         )}
       </div>
-      <p className="meta mt-4">{formatShortDate(event.startAt, event.timezone)} — {where}</p>
+      <p className="meta mt-4">{formatShortDate(event.startAt, event.timezone)} - {where}</p>
       <h3 className="mt-1.5 line-clamp-2 text-lg leading-snug transition-colors group-hover:text-brand">{event.name}</h3>
     </Link>
   )

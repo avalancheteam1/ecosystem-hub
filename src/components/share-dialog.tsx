@@ -35,9 +35,9 @@ export function ShareDialog({ url, title, filename, referred, signedIn }: {
           <DialogTitle>Invite a friend</DialogTitle>
           <DialogDescription>
             {referred
-              ? 'Your referral code is in this link — everyone who signs up through it counts as your onboarding.'
+              ? 'Your referral code is in this link - everyone who signs up through it counts as your onboarding.'
               : signedIn
-                ? <>Your referral codes are all deactivated — <Link href="/referrals" className="underline underline-offset-4 hover:text-fg-heading">activate one</Link> to get credit for friends who join.</>
+                ? <>Your referral codes are all deactivated - <Link href="/referrals" className="underline underline-offset-4 hover:text-fg-heading">activate one</Link> to get credit for friends who join.</>
                 : <><Link href={`/sign-in?next=${encodeURIComponent(new URL(url).pathname)}`} className="underline underline-offset-4 hover:text-fg-heading">Sign in</Link> to add your referral code and get credit for friends who join.</>}
           </DialogDescription>
         </DialogHeader>

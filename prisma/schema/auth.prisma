@@ -1,4 +1,4 @@
-// Better Auth core models. Field names are Better Auth's — don't rename them.
+// Better Auth core models. Field names are Better Auth's - don't rename them.
 
 model User {
   id              String   @id

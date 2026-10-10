@@ -4,7 +4,7 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 COPY package.json /tmp/pkg.json
 RUN npm i -g pnpm@"$(node -p "require('/tmp/pkg.json').packageManager.split('@').pop()")" && rm /tmp/pkg.json
 
-# No BuildKit cache mounts on purpose — Railway needs literal per-service cache
+# No BuildKit cache mounts on purpose - Railway needs literal per-service cache
 # ids, which can't work in a Dockerfile shared by the web + worker services.
 
 FROM base AS deps

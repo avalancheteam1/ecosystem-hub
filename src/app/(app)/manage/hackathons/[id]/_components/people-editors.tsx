@@ -20,7 +20,7 @@ function PersonRow({ p, children }: { p: Person; children?: React.ReactNode }) {
     <li className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <p className="truncate text-fg-heading">{p.user?.name ?? p.email}</p>
-        <p className="truncate text-xs text-fg-muted">{p.user ? p.email : 'Invited — joins when they sign in with this email'}</p>
+        <p className="truncate text-xs text-fg-muted">{p.user ? p.email : 'Invited - joins when they sign in with this email'}</p>
       </div>
       {children}
     </li>

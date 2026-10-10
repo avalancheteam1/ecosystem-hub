@@ -11,19 +11,19 @@ import { SignInForm } from './_components/sign-in-form'
 
 export const metadata: Metadata = { title: 'Join or sign in', robots: { index: false } }
 
-// Who the hub is for — the first thing a newcomer reads, so everyone finds themselves in it.
+// Who the hub is for - the first thing a newcomer reads, so everyone finds themselves in it.
 const AUDIENCES = [
   { icon: Code2, title: 'Developers', body: 'Hackathons, bounties and workshops to ship on Avalanche.' },
   { icon: Briefcase, title: 'Founders & business', body: 'Meet builders, find partners and get your project ready for grants.' },
   { icon: GraduationCap, title: 'Students & universities', body: 'Courses, university programs and your first hackathon.' },
-  { icon: Sparkles, title: 'Just curious', body: 'Meetups and events near you — no code needed.' },
+  { icon: Sparkles, title: 'Just curious', body: 'Meetups and events near you - no code needed.' },
 ]
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const next = safeNext((await searchParams).next)
   const user = await getCurrentUser()
   // Both sign-in flows land back here: incomplete profiles (= new accounts) fill it in first,
-  // then continue to `next` — the dashboard greets them when they didn't come for something specific.
+  // then continue to `next` - the dashboard greets them when they didn't come for something specific.
   if (user) {
     const profile = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true } })
     const after = next === '/dashboard' ? '/dashboard?welcome=1' : next
@@ -45,7 +45,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
 
           <div className="animate-fade-in-up rounded-xl border border-line bg-surface-2 p-6 [animation-delay:120ms] sm:p-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
             <h2 className="text-2xl">Join or sign in</h2>
-            <p className="mt-1 text-sm text-fg-muted">New here? Same steps — we create your account on the way.</p>
+            <p className="mt-1 text-sm text-fg-muted">New here? Same steps - we create your account on the way.</p>
             <SignInForm next={next} providers={enabledSocialProviders} />
             <p className="mt-6 text-xs text-fg-faint">
               We use your email to sign you in and for the programs you join.{' '}

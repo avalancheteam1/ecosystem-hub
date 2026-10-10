@@ -53,7 +53,7 @@ function versionData(f: ProjectFields) {
   return { ...f, deployedAddresses: f.deployedAddresses as object[], websites: f.websites as object[], socials: f.socials as object[] }
 }
 
-/** Images must be our own uploads for this project (or this user's pre-create uploads) — no hotlinked URLs. */
+/** Images must be our own uploads for this project (or this user's pre-create uploads) - no hotlinked URLs. */
 function assertOwnImages(f: ProjectFields, projectId: string | null, userId: string) {
   const owners = [`new-${userId}`, ...(projectId ? [projectId] : [])]
   const own = (url: string, kind: 'project-logo' | 'project-cover' | 'project-screenshot') => owners.some((o) => isOwnUpload(url, IMAGE_KINDS[kind].category, o))
@@ -102,7 +102,7 @@ export const saveProject = action(
     if (plan === 'noop') return { slug: project.slug, changed: false }
     await prisma.$transaction(async (tx) => {
       if (plan === 'update-draft') {
-        // sealedAt: null guard — if a submission sealed it meanwhile, fall through to a new draft.
+        // sealedAt: null guard - if a submission sealed it meanwhile, fall through to a new draft.
         const r = await tx.projectVersion.updateMany({ where: { id: cur.id, sealedAt: null }, data: { ...versionData(fields), createdById: user.id } })
         if (r.count) return
       }
@@ -201,7 +201,7 @@ export const acceptInvite = action({ schema: z.object({ token: z.string().min(20
   const invite = await prisma.projectInvite.findUnique({ where: { tokenHash: hashToken(token) }, include: { project: { select: { slug: true, archivedAt: true } } } })
   if (!invite || invite.revokedAt || invite.project.archivedAt) throw new ActionError('This invite is no longer valid')
   if (invite.acceptedAt) throw new ActionError('This invite was already used')
-  if (invite.expiresAt < new Date()) throw new ActionError('This invite has expired — ask the team for a new one')
+  if (invite.expiresAt < new Date()) throw new ActionError('This invite has expired - ask the team for a new one')
   const me = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true, emailVerified: true } })
   if (!me?.emailVerified || me.email.toLowerCase() !== invite.email) {
     throw new ActionError(`This invite is for ${invite.email}. Sign in with that email to accept it.`)

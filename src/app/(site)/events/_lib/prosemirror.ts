@@ -13,7 +13,7 @@ function inline(nodes: Node[] | undefined): string {
       if (n.type === 'hard_break') return '  \n'
       if (n.type !== 'text') return inline(n.content)
       const raw = (n.text ?? '').replace(ZERO_WIDTH, '')
-      // Markdown forbids whitespace just inside ** / * / ` — keep it outside the marks.
+      // Markdown forbids whitespace just inside ** / * / ` - keep it outside the marks.
       const [, lead, core, trail] = raw.match(/^(\s*)([\s\S]*?)(\s*)$/)!
       let s = core!
       if (!s) return raw

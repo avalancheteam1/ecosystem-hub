@@ -21,7 +21,7 @@ export function CopyButton({ value, label = 'Copy', size = 'icon-sm', variant = 
     try {
       await navigator.clipboard.writeText(value)
     } catch {
-      return toast.error('Couldn’t copy — select the text and copy it manually.')
+      return toast.error('Couldn’t copy - select the text and copy it manually.')
     }
     setCopied(true)
     if (timer.current) clearTimeout(timer.current)

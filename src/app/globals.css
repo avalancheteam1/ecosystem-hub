@@ -4,7 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * team1 design tokens — source of truth: ~/git/team1/common/brand/brand_guide.md
+ * team1 design tokens - source of truth: ~/git/team1/common/brand/brand_guide.md
  * Dark is the default theme. Ava Red (#e6212f) is brand-only: never use it for
  * errors (use `destructive` / #dc2626).
  */
@@ -37,7 +37,7 @@
   --color-warning: #f59e0b;
   --color-info: #2563eb;
 
-  /* Semantic greys — theme-switch via light-dark(), no `dark:` variant needed. */
+  /* Semantic greys - theme-switch via light-dark(), no `dark:` variant needed. */
   --color-fg-heading: light-dark(#161617, #ffffff);
   --color-fg-body: light-dark(#3f3f46, #e5e7eb);
   --color-fg-muted: light-dark(#6c757d, #9ca3af);
@@ -143,7 +143,7 @@
   }
 
   /* Grid items default to min-width: auto, so one long URL/title/input widens the column past a phone screen.
-     :where() keeps specificity 0 — any min-w-* utility still wins. */
+     :where() keeps specificity 0 - any min-w-* utility still wins. */
   :where(.grid) > * {
     min-width: 0;
   }

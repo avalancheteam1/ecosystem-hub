@@ -9,7 +9,7 @@ builder = "DOCKERFILE"
 # CLI, so it runs from /worker (see Dockerfile, worker-deps stage).
 preDeployCommand = "cd /worker && ./node_modules/.bin/prisma migrate deploy"
 
-# Liveness only — deliberately no DB touch (a DB blip must not abort a deploy).
+# Liveness only - deliberately no DB touch (a DB blip must not abort a deploy).
 healthcheckPath = "/api/health"
 healthcheckTimeout = 60
 

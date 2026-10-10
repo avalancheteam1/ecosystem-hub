@@ -13,7 +13,7 @@ export default async function JudgeIndex() {
     <>
       <PageHeader title="Judging" description="Hackathons you judge. You only see submissions assigned to you." />
       {rows.length === 0 ? (
-        <p className="text-fg-muted">You aren&apos;t judging anything. Invites go to your email — sign in with that address.</p>
+        <p className="text-fg-muted">You aren&apos;t judging anything. Invites go to your email - sign in with that address.</p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((j) => {

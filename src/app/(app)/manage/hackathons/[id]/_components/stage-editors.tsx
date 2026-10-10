@@ -18,7 +18,7 @@ import { utcToZoned } from '@/lib/timezones'
 
 type Stage = {
   id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean
-  /** Entries and submitted reviews — what a window change affects. */
+  /** Entries and submitted reviews - what a window change affects. */
   entries: number; reviews: number
 }
 
@@ -36,7 +36,7 @@ function WindowWarnings({ stage, opensAt, closesAt }: { stage: Stage; opensAt: s
 }
 type Criterion = { id: string; name: string; description: string | null; weight: number }
 
-/** `timeZone`: the hackathon's zone — inputs are wall time there, saved as UTC. `defaults` prefill a new stage's window (the event dates). */
+/** `timeZone`: the hackathon's zone - inputs are wall time there, saved as UTC. `defaults` prefill a new stage's window (the event dates). */
 export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }: { hackathonId: string; stage?: Stage; trigger: React.ReactNode; timeZone: string; defaults?: { opensAt: Date; closesAt: Date | null } }) {
   const empty = {
     name: stage?.name ?? '', descriptionMd: stage?.descriptionMd ?? '', opensAt: utcToZoned(stage?.opensAt ?? defaults?.opensAt, timeZone), closesAt: utcToZoned(stage?.closesAt ?? defaults?.closesAt, timeZone),
@@ -65,7 +65,7 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }:
         <Field id="st-close" label="Submissions close"><DateTimeInput id="st-close" required value={v.closesAt} onChange={(w) => setV({ ...v, closesAt: w })} timeZone={timeZone} /></Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="st-mode" label="Who reviews" hint={v.reviewMode === 'all' ? 'Every eligible judge reviews every submission — they see them automatically once submissions close.' : 'Random judges per submission — you draw them on the Judging tab.'}>
+        <Field id="st-mode" label="Who reviews" hint={v.reviewMode === 'all' ? 'Every eligible judge reviews every submission - they see them automatically once submissions close.' : 'Random judges per submission - you draw them on the Judging tab.'}>
           <SegmentedControl label="Who reviews" value={v.reviewMode} onChange={(m) => setV({ ...v, reviewMode: m })} options={[{ value: 'all', label: 'All judges' }, { value: 'random', label: 'Random judges' }]} />
         </Field>
         <Field id="st-scale" label="Score scale" hint="Each criterion is scored 0 to this."><Input id="st-scale" type="number" min={1} max={100} value={v.scaleMax} onChange={(e) => setV({ ...v, scaleMax: e.target.value })} className="h-11" /></Field>
@@ -77,7 +77,7 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults }:
       )}
       <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.showCriteria} onCheckedChange={(c) => setV({ ...v, showCriteria: c === true })} /> Show the judging criteria on the public page</label>
       {stage && <WindowWarnings stage={stage} opensAt={toUtcIso(v.opensAt, timeZone)} closesAt={toUtcIso(v.closesAt, timeZone)} />}
-      <p className="text-xs text-fg-faint">Times are in {timeZone} (the hackathon’s timezone — change it in Overview).</p>
+      <p className="text-xs text-fg-faint">Times are in {timeZone} (the hackathon’s timezone - change it in Overview).</p>
     </FormDialog>
   )
 }
@@ -129,7 +129,7 @@ export function CloseSubmissions({ hackathonId, stage }: { hackathonId: string; 
 /** Copies settings, window, criteria and questions into a new last stage. */
 export function DuplicateStage({ hackathonId, stageId }: { hackathonId: string; stageId: string }) {
   const { pending, run } = useActionToast()
-  return <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => duplicateStage({ hackathonId, stageId }), 'Stage duplicated — check its dates')}>Duplicate</Button>
+  return <Button size="sm" variant="ghost" disabled={pending} onClick={() => run(() => duplicateStage({ hackathonId, stageId }), 'Stage duplicated - check its dates')}>Duplicate</Button>
 }
 
 export function DeleteStage({ hackathonId, stage }: { hackathonId: string; stage: Stage }) {

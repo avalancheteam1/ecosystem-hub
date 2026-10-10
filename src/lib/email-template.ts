@@ -1,5 +1,5 @@
-// team1 branded email template — source of truth: team1/common/email/.
-// Copied from team1/common/email/team1-email.ts — change it there first, then copy here.
+// team1 branded email template - source of truth: team1/common/email/.
+// Copied from team1/common/email/team1-email.ts - change it there first, then copy here.
 //
 // Usage (nodemailer):
 //   const html = brandedShell({ preheader: 'Your code', body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Hey,</p></td></tr>` })
@@ -27,7 +27,7 @@ export function logoAttachment(variant: HeaderVariant = 'dark', dir = path.join(
   return { filename: 'team1-logo.png', path: path.join(dir, HEADER_LOGO[variant]), cid: 'logo' }
 }
 
-/** A centered call-to-action button. Put it INSIDE a body `<td>` — outside a cell, mail clients hoist it above the card. */
+/** A centered call-to-action button. Put it INSIDE a body `<td>` - outside a cell, mail clients hoist it above the card. */
 export function button(href: string, label: string): string {
   return `<p style="margin:24px 0;text-align:center"><a href="${esc(href)}" style="${BUTTON}">${esc(label)}</a></p>`
 }
@@ -98,7 +98,7 @@ export function brandedShell({ body, preheader, variant = 'dark' }: { body: stri
 </html>`
 }
 
-/** Escape HTML — run every interpolated value through this. */
+/** Escape HTML - run every interpolated value through this. */
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }

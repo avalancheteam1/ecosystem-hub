@@ -22,7 +22,7 @@ export function JoinForm({ hackathonId, fields, termsUrl, invite, needsApproval 
           const res = await joinHackathon({ hackathonId, answers, acceptTerms: terms, invite })
           if (res.ok) router.push(`/events/${res.data.slug}`)
           return res
-        }, needsApproval ? 'Registration received — waiting for approval' : "You're in")
+        }, needsApproval ? 'Registration received - waiting for approval' : "You're in")
       }}
     >
       {fields.length > 0 && <AnswerFields fields={fields} value={answers} onChange={setAnswers} />}

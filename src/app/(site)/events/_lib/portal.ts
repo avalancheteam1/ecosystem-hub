@@ -27,12 +27,12 @@ export async function listPortalEvents(opts: { cursor?: string; from?: string } 
 }
 
 export class PortalEventError extends Error {}
-/** Missing or refused API key — every further portal call would fail the same way. */
+/** Missing or refused API key - every further portal call would fail the same way. */
 export class PortalAuthError extends PortalEventError {}
 
-/** A private/hidden portal event carries its exact address + description — never publish it on the hub. */
+/** A private/hidden portal event carries its exact address + description - never publish it on the hub. */
 export const blocksPublish = (e: { source: string; lumaVisibility: string }) => e.source === 'portal' && e.lumaVisibility !== 'public'
-export const BLOCKS_PUBLISH_MESSAGE = 'Not public in the member portal — it can’t be published here'
+export const BLOCKS_PUBLISH_MESSAGE = 'Not public in the member portal - it can’t be published here'
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 const date = (v: unknown): Date | null => {
@@ -63,7 +63,7 @@ export function mapPortalEvent(payload: unknown): LumaEventData | null {
     city,
     country: country && /^[A-Z]{2}$/.test(country) ? country : null,
     fullAddress,
-    // ponytail: the portal has no location type — no address and no city reads as online
+    // ponytail: the portal has no location type - no address and no city reads as online
     isOnline: !fullAddress && !city,
     lumaVisibility: str(e.status) ?? 'public',
   }
@@ -81,7 +81,7 @@ export async function fetchPortalEvent(id: string): Promise<LumaEventData> {
       cache: 'no-store',
     })
   } catch {
-    throw new PortalEventError('The member portal is unreachable right now — try again in a minute')
+    throw new PortalEventError('The member portal is unreachable right now - try again in a minute')
   }
   if (res.status === 404) throw new PortalEventError('The member portal has no such event')
   if (res.status === 401 || res.status === 403) throw new PortalAuthError('The member portal refused the API key (needs scope events:read:all)')

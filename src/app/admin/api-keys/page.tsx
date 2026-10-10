@@ -10,7 +10,7 @@ import { ApiKeyDialog, RevokeButton } from './_components/api-key-dialog'
 
 export const metadata: Metadata = { title: 'API keys' }
 
-const fmt = (d: Date | null) => (d ? d.toISOString().slice(0, 16).replace('T', ' ') : '—')
+const fmt = (d: Date | null) => (d ? d.toISOString().slice(0, 16).replace('T', ' ') : '-')
 
 export default async function ApiKeysPage() {
   await requireSuperAdmin()
