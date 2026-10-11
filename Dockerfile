@@ -26,6 +26,10 @@ ENV NEXT_PUBLIC_PLAUSIBLE_DOMAIN=$NEXT_PUBLIC_PLAUSIBLE_DOMAIN
 # next.config.ts derives the next/image upload host from it; the config is baked at build.
 ARG STORAGE_PUBLIC_BASE_URL
 ENV STORAGE_PUBLIC_BASE_URL=$STORAGE_PUBLIC_BASE_URL
+# Version skew: a tab from an older deploy hard-reloads on its next navigation
+# instead of calling server actions that no longer exist. Empty = disabled.
+ARG RAILWAY_GIT_COMMIT_SHA
+ENV NEXT_DEPLOYMENT_ID=$RAILWAY_GIT_COMMIT_SHA
 RUN pnpm prisma generate
 RUN pnpm run build
 RUN pnpm run build:worker
@@ -45,8 +49,9 @@ RUN pnpm init && pnpm add --allow-build=@prisma/engines --allow-build=prisma $(c
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+# Owned by node: the server writes its prerender cache under .next/server at runtime.
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 
 # Background worker (pg-boss): same image, second Railway service, start command
@@ -54,7 +59,7 @@ COPY --from=build /app/public ./public
 COPY --from=worker-deps /worker /worker
 COPY --from=build /app/dist/worker/worker.mjs /worker/worker.mjs
 
-RUN mkdir -p .next/cache && chown -R node:node .next/cache
+RUN mkdir -p .next/cache && chown node:node .next/cache
 USER node
 
 EXPOSE 3000

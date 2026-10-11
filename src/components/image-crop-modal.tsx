@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
+import { toast } from 'sonner'
 import 'react-easy-crop/react-easy-crop.css'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -92,6 +93,10 @@ function CropArea({ src, aspect, shape, maxDimension, maxBytes, onClose, onCropp
             try {
               const blob = await cropToBlob(src, area, aspect, maxDimension, maxBytes)
               if (await onCropped(new File([blob], 'image.jpg', { type: 'image/jpeg' }))) onClose()
+            } catch (err) {
+              // Thrown (not returned) errors: unreadable file, network, stale deploy.
+              console.error('[image-crop] failed', err)
+              toast.error(err instanceof Error && err.message.startsWith('Could not') ? err.message : 'Upload failed - reload the page and try again')
             } finally {
               setBusy(false)
             }
