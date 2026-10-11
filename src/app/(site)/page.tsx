@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { EventCard } from './events/_components/event-card'
@@ -7,9 +8,12 @@ import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/session'
 import { Button } from '@/components/ui/button'
 import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
+import { canonical } from '@/lib/metadata'
 import { getPortalStats } from '@/lib/member-portal'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
+
+export const metadata: Metadata = canonical('/')
 
 // Structured data for search engines / AI crawlers. type="application/ld+json" is
 // data, not script, so CSP doesn't apply.

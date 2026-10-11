@@ -13,6 +13,7 @@
 import { PgBoss } from 'pg-boss'
 import { prisma } from '@/lib/db'
 import { JOBS, executeJob } from '@/lib/jobs'
+import { sendSystemAlert } from '@/lib/system-alert'
 
 async function main() {
   const connectionString = process.env.DATABASE_URL
@@ -27,7 +28,10 @@ async function main() {
     where: { status: 'running', startedAt: { lt: new Date(Date.now() - 3600_000) } },
     data: { status: 'failed', finishedAt: new Date(), summary: { error: 'Interrupted (worker stopped mid-run)' } },
   })
-  if (orphaned.count > 0) console.warn(`[worker] marked ${orphaned.count} interrupted run(s) as failed`)
+  if (orphaned.count > 0) {
+    console.warn(`[worker] marked ${orphaned.count} interrupted run(s) as failed`)
+    void sendSystemAlert({ title: 'Jobs interrupted', message: `${orphaned.count} run(s) died with a previous worker. See /admin/jobs`, priority: 3 })
+  }
 
   for (const job of JOBS) {
     await boss.createQueue(job.name)
@@ -53,7 +57,10 @@ async function main() {
   process.on('SIGTERM', () => void shutdown('SIGTERM'))
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('[worker] fatal', err)
+  // Without this the worker dies silently and all scheduled jobs just stop.
+  // Awaited (max 5s): process.exit would kill an un-awaited request.
+  await sendSystemAlert({ title: 'Worker crashed', message: err instanceof Error ? err.message : String(err), priority: 5 })
   process.exit(1)
 })

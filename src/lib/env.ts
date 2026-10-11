@@ -19,6 +19,7 @@ const schema = z.object({
   STORAGE_PROVIDER: opt(z.enum(['s3', 'local'])),
   STORAGE_PUBLIC_BASE_URL: opt(z.string().url()),
   MEMBER_PORTAL_URL: opt(z.string().url()),
+  SYSTEM_NOTIFICATION_URL: opt(z.string().url()),
   DB_POOL_MAX: opt(int),
   DB_POOL_IDLE_MS: opt(int),
   DB_POOL_CONNECT_MS: opt(int),
@@ -30,13 +31,13 @@ export function envProblems(env: Record<string, string | undefined>): string[] {
   const problems = parsed.success ? [] : parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`)
   const missing = (keys: string[]) => keys.filter((k) => blank(env[k])).map((k) => `${k}: required`)
   // Providers are all-or-nothing, so a half-set pair doesn't silently disable sign-in.
-  for (const [a, b] of [['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'], ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET']]) {
+  for (const [a, b] of [['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'], ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'], ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']]) {
     if (blank(env[a]) !== blank(env[b])) problems.push(`${blank(env[a]) ? a : b}: required when ${blank(env[a]) ? b : a} is set`)
   }
   const s3 = env.STORAGE_PROVIDER === 's3' || (blank(env.STORAGE_PROVIDER) && !blank(env.STORAGE_S3_BUCKET))
   if (s3) problems.push(...missing(['STORAGE_S3_ENDPOINT', 'STORAGE_S3_REGION', 'STORAGE_S3_ACCESS_KEY_ID', 'STORAGE_S3_SECRET_ACCESS_KEY', 'STORAGE_S3_BUCKET', 'STORAGE_PUBLIC_BASE_URL']))
   // Only what has no fallback in code (site URL, MAIL_FROM and the auth URL all do).
-  if (env.NODE_ENV === 'production') problems.push(...missing(['BETTER_AUTH_SECRET', 'SMTP_HOST']))
+  if (env.NODE_ENV === 'production') problems.push(...missing(['BETTER_AUTH_SECRET', 'SMTP_HOST', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY']))
   return problems
 }
 

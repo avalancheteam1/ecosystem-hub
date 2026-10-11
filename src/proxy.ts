@@ -22,11 +22,13 @@ function buildCsp(nonce: string): string {
   const devEval = process.env.NODE_ENV !== 'production' ? " 'unsafe-eval'" : ''
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${devEval} https://wal.team1.network`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${devEval} https://wal.team1.network https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "connect-src 'self' https://wal.team1.network",
+    // Cloudflare Turnstile (sign-in captcha) renders in an iframe.
+    'frame-src https://challenges.cloudflare.com',
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self' https://accounts.google.com https://github.com",

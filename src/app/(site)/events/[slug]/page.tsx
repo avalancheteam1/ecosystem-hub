@@ -5,6 +5,7 @@ import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { formatEventRange } from '@/lib/dates'
+import { canonical, plainText } from '@/lib/metadata'
 import { ensureReferralCode } from '@/lib/referral-codes'
 import { getCurrentUser } from '@/lib/session'
 import { ShareDialog } from '@/components/share-dialog'
@@ -20,8 +21,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!event) return {}
   return {
     title: event.name,
-    description: event.descriptionMd?.replace(/[#*_`>\[\]()-]/g, '').slice(0, 160),
-    openGraph: event.coverUrl ? { images: [event.coverUrl] } : undefined,
+    description: plainText(event.descriptionMd ?? '') || `${event.name} - a team1 event for builders in the Avalanche ecosystem.`,
+    ...canonical(`/events/${event.slug}`, event.coverUrl ? { images: [event.coverUrl] } : undefined),
   }
 }
 

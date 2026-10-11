@@ -8,16 +8,19 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SocialIcon } from '@/components/social-icon'
+import { Turnstile } from './turnstile'
 
 const PROVIDER_LABEL = { google: 'Continue with Google', github: 'Continue with GitHub' } as const
 
-export function SignInForm({ next, providers }: { next: string; providers: ('google' | 'github')[] }) {
+export function SignInForm({ next, providers, turnstileSiteKey, nonce }: { next: string; providers: ('google' | 'github')[]; turnstileSiteKey?: string; nonce?: string }) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaReset, setCaptchaReset] = useState(0)
 
   async function run(fn: () => Promise<{ error: { message?: string } | null }>, onOk: () => void) {
     setPending(true)
@@ -55,12 +58,16 @@ export function SignInForm({ next, providers }: { next: string; providers: ('goo
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault()
-            run(() => authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' }), () => setStep('code'))
+            const headers = captchaToken ? { 'x-captcha-response': captchaToken } : undefined
+            // Tokens are single-use: fetch a fresh one whatever the outcome.
+            run(() => authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in', fetchOptions: { headers } }), () => setStep('code'))
+              .finally(() => setCaptchaReset((n) => n + 1))
           }}
         >
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
-          <Button type="submit" className="w-full" disabled={pending}>
+          {turnstileSiteKey && <Turnstile siteKey={turnstileSiteKey} nonce={nonce} resetKey={captchaReset} onToken={setCaptchaToken} />}
+          <Button type="submit" className="w-full" disabled={pending || (!!turnstileSiteKey && !captchaToken)}>
             {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Mail aria-hidden />} Continue with email
           </Button>
         </form>

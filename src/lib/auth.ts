@@ -2,7 +2,8 @@ import 'server-only'
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { nextCookies } from 'better-auth/next-js'
-import { emailOTP } from 'better-auth/plugins'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { captcha, emailOTP } from 'better-auth/plugins'
 import { prisma } from '@/lib/db'
 import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
@@ -11,6 +12,7 @@ import { attributeReferral } from '@/app/(app)/referrals/_lib/attribute'
 import { ensureReferralCode } from '@/lib/referral-codes'
 import { refreshPortalProfile } from '@/lib/member-portal'
 import { REF_COOKIE } from '@/app/(app)/referrals/_lib/rules'
+import { rateLimit } from '@/lib/rate-limit'
 
 // Sign-in methods: Google, GitHub, email OTP. Each social provider is enabled
 // only when its credentials are set. Member-portal SSO will be added later via
@@ -29,6 +31,10 @@ const socialProviders = {
 }
 
 export const enabledSocialProviders = Object.keys(socialProviders) as ('google' | 'github')[]
+
+// Cloudflare Turnstile on the "send code" step - enabled only when both keys are set.
+export const turnstileSiteKey = process.env.TURNSTILE_SECRET_KEY ? process.env.TURNSTILE_SITE_KEY || undefined : undefined
+const SEND_OTP_PATH = '/email-otp/send-verification-otp'
 
 export const auth = betterAuth({
   appName: 'team1 Ecosystem Hub',
@@ -94,6 +100,21 @@ export const auth = betterAuth({
       },
     },
   },
+  hooks: {
+    // One code per address per minute (any IP), so a botnet can't mail-bomb one inbox.
+    // Same answer whether the account exists or not - no enumeration.
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== SEND_OTP_PATH || typeof ctx.body?.email !== 'string') return
+      const { ok, retryAfterSeconds } = rateLimit(`otp-email:${ctx.body.email.trim().toLowerCase()}`, { limit: 1, windowMs: 60_000 })
+      if (!ok) throw new APIError('TOO_MANY_REQUESTS', { message: `Please wait ${retryAfterSeconds}s before requesting another code.` })
+    }),
+  },
+  advanced: {
+    // Production: visitor → Cloudflare → Railway. Cloudflare sets cf-connecting-ip (single
+    // value, client can't forge it); a multi-hop x-forwarded-for is ignored by Better Auth,
+    // which would leave its per-IP rate limiter without a key. Same rule as src/lib/request-ip.ts.
+    ipAddress: { ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'] },
+  },
   session: {
     // No cookie cache: every request checks the DB session, so revoking a
     // session (or deleting a user) takes effect immediately.
@@ -101,7 +122,24 @@ export const auth = betterAuth({
   },
   // Better Auth's built-in rate limiter is on in production by default (in-memory,
   // per instance - move to `storage: 'database'` if the web service is scaled out).
+  // The per-email cooldown above is our own limiter (src/lib/rate-limit.ts), same caveat.
+  rateLimit: {
+    // No per-IP limit on the sign-in flow: 500 people at one hackathon or university
+    // share one IP and sign up within minutes. Abuse is stopped per browser/address
+    // instead: Turnstile + the per-email cooldown for sending, and a code dies after
+    // 3 wrong guesses (allowedAttempts), so guessing needs a new captcha'd code per 3 tries.
+    customRules: {
+      [SEND_OTP_PATH]: false,
+      '/sign-in/email-otp': false,
+      '/sign-in/social': false,
+      '/callback/*': false,
+    },
+  },
   plugins: [
+    // Runs before `hooks.before`, so a failed captcha never consumes an address's cooldown.
+    ...(turnstileSiteKey
+      ? [captcha({ provider: 'cloudflare-turnstile', secretKey: process.env.TURNSTILE_SECRET_KEY!, endpoints: [SEND_OTP_PATH] })]
+      : []),
     emailOTP({
       otpLength: 6,
       expiresIn: 300,

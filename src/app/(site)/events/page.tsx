@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Pager } from '@/components/layout/pager'
 import { SectionHeading } from '@/components/section-heading'
+import { canonical } from '@/lib/metadata'
 import { pageParam } from '@/lib/params'
 import { cn } from '@/lib/utils'
 import { EventCard } from './_components/event-card'
@@ -10,6 +11,8 @@ import { listPublicEvents } from './_lib/queries'
 export const metadata: Metadata = {
   title: 'Events',
   description: 'Hackathons, workshops and meetups for builders in the team1 community.',
+  // ponytail: one canonical for all filter/page variants - give paginated pages their own if deep event pages need indexing beyond the sitemap
+  ...canonical('/events'),
 }
 
 const PAGE_SIZE = 12 // divisible by the 2/3/4-column grid

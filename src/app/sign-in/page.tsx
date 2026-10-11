@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Briefcase, Code2, GraduationCap, Sparkles } from 'lucide-react'
-import { enabledSocialProviders } from '@/lib/auth'
+import { enabledSocialProviders, turnstileSiteKey } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { hasCompleteBasicProfile } from '@/lib/profile'
 import { safeNext } from '@/lib/safe-next'
@@ -29,6 +30,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
     const after = next === '/dashboard' ? '/dashboard?welcome=1' : next
     redirect(hasCompleteBasicProfile(profile) ? next : `/profile?next=${encodeURIComponent(after)}`)
   }
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   return (
     <main className="hero-glow min-h-dvh px-4 py-10 sm:py-16">
       <div className="mx-auto max-w-5xl">
@@ -46,7 +48,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
           <div className="animate-fade-in-up rounded-xl border border-line bg-surface-2 p-6 [animation-delay:120ms] sm:p-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
             <h2 className="text-2xl">Join or sign in</h2>
             <p className="mt-1 text-sm text-fg-muted">New here? Same steps - we create your account on the way.</p>
-            <SignInForm next={next} providers={enabledSocialProviders} />
+            <SignInForm next={next} providers={enabledSocialProviders} turnstileSiteKey={turnstileSiteKey} nonce={nonce} />
             <p className="mt-6 text-xs text-fg-faint">
               We use your email to sign you in and for the programs you join.{' '}
               <a href="https://go.team1.network/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-fg-heading">Privacy policy</a>

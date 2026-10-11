@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
+import { sendSystemAlert } from '@/lib/system-alert'
 import { eventsPortalImportJob } from '@/app/(site)/events/_lib/jobs/events-portal-import'
 import { eventsRefreshJob } from '@/app/(site)/events/_lib/jobs/events-refresh'
 import { authCleanupJob } from './auth-cleanup'
@@ -40,9 +41,12 @@ export async function executeJob(job: Job, data?: Record<string, unknown>): Prom
       where: { id: run.id },
       data: { status: failed > 0 ? 'partial' : 'success', finishedAt: new Date(), summary: summary as Prisma.InputJsonValue },
     })
+    // Count only, no item details - alerts leave the system (no PII).
+    if (failed > 0) void sendSystemAlert({ title: `Job partial: ${job.name}`, message: `${failed} item(s) failed. See the run in /admin/jobs`, priority: 3 })
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     console.error(`[job] ${job.name} failed`, err)
     await prisma.jobRun.update({ where: { id: run.id }, data: { status: 'failed', finishedAt: new Date(), summary: { error } } })
+    void sendSystemAlert({ title: `Job failed: ${job.name}`, message: error, priority: 4 })
   }
 }

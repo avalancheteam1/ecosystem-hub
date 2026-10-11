@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import Script from 'next/script'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
+import { OPEN_GRAPH } from '@/lib/metadata'
 import './globals.css'
 
 const kanit = Kanit({ subsets: ['latin', 'latin-ext'], weight: ['300', '400', '500', '600'], variable: '--font-kanit' })
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: { default: 'Team1 Ecosystem Hub', template: '%s · team1 Ecosystem Hub' },
   description: 'Hackathons, workshops, bounties and education for builders in the Avalanche ecosystem - by team1.',
-  openGraph: { type: 'website', siteName: 'team1 Ecosystem Hub' },
+  openGraph: OPEN_GRAPH,
   twitter: { card: 'summary_large_image' },
 }
 
