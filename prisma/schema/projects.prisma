@@ -103,6 +103,7 @@ model ProjectInvite {
   createdAt   DateTime  @default(now())
 
   @@index([projectId])
+  @@index([email])
   @@map("project_invites")
 }
 

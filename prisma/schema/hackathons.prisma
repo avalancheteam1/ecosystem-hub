@@ -99,6 +99,7 @@ model HackathonOrganizer {
 
   @@unique([hackathonId, email])
   @@index([userId])
+  @@index([email])
   @@map("hackathon_organizers")
 }
 
@@ -119,6 +120,7 @@ model HackathonJudge {
 
   @@unique([hackathonId, email])
   @@index([userId])
+  @@index([email])
   @@map("hackathon_judges")
 }
 
@@ -217,6 +219,7 @@ model Submission {
   awards      Award[]
 
   @@unique([hackathonId, projectId])
+  @@index([projectId])
   @@map("hackathon_submissions")
 }
 
