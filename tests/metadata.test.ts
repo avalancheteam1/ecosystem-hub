@@ -13,5 +13,5 @@ test('canonical keeps the shared Open Graph fields next to page-specific ones', 
     alternates: { canonical: '/events/x' },
     openGraph: { type: 'website', siteName: 'team1 Ecosystem Hub', images: ['c.png'], url: '/events/x' },
   })
-  assert.equal(canonical('/').openGraph?.images, '/opengraph-image')
+  assert.deepEqual(canonical('/').openGraph?.images, { url: '/opengraph-image', width: 1200, height: 630, alt: 'team1 Ecosystem Hub', type: 'image/png' })
 })
