@@ -3,6 +3,8 @@
 export type LessonMeta = { slug: string; title: string; description: string }
 export type CourseModule = { slug: string; label: string; title: string; lessons: LessonMeta[] }
 export type Course = { slug: string; title: string; description: string; intro: string; modules: CourseModule[] }
+/** One academy = one folder in `_content/` (academy.json + quizzes.json + flashcards.json). */
+export type Academy = { slug: string; title: string; tagline: string; description: string; courses: Course[] }
 
 export type QuizQuestion = { question: string; options: string[]; correctAnswers: number[]; hint: string; explanation: string }
 export type Quiz = QuizQuestion & { alternates: QuizQuestion[] }
@@ -21,16 +23,36 @@ export function splitLesson(body: string): Segment[] {
   return out
 }
 
-type LessonRef = { course: Course; module: CourseModule; lesson: LessonMeta }
-const href = (r: LessonRef) => `/education/entrepreneur/${r.course.slug}/${r.module.slug}/${r.lesson.slug}`
+/** What a lesson holds - drives its icon. Counted from the body's directives. */
+export type LessonCounts = { videos: number; quizzes: number; flashcards: number }
+export type LessonKind = 'quiz' | 'flashcards' | 'video' | 'reading'
 
-/** Lessons in reading order across all courses - prev/next walk through the whole academy. */
-export function allLessons(courses: Course[]): (LessonRef & { href: string })[] {
-  return courses.flatMap((course) => course.modules.flatMap((module) => module.lessons.map((lesson) => ({ course, module, lesson, href: href({ course, module, lesson }) }))))
+export function countDirectives(body: string): LessonCounts {
+  const n = { videos: 0, quizzes: 0, flashcards: 0 }
+  for (const s of splitLesson(body)) {
+    if (s.kind === 'youtube') n.videos++
+    if (s.kind === 'quiz') n.quizzes++
+    if (s.kind === 'flashcards') n.flashcards++
+  }
+  return n
 }
 
-export function findLesson(courses: Course[], course: string, module: string, lesson: string) {
-  const all = allLessons(courses)
+export function lessonKind(c: LessonCounts): LessonKind {
+  return c.quizzes ? 'quiz' : c.flashcards ? 'flashcards' : c.videos ? 'video' : 'reading'
+}
+
+export const academyHref = (a: Academy) => `/education/${a.slug}`
+export const courseHref = (a: Academy, c: Course) => `${academyHref(a)}/${c.slug}`
+
+/** Lessons in reading order across all courses - prev/next walk through the whole academy. */
+export function allLessons(academy: Academy) {
+  return academy.courses.flatMap((course) =>
+    course.modules.flatMap((module) => module.lessons.map((lesson) => ({ course, module, lesson, href: `${courseHref(academy, course)}/${module.slug}/${lesson.slug}` }))),
+  )
+}
+
+export function findLesson(academy: Academy, course: string, module: string, lesson: string) {
+  const all = allLessons(academy)
   const i = all.findIndex((r) => r.course.slug === course && r.module.slug === module && r.lesson.slug === lesson)
   if (i < 0) return null
   return { ...all[i], prev: all[i - 1] ?? null, next: all[i + 1] ?? null }
