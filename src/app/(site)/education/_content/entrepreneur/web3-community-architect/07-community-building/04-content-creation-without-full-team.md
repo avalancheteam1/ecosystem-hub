@@ -1,0 +1,16 @@
+## Maximizing Content with Minimal Support
+
+::youtube[08RGHnZ6Ll4]
+
+*Learn from Avery Bartlett, Marketing Strategy Lead at Ava Labs*
+
+Early-stage founders can establish an effective social media presence without a creative team by focusing on ideas over execution. When you're starting out, a compelling concept that resonates with users is more important than polished production.
+
+Leverage AI tools that live up to the hype:
+- ChatGPT for graphics and text content
+- Midjourney for visual content
+- VO3 for video creation
+
+Find affordable talent through Discord communities. Search for editing-focused Discord servers where talented creators from around the world offer quality work at budget-friendly rates. Even a $50 investment can yield impressive results.
+
+Don't overlook your community as a resource. Early believers who see your vision can often be incentivized to help with content creation and distribution.

@@ -2,7 +2,7 @@
 
 `hub.team1.network` - the home for builders in the team1 / Avalanche ecosystem: hackathons & workshops, builder signup and community, public bounties, education (courses, workshops), builder projects (reused to apply for grants and hackathons), an evaluation/scoring backend and a university program. Large parts of `~/git/builders-hub` (notably hackathons) will move here.
 
-**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects**, **hackathons** and **referrals**. Specs live in `docs/superpowers/specs/` - base: `2026-10-07-ecosystem-hub-base-design.md`, events & hackathons: `2026-10-08-hackathons-design.md`, referrals & groups: `2026-10-08-referrals-groups-design.md`.
+**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects**, **hackathons**, **referrals** and **education**. Specs live in `docs/superpowers/specs/` - base: `2026-10-07-ecosystem-hub-base-design.md`, events & hackathons: `2026-10-08-hackathons-design.md`, referrals & groups: `2026-10-08-referrals-groups-design.md`.
 
 Several developers work here in parallel, mostly each on one area. The structure below exists so an area's PR touches its own folders - keep it that way.
 
@@ -147,6 +147,13 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 - Codes: several per user (max 10), always random (`generateCode`, never user-chosen), labelled, deactivate instead of delete. QR per link via `QrCodeDialog` (`src/components/qr-code-dialog.tsx`, builder `src/lib/qr.ts`, ported from the member portal). Rules in `_lib/rules.ts` (tested).
 - Groups: **manual** groups = `GroupMember` rows (members/leads), no chapter link. **Automatic** = chapter groups: one `Group` per portal chapter (`portalChapterSlug`, read-only, created by `ensureChapterGroups`). Members/leads/tier come from a stored read-only copy (`PortalProfile`, `PortalChapterMembership`) refreshed on sign-in and after 24 h (`refreshPortalProfile`, `getPortalProfile` in `src/lib/member-portal.ts`); pages never call the portal. Portal `senior` is reported as `core`. Needs `MEMBER_PORTAL_API_KEY` (scope `members:chapters`). Chapter groups are created only for **live** chapters (`ensureChapterGroups`, on `/admin/groups` load and each refresh). An onboarding counts for the referrer's manual groups + their **primary** chapter group only (`countingGroups`, `getUserGroups().counting`).
 - Visibility: referrers see counts; leads (per-object, `canViewGroup` in `src/lib/groups.ts`) and `referrals.view` see group totals + referrer name/count; nobody sees who was referred. `groups.manage` edits groups.
+
+### Education (`src/app/(site)/education/`, routes `/education/entrepreneur/...`)
+- The **Entrepreneur Academy**, taken over from builders-hub (4 courses, 12 modules, 113 lessons; slugs unchanged, so `/academy/entrepreneur/*` there maps 1:1 to `/education/entrepreneur/*`). Content only - no badges, certificates or saved progress.
+- **Content is files in git** (`_content/entrepreneur/`), edited by PR: `courses.json` = the tree (courses → modules → lessons with title/description, in reading order), one plain `.md` per lesson, `quizzes.json`, `flashcards.json`. A lesson file must be listed in `courses.json` to exist.
+- Lesson Markdown is plain GFM - **no MDX, no raw HTML** (not rendered). Widgets are one-line directives: `::youtube[id]`, `::quiz[id]`, `::flashcards[set]` (`splitLesson`). `tests/education.test.ts` checks every file exists, every directive resolves and no HTML is left.
+- Lesson bodies are read from disk per request (`_lib/content.ts`); `outputFileTracingIncludes` in `next.config.ts` ships them in the standalone build. YouTube via `youtube-nocookie.com` (CSP `frame-src`).
+- Quizzes grade client-side (`isCorrect`); "try another question" cycles the alternates (`quizVariant`); option order is a seeded shuffle (`optionOrder`, stable across SSR/hydration).
 
 ## Integrations (planned)
 - **The member portal is read-only for the hub.** The hub only reads from it (GETs, plus lookup POSTs that carry a hash in the body) and never creates, changes or deletes data there. The portal owns members, chapters and events; the hub keeps read-only copies (`PortalProfile`, portal-sourced `Event`s). Never request a portal API key scope that allows writes.

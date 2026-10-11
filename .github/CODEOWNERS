@@ -26,6 +26,10 @@
 /prisma/schema/events.prisma       @AvalancheTeam1/hub-core
 /prisma/schema/hackathons.prisma   @AvalancheTeam1/hub-core
 
+# Education (Entrepreneur Academy content in _content/)
+/src/app/(site)/education/         @AvalancheTeam1/hub-core
+/public/education/                 @AvalancheTeam1/hub-core
+
 # Projects
 /src/app/(app)/projects/           @AvalancheTeam1/hub-core
 /prisma/schema/projects.prisma     @AvalancheTeam1/hub-core
