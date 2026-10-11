@@ -37,3 +37,14 @@ export const getProjectForMember = cache(async (slug: string, userId: string) =>
   if (!project || project.archivedAt || !project.members.some((m) => m.userId === userId)) return null
   return project
 })
+
+/** Open project invites to my (verified) email - accepted in-app via acceptInviteById. */
+export async function listMyInvites(userId: string) {
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } })
+  if (!me?.emailVerified) return []
+  return prisma.projectInvite.findMany({
+    where: { email: me.email.toLowerCase(), acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() }, project: { archivedAt: null } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, role: true, project: { select: { currentVersion: { select: { name: true } } } } },
+  })
+}

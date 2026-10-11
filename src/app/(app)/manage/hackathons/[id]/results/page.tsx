@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Download, Trophy } from 'lucide-react'
-import { getManagedHackathon, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
+import { getManagedHackathon, getStageJudging, listAwardableSubmissions } from '@/app/(site)/events/_lib/hackathons/queries'
 import { rankEntries } from '@/app/(site)/events/_lib/hackathons/judging'
 import { placeTitle, prizePlaces } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
@@ -15,19 +15,28 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
   const h = await getManagedHackathon((await params).id, user)
   if (!h) notFound()
   const last = h.stages.at(-1)
-  const entries = last ? (await getStageJudging(last.id)).filter((e) => e.submission.status === 'active') : []
+  const [judged, awardable] = await Promise.all([last ? getStageJudging(last.id) : [], listAwardableSubmissions(h.id)])
+  const entries = judged.filter((e) => e.submission.status === 'active')
   const ranked = last?.judgingClosedAt
     ? rankEntries(entries.map((e) => ({ entryId: e.id, submittedAt: e.submittedAt, totals: e.assignments.flatMap((a) => (a.review?.submittedAt && !a.review.conflictDeclared && a.review.total != null ? [a.review.total] : [])) })))
     : entries.map((e) => ({ entryId: e.id, rank: null, mean: null }))
   const byId = new Map(entries.map((e) => [e.id, e]))
-  const options = (trackId: string | null) =>
-    ranked
+  const inLast = new Set(entries.map((e) => e.submission.id))
+  // Overall prizes: teams of the last stage, ranked. Track prizes: those first, then the track's teams that left earlier.
+  const options = (trackId: string | null) => [
+    ...ranked
       .map((r) => byId.get(r.entryId)!)
       .filter((e) => !trackId || e.submission.trackIds.includes(trackId))
       .map((e) => {
         const r = ranked.find((x) => x.entryId === e.id)!
         return { id: e.submission.id, label: `${r.rank ? `#${r.rank} ` : ''}${e.projectVersion.name}${r.mean != null ? ` (${r.mean})` : ''}` }
-      })
+      }),
+    ...(trackId
+      ? awardable
+          .filter((s) => !inLast.has(s.id) && s.trackIds.includes(trackId) && s.entries[0])
+          .map((s) => ({ id: s.id, label: `${s.entries[0]!.projectVersion.name} (left in ${s.entries[0]!.stage.name})` }))
+      : []),
+  ]
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -173,7 +173,8 @@ model HackathonStage {
   /// all | random
   reviewMode          String       @default("all")
   judgesPerSubmission Int?
-  sameTrackOnly       Boolean      @default(false)
+  /// Judges limited to tracks only review entries in those tracks (off: every judge may review every entry)
+  sameTrackOnly       Boolean      @default(true)
   /// Only teams advanced from the previous stage may submit (ignored for the first stage)
   advancedOnly        Boolean      @default(true)
   scaleMax            Int          @default(10)

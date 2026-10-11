@@ -13,6 +13,7 @@ import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { formatEventRange, formatShortDate } from '@/lib/dates'
 import { readLinks } from '@/lib/links'
 import { cn } from '@/lib/utils'
+import { LeaveHackathonButton, WithdrawSubmissionButton } from './participant-buttons'
 
 type Mine = Awaited<ReturnType<typeof getMySubmissions>>
 const Dot = () => <span className="text-brand">.</span>
@@ -66,6 +67,9 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
     ['Build with', readLinks(h.resourceLinks)],
     ['Avalanche Builder Hub', h.showBuilderHubLinks ? BUILDER_HUB_LINKS.map((l) => ({ label: l.label, url: l.href })) : []],
   ] as const).filter(([, links]) => links.length > 0)
+  // Mirrors withdrawSubmission: allowed until the last stage's judging is closed.
+  const last = h.stages.at(-1)
+  const withdrawable = !last || stageState(last, now) !== 'closed'
   const location = event.isOnline ? 'Online' : [event.city, event.country].filter(Boolean).join(', ')
 
   return (
@@ -84,6 +88,7 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
               {step.href ? <Button asChild size="lg"><Link href={step.href}>{step.label}</Link></Button> : <p className="text-fg-body">{step.label}</p>}
               {share}
+              {h.joined && !mine.length && !h.resultsPublishedAt && <LeaveHackathonButton hackathonId={h.id} />}
               <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="group inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
                 Event page on Luma <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden />
               </a>
@@ -113,7 +118,10 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
           <section key={mine.id} aria-label={`Your submission: ${mine.project.currentVersion?.name}`} className="border-y border-line py-6">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-xl">Your team: {mine.project.currentVersion?.name}</h2>
-              <Link href={`/projects/${mine.project.slug}`} className="group inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg-heading">Open project <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden /></Link>
+              <div className="flex flex-wrap items-center gap-3">
+                {mine.status === 'active' && withdrawable && <WithdrawSubmissionButton submissionId={mine.id} name={mine.project.currentVersion?.name ?? 'this project'} />}
+                <Link href={`/projects/${mine.project.slug}`} className="group inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg-heading">Open project <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden /></Link>
+              </div>
             </div>
             <ol className="mt-5 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
               {h.stages.map((s) => {

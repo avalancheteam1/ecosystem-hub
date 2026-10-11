@@ -5,7 +5,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import type { CurrentUser } from '@/lib/session'
 import { userSearchWhere } from '@/lib/user-search'
-import { assignAll } from './judging'
+import { assignAll, entryTracks } from './judging'
 import { TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
 import { canManageHackathon, needsOrganizerTerms } from './rules'
 
@@ -131,12 +131,13 @@ async function ensureAllJudgesAssigned(where: Prisma.HackathonStageWhereInput) {
   const stages = await prisma.hackathonStage.findMany({
     where: { ...where, reviewMode: 'all', judgingClosedAt: null, closesAt: { lte: new Date() } },
     select: {
+      sameTrackOnly: true,
       hackathon: { select: { judges: { select: { id: true, userId: true, trackIds: true } } } },
       entries: { where: { submission: { status: 'active' } }, select: { id: true, teamSnapshot: true, submission: { select: { trackIds: true, project: { select: { members: { select: { userId: true } } } } } } } },
     },
   })
   const data = stages.flatMap((s) => {
-    const entries = s.entries.map((e) => ({ id: e.id, trackIds: e.submission.trackIds, teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }))
+    const entries = s.entries.map((e) => ({ id: e.id, trackIds: entryTracks(e.submission.trackIds, s.sameTrackOnly), teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }))
     return assignAll(entries, s.hackathon.judges).map(([judgeId, entryId]) => ({ judgeId, entryId }))
   })
   if (data.length) await prisma.judgeAssignment.createMany({ data, skipDuplicates: true })
@@ -153,6 +154,14 @@ export async function getStageJudging(stageId: string) {
       submission: { select: { id: true, status: true, trackIds: true, project: { select: { members: { select: { userId: true } } } } } },
       assignments: { include: { judge: { select: { email: true, user: { select: { name: true } } } }, review: { select: { total: true, scores: true, submittedAt: true, conflictDeclared: true } } } },
     },
+  })
+}
+
+/** Active submissions with their latest entry - track prizes may go to teams that didn't reach the last stage. */
+export async function listAwardableSubmissions(hackathonId: string) {
+  return prisma.submission.findMany({
+    where: { hackathonId, status: 'active' },
+    select: { id: true, trackIds: true, entries: { orderBy: { stage: { order: 'desc' } }, take: 1, select: { stage: { select: { name: true } }, projectVersion: { select: { name: true } } } } },
   })
 }
 

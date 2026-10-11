@@ -8,7 +8,7 @@ import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
-import { assignRandom, isConflicted, judgeEligibility, weightedTotal, type Pair } from './judging'
+import { assignRandom, entryTracks, isConflicted, judgeEligibility, weightedTotal, type Pair } from './judging'
 import { assertManage } from './manage'
 import { prizePlaces, stageState } from './rules'
 
@@ -35,7 +35,7 @@ async function computePairs(stage: LoadedStage, seed: string) {
   if (stage.reviewMode !== 'random' || !perEntry) throw new ActionError('This stage assigns every judge automatically - switch it to random judges under Stages to draw')
   const entries = stage.entries.map((e) => ({
     id: e.id,
-    trackIds: e.submission.trackIds,
+    trackIds: entryTracks(e.submission.trackIds, stage.sameTrackOnly),
     teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)],
   }))
   const judges = stage.hackathon.judges.map((j) => ({ id: j.id, userId: j.userId, trackIds: j.trackIds }))
@@ -102,7 +102,7 @@ async function loadEntry(hackathonId: string, entryId: string) {
   if (!e) throw new ActionError('Submission not found')
   if (e.stage.judgingClosedAt) throw new ActionError('Judging is closed for this stage')
   const declared: Pair[] = e.assignments.filter((a) => a.review?.conflictDeclared).map((a) => [a.judgeId, a.entryId])
-  const forRules = { id: e.id, trackIds: e.submission.trackIds, teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }
+  const forRules = { id: e.id, trackIds: entryTracks(e.submission.trackIds, e.stage.sameTrackOnly), teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }
   return { e, declared, forRules }
 }
 
@@ -150,8 +150,9 @@ export const setJudgingClosed = action({ schema: z.object({ hackathonId: id, sta
   const stage = await prisma.hackathonStage.findFirst({ where: { id: stageId, hackathonId } })
   if (!stage) throw new ActionError('Stage not found')
   if (closed && new Date() < stage.closesAt) throw new ActionError('Submissions are still open - close judging after the stage ends')
-  await prisma.hackathonStage.update({ where: { id: stageId }, data: { judgingClosedAt: closed ? new Date() : null } })
-  await recordAudit({ actorId: user.id, action: closed ? 'hackathon.judging.close' : 'hackathon.judging.reopen', entityType: 'HackathonStage', entityId: stageId })
+  const judgingClosedAt = closed ? new Date() : null
+  await prisma.hackathonStage.update({ where: { id: stageId }, data: { judgingClosedAt } })
+  await recordAudit({ actorId: user.id, action: closed ? 'hackathon.judging.close' : 'hackathon.judging.reopen', entityType: 'HackathonStage', entityId: stageId, before: { judgingClosedAt: stage.judgingClosedAt }, after: { judgingClosedAt } })
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   revalidatePath('/judge', 'layout')
   return null

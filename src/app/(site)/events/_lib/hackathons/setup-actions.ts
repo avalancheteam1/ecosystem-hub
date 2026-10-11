@@ -13,12 +13,12 @@ import { linkListSchema } from '@/lib/links'
 import { isOwnUpload } from '@/lib/storage'
 import { isTimeZone } from '@/lib/timezones'
 import { verifiedUserIdByEmail } from './bind'
-import { judgeEligibility } from './judging'
+import { entryTracks, judgeEligibility } from './judging'
 import { assertManage } from './manage'
 import { FIELD_TYPES, publishChecklist, reopensJudging, validateStages } from './rules'
 
 // Organiser console actions (/manage/hackathons/[id]). Every action re-checks
-// canManageHackathon — organisers are per-hackathon data, not a permission.
+// canManageHackathon - organisers are per-hackathon data, not a permission.
 
 const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const id = z.string().min(1)
@@ -134,7 +134,7 @@ export const saveTrack = action(
 export const deleteTrack = action({ schema: z.object({ hackathonId: id, trackId: id }), permission: 'user' }, async ({ hackathonId, trackId }, user) => {
   const h = await assertManage(hackathonId, user)
   const used = await prisma.submission.count({ where: { hackathonId, trackIds: { has: trackId } } })
-  if (used) throw new ActionError(`${used} submission(s) entered this track — it can't be deleted`)
+  if (used) throw new ActionError(`${used} submission(s) entered this track - it can't be deleted`)
   const r = await prisma.hackathonTrack.deleteMany({ where: { id: trackId, hackathonId } })
   if (!r.count) throw new ActionError('Track not found')
   await recordAudit({ actorId: user.id, action: 'hackathon.track.delete', entityType: 'Hackathon', entityId: hackathonId, before: { trackId } })
@@ -207,6 +207,7 @@ const stageSchema = z
     scaleMax: z.coerce.number().int().min(1).max(100),
     showCriteria: z.boolean(),
     advancedOnly: z.boolean(),
+    sameTrackOnly: z.boolean(),
   })
   .refine((s) => s.reviewMode !== 'random' || s.judgesPerSubmission, { message: 'Set how many judges review each submission', path: ['judgesPerSubmission'] })
 
@@ -217,7 +218,7 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   if (stageId && !existing) throw new ActionError('Stage not found')
   if (existing && (await stageHasReviews(existing.id))) {
     // Judged scores must stay comparable: no new scale. The window may move (the dialog warns: windowChangeWarnings).
-    if (existing.scaleMax !== data.scaleMax) throw new ActionError('Judges already scored this stage — the scale can’t change now')
+    if (existing.scaleMax !== data.scaleMax) throw new ActionError('Judges already scored this stage - the scale can’t change now')
   }
   const next = existing
     ? stages.map((s) => (s.id === stageId ? { ...s, ...data } : s))
@@ -226,12 +227,12 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   if (errors.length) throw new ActionError(errors[0]!)
   if (existing) await prisma.hackathonStage.update({ where: { id: existing.id }, data: { ...data, ...(reopensJudging(existing, data, new Date()) && { judgingClosedAt: null }) } })
   else await prisma.hackathonStage.create({ data: { hackathonId, order: stages.length, ...data } })
-  await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission, advancedOnly: existing.advancedOnly } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission, advancedOnly: data.advancedOnly } })
+  await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission, advancedOnly: existing.advancedOnly, sameTrackOnly: existing.sameTrackOnly } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission, advancedOnly: data.advancedOnly, sameTrackOnly: data.sameTrackOnly } })
   revalidate(h)
   return null
 })
 
-/** "Open submissions" (until closesAt) / "Close submissions" (now) — allowed in any state; the button warns first. */
+/** "Open submissions" (until closesAt) / "Close submissions" (now) - allowed in any state; the button warns first. */
 export const setSubmissionsOpen = action(
   { schema: z.object({ hackathonId: id, stageId: id, open: z.boolean(), closesAt: date.optional() }), permission: 'user' },
   async ({ hackathonId, stageId, open, closesAt }, user) => {
@@ -253,7 +254,7 @@ export const duplicateStage = action({ schema: z.object({ hackathonId: id, stage
   const src = await prisma.hackathonStage.findFirst({ where: { id: stageId, hackathonId }, include: { criteria: true, fields: true } })
   if (!src) throw new ActionError('Stage not found')
   const last = await prisma.hackathonStage.findFirst({ where: { hackathonId }, orderBy: { order: 'desc' }, select: { order: true } })
-  // The copy goes last with the same window — stages may overlap, edit its dates afterwards.
+  // The copy goes last with the same window - stages may overlap, edit its dates afterwards.
   const copy = await prisma.hackathonStage.create({
     data: {
       hackathonId,
@@ -279,7 +280,7 @@ export const duplicateStage = action({ schema: z.object({ hackathonId: id, stage
 
 export const deleteStage = action({ schema: z.object({ hackathonId: id, stageId: id }), permission: 'user' }, async ({ hackathonId, stageId }, user) => {
   const h = await assertManage(hackathonId, user)
-  if (await prisma.stageEntry.count({ where: { stageId } })) throw new ActionError('Teams already submitted to this stage — it can’t be deleted')
+  if (await prisma.stageEntry.count({ where: { stageId } })) throw new ActionError('Teams already submitted to this stage - it can’t be deleted')
   const stages = await prisma.hackathonStage.findMany({ where: { hackathonId }, orderBy: { order: 'asc' }, select: { id: true } })
   if (!stages.some((s) => s.id === stageId)) throw new ActionError('Stage not found')
   await prisma.$transaction([
@@ -296,7 +297,7 @@ export const saveCriterion = action(
   async ({ hackathonId, stageId, criterionId, ...data }, user) => {
     const h = await assertManage(hackathonId, user)
     if (!(await prisma.hackathonStage.count({ where: { id: stageId, hackathonId } }))) throw new ActionError('Stage not found')
-    if (await stageHasReviews(stageId)) throw new ActionError('Judges already scored this stage — criteria are locked')
+    if (await stageHasReviews(stageId)) throw new ActionError('Judges already scored this stage - criteria are locked')
     if (criterionId) {
       const r = await prisma.criterion.updateMany({ where: { id: criterionId, stageId }, data })
       if (!r.count) throw new ActionError('Criterion not found')
@@ -312,7 +313,7 @@ export const saveCriterion = action(
 
 export const deleteCriterion = action({ schema: z.object({ hackathonId: id, stageId: id, criterionId: id }), permission: 'user' }, async ({ hackathonId, stageId, criterionId }, user) => {
   const h = await assertManage(hackathonId, user)
-  if (await stageHasReviews(stageId)) throw new ActionError('Judges already scored this stage — criteria are locked')
+  if (await stageHasReviews(stageId)) throw new ActionError('Judges already scored this stage - criteria are locked')
   const r = await prisma.criterion.deleteMany({ where: { id: criterionId, stage: { id: stageId, hackathonId } } })
   if (!r.count) throw new ActionError('Criterion not found')
   await recordAudit({ actorId: user.id, action: 'hackathon.criterion.delete', entityType: 'Hackathon', entityId: hackathonId, before: { criterionId } })
@@ -477,9 +478,9 @@ export const saveJudge = action(
       // Narrowed tracks: drop open assignments the judge is no longer eligible for (submitted reviews stay).
       const open = await prisma.judgeAssignment.findMany({
         where: { judgeId, entry: { stage: { judgingClosedAt: null } }, OR: [{ review: null }, { review: { submittedAt: null } }] },
-        select: { id: true, entryId: true, entry: { select: { submission: { select: { trackIds: true } } } } },
+        select: { id: true, entryId: true, entry: { select: { stage: { select: { sameTrackOnly: true } }, submission: { select: { trackIds: true } } } } },
       })
-      const stale = open.filter((a) => !judgeEligibility({ ...judge, trackIds }, { id: a.entryId, trackIds: a.entry.submission.trackIds, teamUserIds: [] }, []).ok).map((a) => a.id)
+      const stale = open.filter((a) => !judgeEligibility({ ...judge, trackIds }, { id: a.entryId, trackIds: entryTracks(a.entry.submission.trackIds, a.entry.stage.sameTrackOnly), teamUserIds: [] }, []).ok).map((a) => a.id)
       await prisma.$transaction([
         prisma.hackathonJudge.update({ where: { id: judgeId }, data: { trackIds } }),
         prisma.judgeAssignment.deleteMany({ where: { id: { in: stale } } }),
@@ -501,7 +502,7 @@ export const removeJudge = action({ schema: z.object({ hackathonId: id, judgeId:
   const h = await assertManage(hackathonId, user)
   const j = await prisma.hackathonJudge.findFirst({ where: { id: judgeId, hackathonId }, include: { _count: { select: { assignments: { where: { review: { submittedAt: { not: null } } } } } } } })
   if (!j) throw new ActionError('Judge not found')
-  if (j._count.assignments) throw new ActionError(`${j.email} already submitted ${j._count.assignments} review(s) — they can’t be removed`)
+  if (j._count.assignments) throw new ActionError(`${j.email} already submitted ${j._count.assignments} review(s) - they can’t be removed`)
   await prisma.hackathonJudge.delete({ where: { id: j.id } })
   await recordAudit({ actorId: user.id, action: 'hackathon.judge.remove', entityType: 'Hackathon', entityId: hackathonId, before: { email: j.email } })
   revalidate(h)

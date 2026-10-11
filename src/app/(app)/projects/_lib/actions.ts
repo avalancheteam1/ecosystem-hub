@@ -197,8 +197,19 @@ export const revokeInvite = action({ schema: z.object({ inviteId: z.string().min
   return null
 })
 
-export const acceptInvite = action({ schema: z.object({ token: z.string().min(20).max(100) }), permission: 'user' }, async ({ token }, user) => {
-  const invite = await prisma.projectInvite.findUnique({ where: { tokenHash: hashToken(token) }, include: { project: { select: { slug: true, archivedAt: true } } } })
+export const acceptInvite = action({ schema: z.object({ token: z.string().min(20).max(100) }), permission: 'user' }, async ({ token }, user) =>
+  joinViaInvite(await prisma.projectInvite.findUnique({ where: { tokenHash: hashToken(token) }, include: { project: { select: { slug: true, archivedAt: true } } } }), user),
+)
+
+/** In-app accept (dashboard, projects list): the verified-email check below is what the emailed token proves too. */
+export const acceptInviteById = action({ schema: z.object({ inviteId: z.string().min(1) }), permission: 'user' }, async ({ inviteId }, user) =>
+  // Scoped to my own email, so a foreign invite id reveals nothing about who it was for.
+  joinViaInvite(await prisma.projectInvite.findFirst({ where: { id: inviteId, email: user.email.toLowerCase() }, include: { project: { select: { slug: true, archivedAt: true } } } }), user),
+)
+
+type InviteRow = { id: string; projectId: string; email: string; role: string; acceptedAt: Date | null; revokedAt: Date | null; expiresAt: Date; project: { slug: string; archivedAt: Date | null } }
+
+async function joinViaInvite(invite: InviteRow | null, user: { id: string }) {
   if (!invite || invite.revokedAt || invite.project.archivedAt) throw new ActionError('This invite is no longer valid')
   if (invite.acceptedAt) throw new ActionError('This invite was already used')
   if (invite.expiresAt < new Date()) throw new ActionError('This invite has expired - ask the team for a new one')
@@ -217,8 +228,9 @@ export const acceptInvite = action({ schema: z.object({ token: z.string().min(20
   ])
   await recordAudit({ actorId: user.id, action: 'project.member.join', entityType: 'Project', entityId: invite.projectId, after: { role: invite.role } })
   revalidatePath('/projects', 'layout')
+  revalidatePath('/dashboard')
   return { slug: invite.project.slug }
-})
+}
 
 export const removeMember = action(
   { schema: z.object({ projectId: z.string().min(1), userId: z.string().min(1) }), permission: 'user' },
@@ -270,3 +282,18 @@ export const setMemberRole = action(
     return null
   },
 )
+
+/** Owner-only soft delete: sets archivedAt, which hides the project everywhere. Sealed versions and past submissions stay intact. */
+export const deleteProject = action({ schema: z.object({ projectId: z.string().min(1) }), permission: 'user' }, async ({ projectId }, user) => {
+  const m = await membership(projectId, user.id)
+  if (!canManageTeam(m.role)) throw new ActionError('Only the owner can delete the project')
+  const running = await prisma.submission.count({ where: { projectId, status: 'active', hackathon: { resultsPublishedAt: null } } })
+  if (running) throw new ActionError('This project is in a running hackathon - withdraw the submission first')
+  const r = await prisma.project.updateMany({ where: { id: projectId, archivedAt: null }, data: { archivedAt: new Date() } })
+  if (!r.count) throw new ActionError('Project not found')
+  await prisma.projectInvite.updateMany({ where: { projectId, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } })
+  await recordAudit({ actorId: user.id, action: 'project.delete', entityType: 'Project', entityId: projectId, before: { archivedAt: null }, after: { archivedAt: true } })
+  revalidatePath('/projects', 'layout')
+  revalidatePath('/dashboard')
+  return null
+})

@@ -67,6 +67,9 @@ type AssignEntry = { id: string; trackIds: string[]; teamUserIds: string[] }
 type AssignJudge = { id: string; userId: string | null; trackIds: string[] }
 export type Pair = [judgeId: string, entryId: string]
 
+/** An entry's tracks as eligibility sees them: with the stage's "same track only" off, track-limited judges may review any entry. */
+export const entryTracks = (trackIds: string[], sameTrackOnly: boolean) => (sameTrackOnly ? trackIds : [])
+
 /** Can this judge review this entry - and if not, why (shown to organisers)? */
 export function judgeEligibility(j: AssignJudge, e: AssignEntry, declared: Pair[]): { ok: true } | { ok: false; reason: string } {
   if (isConflicted(j.userId, e.teamUserIds, [])) return { ok: false, reason: 'On this team' }

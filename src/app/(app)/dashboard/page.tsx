@@ -4,7 +4,11 @@ import { ArrowUpRight, BookOpen, CalendarDays, Coins, FolderGit2, GraduationCap,
 import { EventCover } from '@/components/event-cover'
 import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
+import { PendingInvites } from '@/app/(app)/projects/_components/pending-invites'
 import { ProjectGrid } from '@/app/(app)/projects/_components/project-card'
+import { listMyInvites } from '@/app/(app)/projects/_lib/queries'
+import { getHackathonRoles, listJudgeHackathons, listManagedHackathons } from '@/app/(site)/events/_lib/hackathons/queries'
+import { LinkCard } from '@/components/link-card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { countryName } from '@/lib/countries'
@@ -25,7 +29,8 @@ export const metadata: Metadata = { title: 'Dashboard', robots: { index: false }
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const user = await requireUser()
   const welcome = (await searchParams).welcome === '1'
-  const [u, allProjects, hackathons, onboardings, { groups }] = await Promise.all([
+  const roles = await getHackathonRoles(user.id)
+  const [u, allProjects, hackathons, onboardings, { groups }, invites, judging, organising] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true, image: true } }),
     prisma.project.findMany({
       where: { archivedAt: null, members: { some: { userId: user.id } } },
@@ -54,11 +59,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     }),
     prisma.referral.count({ where: { referrerId: user.id } }),
     getUserGroups(user.id),
+    listMyInvites(user.id),
+    roles.judge ? listJudgeHackathons(user.id) : [],
+    roles.organizer ? listManagedHackathons(user, false) : [],
   ])
   // ponytail: sorts all of the user's projects in memory - fine for a handful, paginate if builders get dozens
   const projects = allProjects.filter((p) => p.currentVersion).sort((a, b) => byActivity(a.currentVersion!, b.currentVersion!)).slice(0, 6)
   // Nothing joined or created yet: lead with next steps instead of empty lists.
-  const fresh = projects.length === 0 && hackathons.length === 0
+  const fresh = projects.length === 0 && hackathons.length === 0 && invites.length === 0 && judging.length === 0 && organising.length === 0
+  // Judge and organiser work, same counts as /judge and /manage.
+  const work = [
+    ...judging.map((j) => {
+      const open = j.assignments.filter((a) => !a.entry.stage.judgingClosedAt)
+      const todo = open.filter((a) => !a.review?.submittedAt).length
+      return { key: `j-${j.id}`, href: `/judge/${j.hackathonId}`, image: j.hackathon.event.coverUrl, title: j.hackathon.event.name, meta: `Judge - ${todo ? `${todo} to review` : open.length ? 'all done' : 'nothing assigned yet'}`, hot: todo > 0 }
+    }),
+    ...organising.map((h) => ({ key: `o-${h.id}`, href: `/manage/hackathons/${h.id}`, image: h.event.coverUrl, title: h.event.name, meta: `Organiser - ${h.status === 'published' ? 'live' : 'draft'}`, hot: false })),
+  ]
   const leadGroups = groups.filter((g) => g.lead)
   const now = new Date()
   const nextUp = hackathons
@@ -89,6 +106,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           Add your country and roles to your <Link href="/profile" className="underline decoration-brand underline-offset-2">profile</Link> - you need them to join hackathons.
         </p>
       )}
+
+      <PendingInvites invites={invites} />
 
       {fresh && (
         <section aria-labelledby="start-here">
@@ -125,6 +144,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <li key={h.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 80}ms` }}>
                 <HackathonCard h={h} now={now} />
               </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {work.length > 0 && (
+        <section aria-labelledby="hackathon-work">
+          <h2 id="hackathon-work" className="text-xl">Judging and organising</h2>
+          <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {work.map((w) => (
+              <li key={w.key}><LinkCard href={w.href} image={w.image} title={w.title} meta={w.meta} metaClassName={w.hot ? 'text-brand' : undefined} /></li>
             ))}
           </ul>
         </section>

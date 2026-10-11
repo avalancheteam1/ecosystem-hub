@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { AdminNavLink } from '@/components/layout/admin-nav-link'
 import { SiteHeader } from '@/components/layout/site-header'
+import { envProblems } from '@/lib/env'
 import { requireUser } from '@/lib/guards'
 import { holdsAny } from '@/lib/permissions'
 import { ADMIN_NAV } from './_lib/nav'
@@ -12,6 +13,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requireUser()
   if (!holdsAny(user)) notFound()
   const items = ADMIN_NAV.filter((i) => i.show(user))
+  // Variable names only, never values.
+  const envIssues = user.isSuperAdmin ? envProblems(process.env) : []
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
@@ -23,7 +26,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </AdminNavLink>
           ))}
         </nav>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          {envIssues.length > 0 && (
+            <div role="status" className="mb-6 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+              <p className="text-fg-heading">Server environment needs attention (only super admins see this):</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 font-mono text-xs">{envIssues.map((p) => <li key={p}>{p}</li>)}</ul>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   )

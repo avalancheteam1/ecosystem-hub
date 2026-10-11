@@ -120,3 +120,11 @@ test('eligibility explains why a judge cannot review an entry', async () => {
   assert.deepEqual(judgeEligibility({ id: 'j', userId: 'u', trackIds: [] }, entry, [['j', 'e']]), { ok: false, reason: 'Declared a conflict' })
   assert.deepEqual(judgeEligibility({ id: 'j', userId: null, trackIds: ['t1'] }, entry, []), { ok: true })
 })
+
+test('"same track only" off lets track-limited judges review any entry', async () => {
+  const { entryTracks, judgeEligibility } = await import('@/app/(site)/events/_lib/hackathons/judging')
+  const judge = { id: 'j', userId: 'u', trackIds: ['t2'] }
+  const entry = (sameTrackOnly: boolean) => ({ id: 'e', trackIds: entryTracks(['t1'], sameTrackOnly), teamUserIds: [] })
+  assert.equal(judgeEligibility(judge, entry(true), []).ok, false)
+  assert.equal(judgeEligibility(judge, entry(false), []).ok, true)
+})

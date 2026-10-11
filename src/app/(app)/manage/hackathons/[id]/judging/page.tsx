@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getManagedHackathon, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
-import { criterionMeans, judgeEligibility, rankEntries, type Pair } from '@/app/(site)/events/_lib/hackathons/judging'
+import { criterionMeans, entryTracks, judgeEligibility, rankEntries, type Pair } from '@/app/(site)/events/_lib/hackathons/judging'
 import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
 import { StageStateBadge } from '@/components/stage-state-badge'
@@ -32,7 +32,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
         const judges = h.judges.map((j) => ({ id: j.id, label: j.user?.name ?? j.email, userId: j.userId, trackIds: j.trackIds }))
         const matrix = active.map((e) => {
           const declared: Pair[] = e.assignments.filter((a) => a.review?.conflictDeclared).map((a) => [a.judgeId, e.id])
-          const forRules = { id: e.id, trackIds: e.submission.trackIds, teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }
+          const forRules = { id: e.id, trackIds: entryTracks(e.submission.trackIds, s.sameTrackOnly), teamUserIds: [...(e.teamSnapshot as { userId: string }[]).map((m) => m.userId), ...e.submission.project.members.map((m) => m.userId)] }
           const cells: MatrixCell[] = judges.map((j) => {
             const a = e.assignments.find((x) => x.judgeId === j.id)
             if (a) return { kind: 'assigned', assignmentId: a.id, state: a.review?.conflictDeclared ? 'conflict' : a.review?.submittedAt ? 'done' : a.review ? 'draft' : 'pending' }

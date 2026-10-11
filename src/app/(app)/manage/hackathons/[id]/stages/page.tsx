@@ -19,11 +19,12 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
   const now = new Date()
   const tz = h.timezone
   const reviews = await stageReviewCounts(h.stages.map((s) => s.id))
+  const trackJudges = h.judges.some((j) => j.trackIds.length > 0)
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-fg-muted">Stages run in order and may overlap. Each later stage is either for the teams you advance or open to every registered team.</p>
-        <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} first={!h.stages.length} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
+        <StageDialog hackathonId={h.id} timeZone={h.timezone} defaults={{ opensAt: h.event.startAt, closesAt: h.event.endAt }} first={!h.stages.length} trackJudges={trackJudges} trigger={<Button size="sm"><Plus aria-hidden /> Stage</Button>} />
       </div>
       {h.stages.map((stage, i) => {
         const s = { ...stage, entries: stage._count.entries, reviews: reviews.get(stage.id) ?? 0 }
@@ -38,7 +39,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
               <>
                 <StageStateBadge state={state} />
                 {state === 'open' ? <CloseSubmissions hackathonId={h.id} stage={s} /> : <OpenSubmissions hackathonId={h.id} stage={s} timeZone={tz} />}
-                <StageDialog hackathonId={h.id} timeZone={h.timezone} stage={s} first={i === 0} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
+                <StageDialog hackathonId={h.id} timeZone={h.timezone} stage={s} first={i === 0} trackJudges={trackJudges} trigger={<Button size="sm" variant="ghost">Edit</Button>} />
                 <DuplicateStage hackathonId={h.id} stageId={s.id} />
                 {s.entries === 0 && <DeleteStage hackathonId={h.id} stage={s} />}
               </>
