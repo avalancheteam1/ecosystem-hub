@@ -10,11 +10,15 @@ export function Markdown({ children, className }: { children: string; className?
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noreferrer nofollow">
-              {children}
-            </a>
-          ),
+          // Site-internal links (lessons linking each other) stay in the tab.
+          a: ({ href, children }) =>
+            href?.startsWith('/') && !href.startsWith('//') ? (
+              <a href={href}>{children}</a>
+            ) : (
+              <a href={href} target="_blank" rel="noreferrer nofollow">
+                {children}
+              </a>
+            ),
         }}
       >
         {children}

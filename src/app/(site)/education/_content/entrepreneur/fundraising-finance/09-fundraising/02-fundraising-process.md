@@ -1,0 +1,22 @@
+## The Fundraising Process: A Clear Path Forward
+
+::youtube[xopud_d_LKs]
+
+Successful fundraising begins long before you actually need capital. The most effective founders treat fundraising as an ongoing relationship-building exercise rather than a one-time event.
+
+At its core, early-stage fundraising is about converting social capital into committed capital. This means building relationships with potential investors through consistent updates, transparent communication, and demonstrating growth over time.
+
+### Essential Preparation Materials
+
+For Web3 startups specifically, it's crucial to articulate not just your business model but also your ecosystem impact. Investors want to understand how your project contributes to the broader blockchain landscape while also presenting a viable path to returns.
+
+When preparing for fundraising, you'll need several key materials:
+- A concise "teaser" deck (3-5 slides) for initial outreach
+- A more detailed pitch deck for investor calls
+- A comprehensive data room (e.g. in Notion) for due diligence
+- An FAQ document addressing common investor questions
+- A tracking system to manage investor conversations
+
+### Strategic Timing
+
+The fundraising timeline benefits from careful planning. Starting with at least six months of runway allows you to negotiate from a position of strength and maintain maximum leverage.

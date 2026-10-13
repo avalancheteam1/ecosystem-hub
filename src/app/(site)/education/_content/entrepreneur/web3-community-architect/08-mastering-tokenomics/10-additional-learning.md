@@ -1,0 +1,4 @@
+## Additional Resources
+
+- [Introduction to Tokenomics](https://medium.com/borderless-capital/introduction-to-tokenomics-c7af75c09bfe) by Zach Zukowski, Borderless Capital
+- [Economics and Math of Token Engineering and DeFi](https://www.amazon.sg/dp/9811489394) by Lisa Tan

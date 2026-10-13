@@ -1,0 +1,689 @@
+{
+  "slug": "entrepreneur",
+  "title": "Entrepreneur Academy",
+  "tagline": "Build a Web3 startup that lasts.",
+  "description": "Four courses on building a Web3 startup - from legal and security foundations to go-to-market, community, tokenomics and your pitch. Taught by founders, investors and operators from the Avalanche ecosystem.",
+  "courses": [
+    {
+      "slug": "foundations-web3-venture",
+      "title": "Foundations of a Web3 Venture",
+      "description": "Set your venture up on solid ground: legal structure, security, a business model that holds and the users you build for.",
+      "intro": "These three modules are designed to give you a strong foundation for building and scaling your startup with confidence. You’ll begin by setting up your company on solid ground, mastering the essential legal, financial, compliance, and security principles that safeguard your business. From there, you’ll learn to shape and refine your vision through the Business Model Canvas, ensuring your strategy is both sustainable and customer-focused. Finally, you’ll dive deep into understanding the people who matter most—your stakeholders and users—by identifying their needs, creating personas, and translating insights into impactful solutions. Together, these modules equip you with the practical tools to launch, grow, and sustain a successful venture.",
+      "modules": [
+        {
+          "slug": "01-legal-foundations",
+          "label": "Module 1A",
+          "title": "Legal Foundations",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Master the essential legal steps required to launch your Web3 project correctly and avoid common regulatory pitfalls"
+            },
+            {
+              "slug": "02-legal-jurisdiction",
+              "title": "Choosing Your Legal Jurisdiction",
+              "description": "Learn how to select the right legal jurisdiction for your Web3 startup"
+            },
+            {
+              "slug": "03-token-classification",
+              "title": "Token Classification - Utility vs Security",
+              "description": "Understanding the crucial distinction between utility and security tokens"
+            },
+            {
+              "slug": "04-legal-documentation",
+              "title": "Essential Legal Documentation",
+              "description": "Core legal documents required for Web3 startups"
+            },
+            {
+              "slug": "05-intellectual-property",
+              "title": "Intellectual Property (IP) Protection",
+              "description": "Protecting your intellectual property & data privacy considerations"
+            },
+            {
+              "slug": "06-ongoing-compliance",
+              "title": "Ongoing Compliance Requirements",
+              "description": "Maintaining compliance after launch"
+            },
+            {
+              "slug": "07-applying-frameworks",
+              "title": "Applying Legal Frameworks to Your Web3 Startup",
+              "description": "Step-by-step guide to implementing legal structures"
+            },
+            {
+              "slug": "08-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential points to remember about legal structures for Web3"
+            },
+            {
+              "slug": "09-flashcards",
+              "title": "Flashcards",
+              "description": "Key terms and definitions for legal structures in Web3"
+            },
+            {
+              "slug": "10-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of legal structures for Web3"
+            }
+          ]
+        },
+        {
+          "slug": "01b-security-fundamentals",
+          "label": "Module 1B",
+          "title": "Security Fundamentals",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn essential security practices to protect your Web3 startup from common vulnerabilities and threats"
+            },
+            {
+              "slug": "02-assessing-security",
+              "title": "Assessing Your Project's Security Readiness",
+              "description": "How non-technical founders can evaluate their project's security"
+            },
+            {
+              "slug": "03-it-governance",
+              "title": "Building Strong IT Governance",
+              "description": "Key components of IT governance for Web3 startups"
+            },
+            {
+              "slug": "04-cryptographic-assets",
+              "title": "Secure Management of Cryptographic Assets",
+              "description": "Best practices for managing private keys, admin privileges, and wallets"
+            },
+            {
+              "slug": "05-data-strategy",
+              "title": "Data Strategy and Privacy",
+              "description": "On-chain vs off-chain data considerations and privacy principles"
+            },
+            {
+              "slug": "06-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential security principles for Web3 startups"
+            },
+            {
+              "slug": "07-flashcards",
+              "title": "Flashcards",
+              "description": "Key security terms and definitions for Web3 startups"
+            },
+            {
+              "slug": "08-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of security fundamentals for Web3"
+            }
+          ]
+        },
+        {
+          "slug": "02-business-model-canvas",
+          "label": "Module 2",
+          "title": "Business Model Canvas",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn how to create an effective Business Model Canvas that will guide your Web3 startup to success"
+            },
+            {
+              "slug": "02-understanding-canvas",
+              "title": "Understanding the Business Model Canvas for Web3",
+              "description": "Learn how the Business Model Canvas applies to Web3 and decentralized projects"
+            },
+            {
+              "slug": "03-applying-canvas",
+              "title": "Applying the Canvas to Your Web3 Startup",
+              "description": "Step-by-step guide to implementing the Business Model Canvas for your Web3 project"
+            },
+            {
+              "slug": "04-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential points to remember about Business Model Canvas for Web3"
+            },
+            {
+              "slug": "05-flashcards",
+              "title": "Flashcards",
+              "description": "Key terms and definitions for Business Model Canvas in Web3"
+            },
+            {
+              "slug": "06-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of Business Model Canvas for Web3"
+            },
+            {
+              "slug": "07-additional-learning",
+              "title": "Additional Learning",
+              "description": "Resources for further exploration of Business Model Canvas concepts"
+            }
+          ]
+        },
+        {
+          "slug": "03-user-personas",
+          "label": "Module 3",
+          "title": "User Personas",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn to recognize, analyze, and connect with Web3 users to create solutions that truly solve their challenges"
+            },
+            {
+              "slug": "02-finding-first-users",
+              "title": "Finding Your First Web3 Users",
+              "description": "How to identify and reach potential users in the blockchain ecosystem"
+            },
+            {
+              "slug": "03-asking-right-questions",
+              "title": "Asking the Right Questions",
+              "description": "How to validate your Web3 idea through effective user conversations"
+            },
+            {
+              "slug": "04-why-engagement-matters",
+              "title": "Why User Engagement Matters in Web3",
+              "description": "Understanding the unique relationship between builders and users in Web3"
+            },
+            {
+              "slug": "05-engagement-strategy",
+              "title": "Implementing a User Engagement Strategy",
+              "description": "Practical approaches to building and maintaining user relationships"
+            },
+            {
+              "slug": "06-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential principles for user engagement in Web3"
+            },
+            {
+              "slug": "07-flashcards",
+              "title": "Flashcards",
+              "description": "Key terms and definitions for User Personas in Web3"
+            },
+            {
+              "slug": "08-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of User Personas in Web3"
+            },
+            {
+              "slug": "09-additional-learning",
+              "title": "Additional Learning",
+              "description": "Resources for further exploration of user research"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "go-to-market",
+      "title": "Go-to-Market Strategist",
+      "description": "Turn your product into growth: a go-to-market plan, a sales engine that converts and pricing that reflects your value.",
+      "intro": "These modules focus on turning opportunities into tangible growth by sharpening your sales and go-to-market skills. You’ll start by learning how to generate quality leads and spot the signals that indicate real potential, ensuring your efforts are targeted where they matter most. Next, you’ll master sales and messaging techniques to craft value propositions that resonate, connect authentically with your audience, and convert leads into lasting customer relationships. Finally, you’ll develop pricing strategies that not only reflect the true value of your product but also drive sustainable growth and align with your market. Together, these modules equip you to build a sales engine that accelerates your startup’s success.",
+      "modules": [
+        {
+          "slug": "04-gtm-strategies",
+          "label": "Module 4",
+          "title": "Strategic Go-to-Market Planning",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn proven strategies to identify and engage high-potential clients in the Web3 ecosystem"
+            },
+            {
+              "slug": "02-structured-framework",
+              "title": "Building a Structured GTM Framework",
+              "description": "Learn how to create a systematic approach to reach and convert your target customers"
+            },
+            {
+              "slug": "03-web3-market-considerations",
+              "title": "Web3-Specific Market Considerations",
+              "description": "Navigate the unique challenges and opportunities of marketing blockchain solutions"
+            },
+            {
+              "slug": "04-optimizing-execution",
+              "title": "Optimizing Your GTM Execution",
+              "description": "Learn practical strategies to implement and refine your go-to-market approach"
+            },
+            {
+              "slug": "05-applying-principles",
+              "title": "Applying GTM Principles to Your Startup",
+              "description": "Practical steps to implement an effective go-to-market strategy for your Web3 venture"
+            },
+            {
+              "slug": "06-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential insights for building an effective Web3 go-to-market strategy"
+            },
+            {
+              "slug": "07-flashcards",
+              "title": "Flashcards",
+              "description": "Key terms and definitions for go-to-market strategies in Web3"
+            },
+            {
+              "slug": "08-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of go-to-market strategies"
+            }
+          ]
+        },
+        {
+          "slug": "05-sales",
+          "label": "Module 5",
+          "title": "Master the Art of Sales",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn to transform your Web3 concept into a customer-focused offer that drives engagement and conversions."
+            },
+            {
+              "slug": "02-defining-value-proposition",
+              "title": "Defining Your Value Proposition",
+              "description": "Learn how to articulate your product's core value beyond technical features"
+            },
+            {
+              "slug": "03-understanding-your-buyer",
+              "title": "Understanding Your Buyer",
+              "description": "Identify and map the key stakeholders in your sales process and build traction"
+            },
+            {
+              "slug": "04-selling-during-mvp",
+              "title": "Selling During the MVP Stage",
+              "description": "How to position and sell your product while it's still being developed"
+            },
+            {
+              "slug": "05-managing-first-customers",
+              "title": "Managing First Customer Relationships",
+              "description": "Build relationships that create compelling case studies and drive future sales"
+            },
+            {
+              "slug": "06-outreach-and-sales-calls",
+              "title": "Effective Outreach and Sales Calls",
+              "description": "Master the art of getting noticed and converting interest into partnerships"
+            },
+            {
+              "slug": "07-managing-leads",
+              "title": "Managing Leads and Follow-ups",
+              "description": "Build systems to track and nurture prospects without feeling overwhelmed"
+            },
+            {
+              "slug": "08-expanding-sales-team",
+              "title": "Expanding Your Sales Team",
+              "description": "Know when and how to hire your first salesperson and scale your sales efforts"
+            },
+            {
+              "slug": "09-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential insights for mastering Web3 sales"
+            },
+            {
+              "slug": "10-flashcards",
+              "title": "Flashcards",
+              "description": "Key terms and definitions for mastering Web3 sales"
+            },
+            {
+              "slug": "11-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of Web3 sales strategies"
+            },
+            {
+              "slug": "12-additional-learning",
+              "title": "Additional Learning",
+              "description": "Resources to deepen your understanding of Web3 sales strategies"
+            }
+          ]
+        },
+        {
+          "slug": "06-pricing",
+          "label": "Module 6",
+          "title": "Pricing Strategies for Web3 Startups",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn key pricing frameworks that inspire trust and accelerate adoption for your early-stage Web3 project."
+            },
+            {
+              "slug": "02-understanding-web3-pricing-fundamentals",
+              "title": "Understanding Web3 Pricing Fundamentals",
+              "description": "Learn the unique considerations and challenges of pricing in the Web3 ecosystem"
+            },
+            {
+              "slug": "03-building-your-pricing-framework",
+              "title": "Building Your Pricing Framework",
+              "description": "Create a comprehensive pricing framework that integrates costs, target users, and value propositions"
+            },
+            {
+              "slug": "04-selecting-the-right-pricing-model",
+              "title": "Selecting the Right Pricing Model",
+              "description": "Compare and choose between fixed, usage-based, and hybrid pricing models for your Web3 project"
+            },
+            {
+              "slug": "05-cost-estimation-in-decentralized-systems",
+              "title": "Cost Estimation in Decentralized Systems",
+              "description": "Master the tools and techniques for accurately tracking costs in Web3 infrastructure"
+            },
+            {
+              "slug": "06-regional-adaptation-strategies",
+              "title": "Regional Adaptation Strategies",
+              "description": "Customize your Web3 pricing for different markets without compromising trust or consistency"
+            },
+            {
+              "slug": "07-enterprise-client-approach",
+              "title": "Enterprise Client Approach",
+              "description": "Master value-based pricing strategies and negotiation tactics for enterprise Web3 deals"
+            },
+            {
+              "slug": "08-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential pricing principles for Web3 startups"
+            },
+            {
+              "slug": "09-flashcards",
+              "title": "Flashcards",
+              "description": "Review key pricing concepts with interactive flashcards"
+            },
+            {
+              "slug": "10-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Interactive quiz to test your understanding of Web3 pricing strategies"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "web3-community-architect",
+      "title": "Web3 Community Architect",
+      "description": "Grow a community that sticks and design token economics that keep your ecosystem healthy.",
+      "intro": "These modules are designed to help you amplify your startup’s reach, build lasting relationships, and explore innovative growth models. You’ll begin by discovering how to cultivate and leverage engaged communities that fuel loyalty, advocacy, and long-term impact. Next, you’ll learn to harness the power of social media and events strategically—strengthening your brand, deepening audience engagement, and creating momentum for growth. Finally, you’ll dive into the principles of token design, exploring economic models and distribution strategies that enable fair, effective, and sustainable ecosystems. Together, these modules equip you with the tools to grow your startup’s presence, influence, and value.",
+      "modules": [
+        {
+          "slug": "07-community-building",
+          "label": "Module 7",
+          "title": "Community Building",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Grow your Web3 startup with authentic community building and smart social media strategies"
+            },
+            {
+              "slug": "02-understanding-your-foundation",
+              "title": "Understanding Your Foundation",
+              "description": "Define your mission and ideal community member profile before launching any channels"
+            },
+            {
+              "slug": "03-social-media-strategy-blueprint",
+              "title": "The Social Media Strategy Blueprint",
+              "description": "Learn how to create an effective social media strategy for your Web3 startup"
+            },
+            {
+              "slug": "04-content-creation-without-full-team",
+              "title": "Content Creation Without a Full Team",
+              "description": "Learn how to create effective content for your Web3 startup without a creative team"
+            },
+            {
+              "slug": "05-scalable-content-strategies",
+              "title": "Scalable Content Strategies",
+              "description": "Develop sustainable content formats that scale with your Web3 startup"
+            },
+            {
+              "slug": "06-content-iteration-and-observation",
+              "title": "Content Iteration and Community Observation",
+              "description": "Learn how to iterate on content and observe community trends effectively"
+            },
+            {
+              "slug": "07-building-authentic-engagement",
+              "title": "Building Authentic Community Engagement",
+              "description": "Create genuine connections and engagement with your Web3 community"
+            },
+            {
+              "slug": "08-common-community-mistakes",
+              "title": "Common Community Building Mistakes",
+              "description": "Avoid critical errors when building your Web3 community"
+            },
+            {
+              "slug": "09-event-planning-for-community",
+              "title": "Event Planning for Community Building",
+              "description": "Learn how to plan and execute successful events that strengthen your Web3 community"
+            },
+            {
+              "slug": "10-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential lessons for building your Web3 community"
+            },
+            {
+              "slug": "11-additional-learning",
+              "title": "Additional Resources",
+              "description": "Further resources for community building"
+            },
+            {
+              "slug": "12-flashcards",
+              "title": "Flashcards",
+              "description": "Review key community building concepts with interactive flashcards"
+            },
+            {
+              "slug": "13-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Test your understanding of community building concepts"
+            }
+          ]
+        },
+        {
+          "slug": "08-mastering-tokenomics",
+          "label": "Module 8",
+          "title": "Mastering Tokenomics",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Balance growth, sustainability, and value creation through effective tokenomics design"
+            },
+            {
+              "slug": "02-tokenomics",
+              "title": "Introduction to Tokenomics",
+              "description": "Understand economic rules that influence behaviors within blockchain ecosystems"
+            },
+            {
+              "slug": "03-token-mechanics",
+              "title": "Token Mechanics for Ecosystem Growth",
+              "description": "The Foundation of Sustainable Web3 Economies"
+            },
+            {
+              "slug": "04-pitfalls",
+              "title": "Pitfalls and Real-World Examples",
+              "description": "Common Mistakes Web3 Startups Make"
+            },
+            {
+              "slug": "05-why-they-matter",
+              "title": "Why Tokenomics Matters for Web3 Startups",
+              "description": "Discover how tokenomics drives value, incentives, and sustainable revenue streams"
+            },
+            {
+              "slug": "06-applying-startup",
+              "title": "Applying Tokenomics to Your Startup",
+              "description": "Seven practical steps to implement effective tokenomics in your startup"
+            },
+            {
+              "slug": "07-key-takeaway",
+              "title": "Key Take-Aways",
+              "description": "Essential lessons for launching your token"
+            },
+            {
+              "slug": "08-flashcard",
+              "title": "Flashcards",
+              "description": "Review key tokenomics concepts with interactive flashcards"
+            },
+            {
+              "slug": "09-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Test your understanding of tokenomics concepts"
+            },
+            {
+              "slug": "10-additional-learning",
+              "title": "Additional Resources",
+              "description": "Further resources for mastering tokenomics"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "fundraising-finance",
+      "title": "Fundraising & Finance Pro",
+      "description": "Raise with confidence: venture rounds, Avalanche Foundation grants and a pitch that lands.",
+      "intro": "These modules focus on preparing you to secure the resources and relationships that fuel startup growth. You’ll start by exploring best practices for engaging with VCs and designing equity incentive plans that both attract top talent and align stakeholder interests. From there, you’ll learn how to identify, apply for, and secure grants that provide vital funding to support your mission and impact. Finally, you’ll master the art of fundraising through powerful pitch decks, compelling storytelling, and proven presentation techniques that set you up for successful campaigns. Together, these modules equip you with the skills and strategies to confidently navigate the fundraising landscape and build lasting investor relationships.",
+      "modules": [
+        {
+          "slug": "09-fundraising",
+          "label": "Module 9",
+          "title": "Fundraising",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Learn how to approach fundraising as a strategic process to secure capital for your Web3 startup"
+            },
+            {
+              "slug": "02-fundraising-process",
+              "title": "The Fundraising Process - A Strategic Approach",
+              "description": "Understanding the stages and timeline of effective fundraising for Web3 startups"
+            },
+            {
+              "slug": "03-why-fundraising-matters",
+              "title": "Why Effective Fundraising Matters for Web3 Startups",
+              "description": "Understanding the unique challenges and opportunities in Web3 fundraising"
+            },
+            {
+              "slug": "04-implementing-strategy",
+              "title": "Implementing Your Fundraising Strategy",
+              "description": "Practical approaches to investor outreach, updates, and valuation"
+            },
+            {
+              "slug": "05-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Essential lessons for successful Web3 fundraising"
+            },
+            {
+              "slug": "06-additional-learning",
+              "title": "Additional Learning",
+              "description": "Resources to deepen your fundraising knowledge"
+            },
+            {
+              "slug": "07-flashcards",
+              "title": "Flashcards",
+              "description": "Review key fundraising concepts with interactive flashcards"
+            },
+            {
+              "slug": "08-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Test your understanding of fundraising concepts"
+            },
+            {
+              "slug": "09-prepare-mock-pitch",
+              "title": "Prepare for your Mock Pitch",
+              "description": "Fundraising pressure testing and mock pitch preparation"
+            }
+          ]
+        },
+        {
+          "slug": "10-grants",
+          "label": "Module 10",
+          "title": "Grant Applications",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "What Avalanche Foundation grants are and how they differ from other funding paths"
+            },
+            {
+              "slug": "02-success-criteria",
+              "title": "Successful Grant Applications",
+              "description": "The four key areas reviewers evaluate"
+            },
+            {
+              "slug": "03-common-mistakes",
+              "title": "Common Mistakes",
+              "description": "The pitfalls that lead to rejections"
+            },
+            {
+              "slug": "04-beyond-funding",
+              "title": "Maximizing Support",
+              "description": "Beyond Funding - Learn how to leverage Avalanche's Foundation Support channels to multiply your grant's impact"
+            },
+            {
+              "slug": "05-key-takeaways",
+              "title": "Key Take-Aways",
+              "description": "Practical principles to strengthen your application"
+            },
+            {
+              "slug": "06-flashcards",
+              "title": "Flashcards",
+              "description": "Reinforce key concepts from this module"
+            },
+            {
+              "slug": "07-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Quick quiz to assess understanding"
+            }
+          ]
+        },
+        {
+          "slug": "11-pitching",
+          "label": "Module 11",
+          "title": "Pitching",
+          "lessons": [
+            {
+              "slug": "01-introduction",
+              "title": "Introduction",
+              "description": "Master the art of turning complex Web3 concepts into compelling investor narratives"
+            },
+            {
+              "slug": "02-effective-pitch-storytelling",
+              "title": "Effective Pitch Storytelling",
+              "description": "Transform technical complexity into stories that resonate with investors emotionally and intellectually"
+            },
+            {
+              "slug": "03-building-credibility",
+              "title": "Building Credibility",
+              "description": "Build authentic credibility through honest positioning and strategic narrative frameworks"
+            },
+            {
+              "slug": "04-advanced-techniques",
+              "title": "Advanced Techniques",
+              "description": "Stand out with strategic presentation techniques"
+            },
+            {
+              "slug": "05-pitch-success",
+              "title": "Prepare for Pitch Success",
+              "description": "Master preparation techniques and Q&A strategies for memorable pitch performances"
+            },
+            {
+              "slug": "06-why-it-matters",
+              "title": "Why This Matters",
+              "description": "Navigate unique Web3 pitching challenges"
+            },
+            {
+              "slug": "07-applying",
+              "title": "Applying Concepts",
+              "description": "Practical exercises to implement storytelling principles in your Web3 pitch"
+            },
+            {
+              "slug": "08-key-takeways",
+              "title": "Key Take-Aways",
+              "description": "Essential pitching principles from visual design to authentic storytelling techniques"
+            },
+            {
+              "slug": "09-flashcards",
+              "title": "Flashcards",
+              "description": "Review key pitching concepts with interactive flashcards"
+            },
+            {
+              "slug": "10-quiz",
+              "title": "Test Your Knowledge",
+              "description": "Test your understanding of pitching concepts"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

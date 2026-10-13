@@ -27,8 +27,8 @@ function buildCsp(nonce: string): string {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "connect-src 'self' https://wal.team1.network",
-    // Cloudflare Turnstile (sign-in captcha) renders in an iframe.
-    'frame-src https://challenges.cloudflare.com',
+    // Cloudflare Turnstile (sign-in captcha) and education videos render in iframes.
+    'frame-src https://challenges.cloudflare.com https://www.youtube-nocookie.com',
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self' https://accounts.google.com https://github.com",
