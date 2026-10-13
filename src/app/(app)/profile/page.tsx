@@ -9,6 +9,7 @@ import { formatShortDate } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { TIER_LABELS } from '@/lib/groups'
 import { requireUser } from '@/lib/guards'
+import { BUILDER_HUB_URL } from '@/lib/builder-hub'
 import { getPortalProfile } from '@/lib/member-portal'
 import { hasCompleteBasicProfile, type ProfileFormValues } from '@/lib/profile'
 import { safeNext } from '@/lib/safe-next'
@@ -30,7 +31,6 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const nextParam = (await searchParams).next
   const [u, profile, { groups }] = await Promise.all([prisma.user.findUniqueOrThrow({ where: { id: user.id } }), getPortalProfile(user.id), getUserGroups(user.id)])
   const leadGroups = groups.filter((g) => g.lead)
-  const portalUrl = process.env.MEMBER_PORTAL_URL || 'https://members.team1.network'
   const next = nextParam ? safeNext(nextParam) : null
   // First visit (fresh account, or sent here to finish it): a short welcome step - only what's
   // required plus the basics; socials, wallets and skills wait for a later visit.
@@ -84,10 +84,11 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           )}
           <div className="rounded-xl border border-line bg-surface-2 px-5 py-2">
             <ul className="divide-y divide-line text-sm">
+              <li><Link href="/projects" className="flex min-h-11 items-center text-fg-body hover:text-fg-heading">Your projects</Link></li>
               <li><Link href="/referrals" className="flex min-h-11 items-center text-fg-body hover:text-fg-heading">Your referral links</Link></li>
               <li>
-                <a href={portalUrl} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-between gap-2 text-fg-body hover:text-fg-heading">
-                  Member portal <ExternalLink className="size-4" aria-hidden />
+                <a href={BUILDER_HUB_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center justify-between gap-2 text-fg-body hover:text-fg-heading">
+                  Avalanche Builder Hub <ExternalLink className="size-4" aria-hidden />
                 </a>
               </li>
               {leadGroups.map((g) => (

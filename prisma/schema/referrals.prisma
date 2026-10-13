@@ -1,4 +1,4 @@
-// Referrals & groups (spec: docs/superpowers/specs/2026-10-08-referrals-groups-design.md).
+// Referrals & groups.
 // A Referral = one new account created while a valid ?ref cookie was set.
 // GroupMember holds MANUAL members only - automatic ones come live from the
 // member portal (src/lib/user-groups.ts) and are never stored.

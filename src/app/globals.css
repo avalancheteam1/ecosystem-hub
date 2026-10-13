@@ -4,7 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * team1 design tokens - source of truth: ~/git/team1/common/brand/brand_guide.md
+ * team1 design tokens - source of truth: the team1 brand guide
  * Dark is the default theme. Ava Red (#e6212f) is brand-only: never use it for
  * errors (use `destructive` / #dc2626).
  */

@@ -1,8 +1,8 @@
 # team1 Ecosystem Hub
 
-`hub.team1.network` - the home for builders in the team1 / Avalanche ecosystem: hackathons & workshops, builder signup and community, public bounties, education (courses, workshops), builder projects (reused to apply for grants and hackathons), an evaluation/scoring backend and a university program. Large parts of `~/git/builders-hub` (notably hackathons) will move here.
+`hub.team1.network` - the home for builders in the team1 / Avalanche ecosystem: hackathons & workshops, builder signup and community, public bounties, education (courses, workshops), builder projects (reused to apply for grants and hackathons), an evaluation/scoring backend and a university program. Large parts of [builders-hub](https://github.com/ava-labs/builders-hub) (notably hackathons) will move here.
 
-**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects**, **hackathons**, **referrals** and **education**. Specs live in `docs/superpowers/specs/` - base: `2026-10-07-ecosystem-hub-base-design.md`, events & hackathons: `2026-10-08-hackathons-design.md`, referrals & groups: `2026-10-08-referrals-groups-design.md`.
+**Status:** base (auth, permissions, audit, jobs, `/api/v1`, design, deployment) + areas **events**, **projects**, **hackathons**, **referrals** and **education**.
 
 Several developers work here in parallel, mostly each on one area. The structure below exists so an area's PR touches its own folders - keep it that way.
 
@@ -85,12 +85,12 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 - `esbuild` bundles the worker with `pg-boss`, `prisma`, `@prisma/*` external; a new runtime dependency of a job is bundled automatically unless it has native parts.
 
 ## Design
-- Brand source of truth: `~/git/team1/common/brand/brand_guide.md` (skill: `team1-frontend-design`). Tokens live in `src/app/globals.css`.
+- Brand source of truth: the team1 brand guide (skill: `team1-frontend-design`). Tokens live in `src/app/globals.css`.
 - **Dark is the default** (canvas `#0B0A0F`, surfaces `surface-1` / `surface-2`). Ava Red (`brand-*`, `#E6212F`) is brand-only - errors use `destructive` (`#dc2626`), never red brand.
 - Grey text/borders come from the semantic tokens `text-fg-heading / fg-body / fg-muted / fg-faint` and `border-line` - they switch theme via `light-dark()`, no `dark:` needed. Don't write raw `zinc-*`/`gray-*`.
 - Font: Kanit (300 body / 500 headings). Radius: cards `rounded-xl` (12px), controls `rounded-lg` (8px). Cards hover: `hover:-translate-y-0.5 hover:border-brand hover:shadow-glow`. Touch targets ≥ 44px. `:focus-visible` ring and `prefers-reduced-motion` are global - don't remove.
 - Copy: always "team1" lowercase ("Team1" only at the start of a sentence, never "TEAM1" - also not via `uppercase`).
-- Logos/favicons are copied from `~/git/team1/common/brand/assets/` - never redrawn. Use `<Logo />`.
+- Logos/favicons are copied from the team1 brand assets - never redrawn. Use `<Logo />`.
 - **Reuse before building** - check these first, extend them rather than hand-rolling a variant:
   - Forms: `Field` (label + control + hint), `FormDialog` (dialog wrapping one form; closes only on success), `ConfirmButton` (destructive + confirm), `NativeSelect` (`ui/native-select`), `ChipToggle` (multi-select chips), `AnswerFields` / `AnswerList` (organiser-defined questions), hook `useActionToast()` (run an action → toast → refresh; resolves `true` on success).
   - Layout: `PageHeader`, `SectionCard`, `BackLink`, `LinkCard`, `EmptyState`, `SearchForm`, `Pager`, `Logo`, `SiteHeader`, `SiteFooter`.
@@ -157,7 +157,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 
 ## Integrations (planned)
 - **The member portal is read-only for the hub.** The hub only reads from it (GETs, plus lookup POSTs that carry a hash in the body) and never creates, changes or deletes data there. The portal owns members, chapters and events; the hub keeps read-only copies (`PortalProfile`, portal-sourced `Event`s). Never request a portal API key scope that allows writes.
-- **Member portal** (`~/git/team1/member.team1.network`): `POST /api/v1/members/check` (scope `members:check`, body `{ emailHash }`) answers "is this a team1 member" - the intended way to give members extra features. Later also SSO via `genericOAuth`.
+- **Member portal** (`members.team1.network`): `POST /api/v1/members/check` (scope `members:check`, body `{ emailHash }`) answers "is this a team1 member" - the intended way to give members extra features. Later also SSO via `genericOAuth`.
 - **Cascade** and others call this hub's `/api/v1` with keys from `/admin/api-keys`.
 - **Luma**: public data only (see Events). Don't add Luma API keys or luma-sync dependencies.
 
