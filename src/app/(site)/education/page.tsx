@@ -65,6 +65,16 @@ export default function EducationPage() {
               </li>
             )
           })}
+          <li>
+            <a href="https://github.com/avalancheteam1/workshops" target="_blank" rel="noreferrer" className="group flex items-start justify-between gap-4 rounded-xl border border-line bg-surface-2 p-6 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow sm:p-10">
+              <div>
+                <p className="meta">Workshops · GitHub</p>
+                <h2 className="mt-3 text-2xl sm:text-3xl">Hands-on workshops</h2>
+                <p className="mt-2 max-w-[52ch] text-fg-muted">Code and slides from team1 workshops - follow along and build on Avalanche yourself.</p>
+              </div>
+              <ArrowUpRight className="arrow-nudge mt-1 size-7 shrink-0 text-brand" aria-hidden />
+            </a>
+          </li>
           <li className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-line px-6 text-center text-fg-muted">
             More academies are on the way.
           </li>
