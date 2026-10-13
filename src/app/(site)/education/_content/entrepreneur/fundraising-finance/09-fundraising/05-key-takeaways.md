@@ -1,0 +1,10 @@
+## Key Take-Aways
+
+- **Treat fundraising as a sales funnel** with distinct stages requiring different approaches
+- **Start relationship-building with investors** months before you need capital
+- **Prepare different versions of your pitch materials** for different fundraising contexts
+- **Send regular investor updates** that show growth and include specific asks
+- **Cold outreach works** when personalized, targeted, and occasionally unconventional
+- **Don't over-optimize for valuation** at the expense of securing good partners
+- **Focus on the metrics** that truly demonstrate your product's market fit and growth potential
+- **Be transparent about challenges**—honesty builds trust with investors

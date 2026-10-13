@@ -1,0 +1,7 @@
+- Product quality is fundamental—tokens enhance good products but can't rescue poor ones
+- Design for all economic agents, not just investors or early adopters
+- Balance short-term growth incentives with long-term sustainability
+- Consider both supply (distribution) and demand (utility) sides of your token economy
+- Combine Web3 metrics with traditional business metrics to measure success
+- Plan for evolution while maintaining clear rules for the current phase
+- Study both successful and failed projects to avoid common pitfalls

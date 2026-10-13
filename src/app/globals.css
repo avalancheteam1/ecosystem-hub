@@ -290,6 +290,25 @@
   & blockquote { border-left: 2px solid var(--color-brand); padding-left: 1rem; color: var(--color-fg-muted); }
 }
 
+/* Lesson reading column (education): roomier type, expert quotes as pull-quotes. */
+.lesson-prose {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  & h1 { font-size: 1.75rem; }
+  & h2 { font-size: 1.5rem; margin-top: 1.8em; }
+  & h3 { font-size: 1.25rem; margin-top: 1.6em; }
+  & blockquote {
+    margin-block: 1.75em;
+    padding: 1.25rem 1.5rem;
+    border-left-width: 3px;
+    border-radius: 0 0.75rem 0.75rem 0;
+    background: var(--color-surface-1);
+    color: var(--color-fg-body);
+    font-size: 1.125rem;
+  }
+  & em { color: var(--color-fg-muted); }
+}
+
 /* ── Editorial devices (after seed-sprint): hairlines, mono metadata, one accent ── */
 
 /* Small mono metadata: dates, counts, numbering. Sentence case, lightly tracked. */

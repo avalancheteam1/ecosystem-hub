@@ -1,0 +1,8 @@
+::youtube[INLsmPb4Y7k]
+
+To stand out from generic pitches, take calculated personal risks in your presentation style. Open with casual audience questions that acknowledge their expertise, share personal anecdotes that connect to business value, and speak with confidence using phrases like "We learned/know/saw" rather than "We think."
+
+Strategically leave information gaps to prompt follow-up conversations, and close with a personal commitment statement explaining why stopping isn't an option for you. When discussing communities or tokens, focus on the change they create rather than just technical mechanics:
+- What growth does this community enable?
+- What incentives does this token create?
+- Why is Web3 the only solution path?
