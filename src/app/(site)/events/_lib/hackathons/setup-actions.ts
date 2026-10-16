@@ -22,7 +22,7 @@ import { FIELD_TYPES, publishChecklist, reopensJudging, validateStages } from '.
 
 const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const id = z.string().min(1)
-const optText = (max: number) => z.string().trim().max(max).optional().transform((v) => v || null)
+const optText = (max: number, label?: string) => z.string().trim().max(max, label && `${label}: max ${max.toLocaleString('en-US')} characters`).optional().transform((v) => v || null)
 const optUrl = z
   .union([z.string().trim().url('Enter a full link').refine((u) => /^https?:\/\//i.test(u), 'Link must start with https://'), z.literal('')])
   .optional()
@@ -85,8 +85,8 @@ export const updateOverview = action(
         hackathonId: id,
         timezone,
         tagline: z.string().trim().max(140),
-        aboutMd: z.string().trim().max(30_000),
-        rulesMd: optText(30_000),
+        aboutMd: z.string().trim().max(30_000, 'About: max 30,000 characters'),
+        rulesMd: optText(30_000, 'Rules'),
         termsUrl: optUrl,
         registrationOpensAt: optDate,
         registrationClosesAt: optDate,
@@ -114,7 +114,7 @@ export const updateOverview = action(
 // ── tracks & prizes ────────────────────────────────────────────────────────
 
 export const saveTrack = action(
-  { schema: z.object({ hackathonId: id, trackId: id.optional(), name: z.string().trim().min(1, 'Name the track').max(60), descriptionMd: optText(5000), sponsor: optText(80), sponsorLogoUrl: z.string().url().nullable().optional().transform((v) => v ?? null) }), permission: 'user' },
+  { schema: z.object({ hackathonId: id, trackId: id.optional(), name: z.string().trim().min(1, 'Name the track').max(60), descriptionMd: optText(5000, 'Description'), sponsor: optText(80), sponsorLogoUrl: z.string().url().nullable().optional().transform((v) => v ?? null) }), permission: 'user' },
   async ({ hackathonId, trackId, ...data }, user) => {
     const h = await assertManage(hackathonId, user)
     if (data.sponsorLogoUrl && !isOwnUpload(data.sponsorLogoUrl, IMAGE_KINDS['sponsor-logo'].category, hackathonId)) throw new ActionError('Upload the sponsor logo here')
@@ -199,7 +199,7 @@ const stageSchema = z
     hackathonId: id,
     stageId: id.optional(),
     name: z.string().trim().min(1, 'Name the stage').max(60),
-    descriptionMd: optText(10_000),
+    descriptionMd: optText(10_000, 'What teams submit'),
     opensAt: date,
     closesAt: date,
     reviewMode: z.enum(['all', 'random']),

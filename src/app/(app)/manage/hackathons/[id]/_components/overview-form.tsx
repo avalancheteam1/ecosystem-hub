@@ -50,8 +50,8 @@ export function OverviewForm({ hackathonId, initial }: { hackathonId: string; in
         <Label htmlFor="tagline">Tagline</Label>
         <Input id="tagline" value={v.tagline} onChange={set('tagline')} maxLength={140} placeholder="Build the next consumer app on Avalanche in 48 hours" className="h-11" />
       </div>
-      <MarkdownField id="about" label="About" hint="Starts as the Luma description." value={v.aboutMd} onChange={(t) => setV((p) => ({ ...p, aboutMd: t }))} rows={12} />
-      <MarkdownField id="rules" label="Rules" value={v.rulesMd} onChange={(t) => setV((p) => ({ ...p, rulesMd: t }))} rows={6} placeholder="Eligibility, what counts as original work, code of conduct…" />
+      <MarkdownField id="about" label="About" hint="Starts as the Luma description." value={v.aboutMd} onChange={(t) => setV((p) => ({ ...p, aboutMd: t }))} rows={12} maxLength={30_000} />
+      <MarkdownField id="rules" label="Rules" value={v.rulesMd} onChange={(t) => setV((p) => ({ ...p, rulesMd: t }))} rows={6} maxLength={30_000} placeholder="Eligibility, what counts as original work, code of conduct…" />
       <Field id="tz" label="Timezone" hint="All times of this hackathon (registration, stages) are entered in this zone and shown in it publicly. Stored as UTC.">
         <TimeZoneSelect id="tz" value={tz} onChange={setTz} />
       </Field>

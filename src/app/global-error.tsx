@@ -1,8 +1,14 @@
 'use client'
 
+import { useEffect } from 'react'
+import { reloadIfStale } from '@/components/layout/stale-deploy-reload'
+
 // Last-resort boundary for errors in the root layout itself. It replaces the
 // whole document, so it can't rely on globals.css or fonts - inline styles only.
-export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => {
+    reloadIfStale(error)
+  }, [error])
   return (
     <html lang="en">
       <body style={{ margin: 0, minHeight: '100dvh', display: 'grid', placeItems: 'center', background: '#0b0a0f', color: '#e5e7eb', fontFamily: 'system-ui, sans-serif', textAlign: 'center' }}>
