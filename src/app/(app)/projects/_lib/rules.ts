@@ -54,7 +54,7 @@ export const projectFieldsSchema = z
         const seen = new Set<string>()
         return items.map((s) => s.trim()).filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
       })
-      .pipe(z.array(z.string().max(30)).max(20, 'At most 20 technologies')),
+      .pipe(z.array(z.string().max(30, 'Tech stack: each technology max 30 characters')).max(20, 'At most 20 technologies')),
     categories: z.array(z.enum(PROJECT_CATEGORIES)).max(8).transform((c) => [...new Set(c)]),
     otherCategory: z.string().trim().max(60).nullable().optional().transform((v) => v || null),
     maturity: z.enum(Object.keys(PROJECT_MATURITY) as [ProjectMaturity, ...ProjectMaturity[]], 'Pick the project stage'),

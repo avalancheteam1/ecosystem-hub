@@ -69,7 +69,7 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
           </fieldset>
           {!onboarding && (
             <Field id="p-skills" label="Skills & expertise">
-              <TagInput id="p-skills" value={p.skills as string[]} onChange={(v) => set('skills', v)} suggestions={SKILL_SUGGESTIONS} placeholder="Add skill" max={30} />
+              <TagInput id="p-skills" value={p.skills as string[]} onChange={(v) => set('skills', v)} suggestions={SKILL_SUGGESTIONS} placeholder="Add skill" max={30} maxLength={40} />
             </Field>
           )}
         </div>
