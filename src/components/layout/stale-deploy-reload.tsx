@@ -8,8 +8,13 @@ import { unstable_isUnrecognizedActionError } from 'next/navigation'
 // chunk load from that tab fails. Both are fixed by loading the new build.
 export function isStaleDeployError(error: unknown) {
   if (unstable_isUnrecognizedActionError(error)) return true
+  // ponytail: name/message fallbacks in case instanceof misses (duplicated module copy).
   const e = error as { name?: string; message?: string } | null
-  return e?.name === 'ChunkLoadError' || /Failed to (load|fetch dynamically imported) (chunk|module)/i.test(e?.message ?? '')
+  return (
+    e?.name === 'UnrecognizedActionError' ||
+    e?.name === 'ChunkLoadError' ||
+    /was not found on the server|Failed to (load|fetch dynamically imported) (chunk|module)/i.test(e?.message ?? '')
+  )
 }
 
 /** Reloads the page for a stale-deploy error. At most once a minute, so a real bug can't loop. Returns whether it reloaded. */

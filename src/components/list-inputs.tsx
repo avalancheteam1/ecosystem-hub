@@ -169,16 +169,20 @@ export function SocialLinksInput({ label, value, onChange, max = 10 }: { label: 
 /** Free tags with suggestion chips (tech stack, skills). */
 export function TagInput({ id, value, onChange, suggestions, placeholder, max = 20, maxLength }: { id: string; value: string[]; onChange: (v: string[]) => void; suggestions: readonly string[]; placeholder: string; max?: number; maxLength?: number }) {
   const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const has = (t: string) => value.some((v) => v.toLowerCase() === t.toLowerCase())
-  // Pasted "a, b, c" becomes three tags, not one long one.
+  // Pasted "a, b, c" becomes three tags, not one long one. Too-long parts stay in the input to be shortened - never cut off.
   const add = (t: string) => {
     const next = [...value]
+    const tooLong: string[] = []
     for (const part of t.split(',')) {
-      const v = part.trim().slice(0, maxLength)
-      if (v && !next.some((x) => x.toLowerCase() === v.toLowerCase()) && next.length < max) next.push(v)
+      const v = part.trim()
+      if (maxLength && v.length > maxLength) tooLong.push(v)
+      else if (v && !next.some((x) => x.toLowerCase() === v.toLowerCase()) && next.length < max) next.push(v)
     }
     if (next.length !== value.length) onChange(next)
-    setDraft('')
+    setDraft(tooLong.join(', '))
+    setError(tooLong.length ? `Max ${maxLength} characters per entry - please shorten it` : null)
   }
   return (
     <div className="space-y-3">
@@ -189,11 +193,12 @@ export function TagInput({ id, value, onChange, suggestions, placeholder, max = 
             <button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(value.filter((x) => x !== t))} className="grid size-7 place-items-center rounded-full hover:bg-brand/20"><X className="size-3.5" aria-hidden /></button>
           </span>
         ))}
-        <Input id={id} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(draft) } }} onBlur={() => add(draft)} className="h-9 w-44 rounded-full" />
+        <Input id={id} value={draft} placeholder={placeholder} onChange={(e) => { setDraft(e.target.value); setError(null) }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(draft) } }} onBlur={() => add(draft)} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} className="h-9 w-44 rounded-full" />
       </div>
+      {error && <p id={`${id}-error`} role="alert" className="text-xs text-destructive">{error}</p>}
       <div className="flex flex-wrap gap-1.5">
         {suggestions.filter((s) => !has(s)).map((s) => (
-          <button key={s} type="button" onClick={() => add(s)} className={cn('min-h-8 rounded-full border border-dashed border-line px-3 text-xs text-fg-muted transition-colors hover:border-brand hover:text-fg-heading')}>
+          <button key={s} type="button" onClick={() => value.length < max && onChange([...value, s])} className={cn('min-h-8 rounded-full border border-dashed border-line px-3 text-xs text-fg-muted transition-colors hover:border-brand hover:text-fg-heading')}>
             + {s}
           </button>
         ))}
