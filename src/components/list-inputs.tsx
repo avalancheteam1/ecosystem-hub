@@ -167,12 +167,17 @@ export function SocialLinksInput({ label, value, onChange, max = 10 }: { label: 
 }
 
 /** Free tags with suggestion chips (tech stack, skills). */
-export function TagInput({ id, value, onChange, suggestions, placeholder, max = 20 }: { id: string; value: string[]; onChange: (v: string[]) => void; suggestions: readonly string[]; placeholder: string; max?: number }) {
+export function TagInput({ id, value, onChange, suggestions, placeholder, max = 20, maxLength }: { id: string; value: string[]; onChange: (v: string[]) => void; suggestions: readonly string[]; placeholder: string; max?: number; maxLength?: number }) {
   const [draft, setDraft] = useState('')
   const has = (t: string) => value.some((v) => v.toLowerCase() === t.toLowerCase())
+  // Pasted "a, b, c" becomes three tags, not one long one.
   const add = (t: string) => {
-    const v = t.trim()
-    if (v && !has(v) && value.length < max) onChange([...value, v])
+    const next = [...value]
+    for (const part of t.split(',')) {
+      const v = part.trim().slice(0, maxLength)
+      if (v && !next.some((x) => x.toLowerCase() === v.toLowerCase()) && next.length < max) next.push(v)
+    }
+    if (next.length !== value.length) onChange(next)
     setDraft('')
   }
   return (

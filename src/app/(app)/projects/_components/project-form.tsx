@@ -154,7 +154,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
         <SectionCard title="How it's made">
           <div className="grid gap-6">
             <Field id="tech" label="Tech stack (for submissions)" hint="Pick the main languages, frameworks and tools.">
-              <TagInput id="tech" value={f.techStack} onChange={(v) => set('techStack', v)} suggestions={TECH_STACK_DEFAULTS} placeholder="Add technology" />
+              <TagInput id="tech" value={f.techStack} onChange={(v) => set('techStack', v)} suggestions={TECH_STACK_DEFAULTS} placeholder="Add technology" maxLength={30} />
             </Field>
             <MarkdownField id="how" label="How it's made (for submissions)" hint='Describe the stack, APIs and integrations. Mention any innovative or "hacky" parts worth highlighting.' value={f.techDescription} onChange={(t) => set('techDescription', t)} rows={6} />
             <Field id="repos" label="Code repositories (for submissions)" hint="Must be public. If design-only, link a Figma file.">
