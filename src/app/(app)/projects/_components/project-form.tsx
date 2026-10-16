@@ -126,7 +126,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
               <Textarea id="short" value={f.shortDescription} onChange={(e) => set('shortDescription', e.target.value)} required maxLength={280} rows={2} />
               <div className="flex justify-end"><Counter value={f.shortDescription} max={280} /></div>
             </Field>
-            <MarkdownField id="full" label="Full description (for submissions)" hint="The problem, how it works, what's built on Avalanche." value={f.fullDescription} onChange={(t) => set('fullDescription', t)} rows={10} />
+            <MarkdownField id="full" label="Full description (for submissions)" hint="The problem, how it works, what's built on Avalanche." value={f.fullDescription} onChange={(t) => set('fullDescription', t)} rows={10} maxLength={20_000} />
             <div className="grid gap-6 sm:grid-cols-2">
               <Field id="maturity" label="Project stage" required hint={f.maturity ? PROJECT_MATURITY[f.maturity].hint : 'How far the project is - from idea to established with users.'}>
                 <NativeSelect id="maturity" required value={f.maturity ?? ''} onChange={(e) => set('maturity', e.target.value as ProjectMaturity)}>
@@ -156,7 +156,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
             <Field id="tech" label="Tech stack (for submissions)" hint="Pick the main languages, frameworks and tools.">
               <TagInput id="tech" value={f.techStack} onChange={(v) => set('techStack', v)} suggestions={TECH_STACK_DEFAULTS} placeholder="Add technology" maxLength={30} />
             </Field>
-            <MarkdownField id="how" label="How it's made (for submissions)" hint='Describe the stack, APIs and integrations. Mention any innovative or "hacky" parts worth highlighting.' value={f.techDescription} onChange={(t) => set('techDescription', t)} rows={6} />
+            <MarkdownField id="how" label="How it's made (for submissions)" hint='Describe the stack, APIs and integrations. Mention any innovative or "hacky" parts worth highlighting.' value={f.techDescription} onChange={(t) => set('techDescription', t)} rows={6} maxLength={10_000} />
             <Field id="repos" label="Code repositories (for submissions)" hint="Must be public. If design-only, link a Figma file.">
               <ValueListInput id="repos" value={f.githubRepos} onChange={(v) => set('githubRepos', v)} placeholder="https://github.com/user/repo" />
             </Field>
@@ -164,11 +164,11 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
               <div className="space-y-2">
                 {f.deployedAddresses.map((a, i) => (
                   <div key={i} className="flex flex-wrap gap-2">
-                    <Input aria-label={`Address ${i + 1} tag`} placeholder="Tag" value={a.tag} onChange={(e) => set('deployedAddresses', f.deployedAddresses.map((x, j) => (j === i ? { ...x, tag: e.target.value } : x)))} className="h-11 w-32 shrink-0" />
+                    <Input aria-label={`Address ${i + 1} tag`} placeholder="Tag" maxLength={40} value={a.tag} onChange={(e) => set('deployedAddresses', f.deployedAddresses.map((x, j) => (j === i ? { ...x, tag: e.target.value } : x)))} className="h-11 w-32 shrink-0" />
                     <NativeSelect aria-label={`Address ${i + 1} network`} value={a.network ?? DEFAULT_NETWORK} onChange={(e) => set('deployedAddresses', f.deployedAddresses.map((x, j) => (j === i ? { ...x, network: e.target.value as ProjectNetwork } : x)))} className="w-40 shrink-0">
                       {Object.entries(PROJECT_NETWORKS).map(([k, n]) => <option key={k} value={k}>{n.label}</option>)}
                     </NativeSelect>
-                    <Input aria-label={`Address ${i + 1}`} placeholder="0x…" value={a.address} onChange={(e) => set('deployedAddresses', f.deployedAddresses.map((x, j) => (j === i ? { ...x, address: e.target.value } : x)))} className="h-11 min-w-0 flex-1 basis-56 font-mono text-xs" />
+                    <Input aria-label={`Address ${i + 1}`} placeholder="0x…" maxLength={120} value={a.address} onChange={(e) => set('deployedAddresses', f.deployedAddresses.map((x, j) => (j === i ? { ...x, address: e.target.value } : x)))} className="h-11 min-w-0 flex-1 basis-56 font-mono text-xs" />
                     <Button type="button" variant="ghost" size="sm" onClick={() => set('deployedAddresses', f.deployedAddresses.filter((_, j) => j !== i))}>Remove</Button>
                   </div>
                 ))}

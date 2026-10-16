@@ -3,6 +3,7 @@ import { Kanit } from 'next/font/google'
 import localFont from 'next/font/local'
 import { headers } from 'next/headers'
 import Script from 'next/script'
+import { StaleDeployReload } from '@/components/layout/stale-deploy-reload'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { OPEN_GRAPH } from '@/lib/metadata'
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider nonce={nonce}>
           {children}
           <Toaster position="bottom-right" />
+          <StaleDeployReload />
         </ThemeProvider>
         {plausibleDomain && (
           <Script

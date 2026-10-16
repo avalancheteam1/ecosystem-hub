@@ -53,7 +53,7 @@ export function TaggedLinksInput({ label, value, onChange, max = 10 }: { label: 
       <legend className="mb-1 text-sm">{label}</legend>
       {value.map((l, i) => (
         <div key={i} className="flex gap-2">
-          <Input aria-label={`${label} ${i + 1} tag`} placeholder="Tag" value={l.tag} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, tag: e.target.value } : x)))} className="h-11 w-32 shrink-0" />
+          <Input aria-label={`${label} ${i + 1} tag`} placeholder="Tag" maxLength={40} value={l.tag} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, tag: e.target.value } : x)))} className="h-11 w-32 shrink-0" />
           <Input aria-label={`${label} ${i + 1} link`} type="url" placeholder="https://example.com" value={l.url} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} className="h-11" />
           <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${label.toLowerCase()} ${i + 1}`} onClick={() => onChange(value.filter((_, j) => j !== i))}><X aria-hidden /></Button>
         </div>
@@ -128,7 +128,7 @@ export function LinkListInput({ id, label, value, onChange, max = LINK_LIST_MAX 
                 >
                   <GripVertical className="size-4" aria-hidden />
                 </button>
-                <Input id={empty ? id : undefined} aria-label={empty ? 'New link name' : `Link ${i + 1} name`} placeholder={empty ? 'Name' : undefined} value={l.label} onPaste={onPaste} onChange={(e) => update(i, { label: e.target.value })} className="h-11 w-40 shrink-0" />
+                <Input id={empty ? id : undefined} aria-label={empty ? 'New link name' : `Link ${i + 1} name`} placeholder={empty ? 'Name' : undefined} maxLength={80} value={l.label} onPaste={onPaste} onChange={(e) => update(i, { label: e.target.value })} className="h-11 w-40 shrink-0" />
                 <Input aria-label={empty ? 'New link URL' : `Link ${i + 1} URL`} type="url" placeholder={empty ? 'https://… or paste a list of links' : undefined} value={l.url} onPaste={onPaste} onChange={(e) => update(i, { url: e.target.value })} aria-invalid={!!urlError} aria-describedby={urlError ? `${id}-error-${i}` : undefined} className="h-11 min-w-0 flex-1" />
                 <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${l.label || `link ${i + 1}`}`} disabled={empty} tabIndex={empty ? -1 : undefined} className={cn('shrink-0', empty && 'invisible')} onClick={() => onChange(value.filter((_, j) => j !== i))}><X aria-hidden /></Button>
               </div>

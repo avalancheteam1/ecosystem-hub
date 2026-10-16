@@ -5,7 +5,7 @@ import { z } from 'zod'
 const current = vi.hoisted(() => ({ user: null as unknown }))
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => current.user }))
 
-import { action, ActionError } from '@/lib/action'
+import { action, ActionError, issueMessage } from '@/lib/action'
 
 const member = { id: 'u1', name: 'A', email: 'a@x.io', image: null, isSuperAdmin: false, permissions: new Set() }
 const viewer = { ...member, permissions: new Set(['users.view']) }
@@ -60,4 +60,12 @@ test('success passes parsed input and the user to the handler', async () => {
   current.user = viewer
   const res = await action({ schema, permission: 'users.view' }, async (input, user) => `${user.id}:${input.n}`)({ n: 7 })
   assert.deepEqual(res, { ok: true, data: 'u1:7' })
+})
+
+test('Zod default messages get the field name; custom messages pass through', () => {
+  const s = z.object({ fields: z.object({ techDescription: z.string().max(3), name: z.string().max(3, 'Name: max 3') }) })
+  const msg = (input: unknown) => issueMessage(s.safeParse(input).error?.issues[0])
+  assert.match(msg({ fields: { techDescription: 'long', name: '' } }), /^Tech description: too big/)
+  assert.equal(msg({ fields: { techDescription: '', name: 'long' } }), 'Name: max 3')
+  assert.equal(issueMessage(undefined), 'Invalid input')
 })

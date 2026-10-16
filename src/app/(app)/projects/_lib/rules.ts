@@ -14,7 +14,7 @@ export const TECH_STACK_DEFAULTS = ['Solidity', 'TypeScript', 'React', 'Next.js'
 const httpUrl = z
   .string()
   .trim()
-  .max(500)
+  .max(500, 'Link: max 500 characters')
   .transform((u) => (u && !/^[a-z]+:\/\//i.test(u) ? `https://${u}` : u)) // builders-hub normalizeUrl
   .pipe(z.string().url('Enter a full link, e.g. https://example.com').refine((u) => /^https?:\/\/[^/]*\./i.test(u) || /^https?:\/\/localhost/i.test(u), 'Enter a full link, e.g. https://example.com'))
 
@@ -28,7 +28,7 @@ const linkList = (max: number, label: string) =>
     .max(max, `At most ${max} ${label}`)
     .refine((a) => new Set(a.map((x) => x.toLowerCase())).size === a.length, `Duplicate ${label} aren't allowed`)
 
-const tagged = z.array(z.object({ tag: z.string().trim().max(40), url: httpUrl })).max(10, 'At most 10 links')
+const tagged = z.array(z.object({ tag: z.string().trim().max(40, 'Tag: max 40 characters'), url: httpUrl })).max(10, 'At most 10 links')
 
 // Socials: the tag is a stable platform key - the user's pick if it's a known key, otherwise detected from the URL (or 'other').
 const socials = z
@@ -46,8 +46,8 @@ export const projectFieldsSchema = z
   .object({
     name: z.string().trim().min(1, 'Project name is required').max(60, 'Max 60 characters'),
     shortDescription: z.string().trim().min(1, 'Short description is required').max(280, 'Max 280 characters'),
-    fullDescription: z.string().trim().max(20_000, 'Description is too long'),
-    techDescription: z.string().trim().max(10_000),
+    fullDescription: z.string().trim().max(20_000, 'Full description: max 20,000 characters'),
+    techDescription: z.string().trim().max(10_000, 'How it’s made: max 10,000 characters'),
     techStack: z
       .array(z.string())
       .transform((items) => {
@@ -66,7 +66,7 @@ export const projectFieldsSchema = z
     logoUrl: optionalUrl,
     coverUrl: optionalUrl,
     screenshots: z.array(httpUrl).max(5, 'At most 5 screenshots'),
-    deployedAddresses: z.array(z.object({ address: z.string().trim().min(1, 'Address is required').max(120), tag: z.string().trim().max(40), network: z.enum(NETWORK_KEYS).default(DEFAULT_NETWORK) })).max(20),
+    deployedAddresses: z.array(z.object({ address: z.string().trim().min(1, 'Address is required').max(120, 'Address: max 120 characters'), tag: z.string().trim().max(40, 'Tag: max 40 characters'), network: z.enum(NETWORK_KEYS).default(DEFAULT_NETWORK) })).max(20),
     websites: tagged,
     socials,
   })

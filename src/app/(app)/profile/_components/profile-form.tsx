@@ -55,8 +55,8 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
             <p className="text-sm text-fg-muted">Pick all that fit - business folks, students and the curious are as welcome as developers.</p>
             <ChipToggle label="Roles" options={BUILDER_ROLES.map((r) => ({ value: r.id, label: r.name }))} value={roles} onChange={(v) => set('builderRoles', v as ProfileFormValues['builderRoles'])} />
             <div className="grid gap-4 sm:grid-cols-2">
-              {roles.includes('university') && <Field id="p-inst" label="Institution name"><Input id="p-inst" value={p.institution ?? ''} onChange={(e) => set('institution', e.target.value)} className="h-11" /></Field>}
-              {(roles.includes('founder') || roles.includes('employee')) && <Field id="p-company" label="Company name"><Input id="p-company" value={p.companyName ?? ''} onChange={(e) => set('companyName', e.target.value)} className="h-11" /></Field>}
+              {roles.includes('university') && <Field id="p-inst" label="Institution name"><Input id="p-inst" value={p.institution ?? ''} onChange={(e) => set('institution', e.target.value)} maxLength={120} className="h-11" /></Field>}
+              {(roles.includes('founder') || roles.includes('employee')) && <Field id="p-company" label="Company name"><Input id="p-company" value={p.companyName ?? ''} onChange={(e) => set('companyName', e.target.value)} maxLength={120} className="h-11" /></Field>}
               {roles.includes('employee') && (
                 <Field id="p-erole" label="Role">
                   <NativeSelect id="p-erole" value={p.employeeRole ?? ''} onChange={(e) => set('employeeRole', e.target.value as ProfileFormValues['employeeRole'])}>

@@ -34,7 +34,7 @@ export function TrackDialog({ hackathonId, track, trigger }: { hackathonId: stri
       <Field id="track-name" label="Name"><Input id="track-name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required maxLength={60} className="h-11" /></Field>
       <ImageUploadField kind="sponsor-logo" ownerId={hackathonId} value={v.sponsorLogoUrl} onChange={(url) => setV({ ...v, sponsorLogoUrl: url })} label="Sponsor logo" />
       <Field id="track-sponsor" label="Sponsor (optional)"><Input id="track-sponsor" value={v.sponsor} onChange={(e) => setV({ ...v, sponsor: e.target.value })} maxLength={80} className="h-11" /></Field>
-      <MarkdownField id="track-desc" label="Description" hint="What you want teams to build." value={v.descriptionMd} onChange={(t) => setV({ ...v, descriptionMd: t })} rows={6} />
+      <MarkdownField id="track-desc" label="Description" hint="What you want teams to build." value={v.descriptionMd} onChange={(t) => setV({ ...v, descriptionMd: t })} rows={6} maxLength={5000} />
     </FormDialog>
   )
 }

@@ -74,7 +74,7 @@ function fieldSchema(f: FieldDef): z.ZodType {
       return f.required ? s.min(1, req) : z.preprocess(blankToNull, s.nullable().optional()).transform((v) => v ?? null)
     }
     case 'url': {
-      const s = z.string().trim().max(500).url(`${f.label}: enter a full link`).refine((u) => /^https?:\/\//i.test(u), `${f.label}: link must start with https://`)
+      const s = z.string().trim().max(500, `${f.label}: max 500 characters`).url(`${f.label}: enter a full link`).refine((u) => /^https?:\/\//i.test(u), `${f.label}: link must start with https://`)
       return f.required ? s : z.preprocess(blankToNull, s.nullable().optional()).transform((v) => v ?? null)
     }
     case 'select': {

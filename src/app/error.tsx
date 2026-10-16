@@ -2,13 +2,14 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { reloadIfStale } from '@/components/layout/stale-deploy-reload'
 import { Button } from '@/components/ui/button'
 
 // Route-level error boundary: on-brand, never shows the stack. The error is in
 // the server log (Railway) and `digest` lets you find it there.
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error)
+    if (!reloadIfStale(error)) console.error(error)
   }, [error])
   return (
     <main className="hero-glow flex min-h-dvh flex-col items-center justify-center gap-6 px-4 text-center">

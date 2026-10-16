@@ -61,7 +61,7 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults, f
       }
     >
       <Field id="st-name" label="Name"><Input id="st-name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required maxLength={60} placeholder="Idea, MVP, Finals…" className="h-11" /></Field>
-      <MarkdownField id="st-desc" label="What teams submit" hint="Shown on the stage in the timeline and on the submit page." value={v.descriptionMd} onChange={(t) => setV({ ...v, descriptionMd: t })} rows={6} placeholder={'Submit your project with:\n- a public repository\n- a 2-minute demo video'} />
+      <MarkdownField id="st-desc" label="What teams submit" hint="Shown on the stage in the timeline and on the submit page." value={v.descriptionMd} onChange={(t) => setV({ ...v, descriptionMd: t })} rows={6} maxLength={10_000} placeholder={'Submit your project with:\n- a public repository\n- a 2-minute demo video'} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="st-open" label="Submissions open"><DateTimeInput id="st-open" required value={v.opensAt} onChange={(w) => setV({ ...v, opensAt: w })} timeZone={timeZone} /></Field>
         <Field id="st-close" label="Submissions close"><DateTimeInput id="st-close" required value={v.closesAt} onChange={(w) => setV({ ...v, closesAt: w })} timeZone={timeZone} /></Field>

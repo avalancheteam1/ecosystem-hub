@@ -19,6 +19,7 @@ export function MarkdownField({ id, label, hint, value, onChange, rows = 8, maxL
   required?: boolean
 }) {
   const [tab, setTab] = useState<'write' | 'preview'>('write')
+  const over = !!maxLength && value.length > maxLength
   return (
     <div className="space-y-2">
       <div className="flex items-end justify-between gap-3">
@@ -32,13 +33,21 @@ export function MarkdownField({ id, label, hint, value, onChange, rows = 8, maxL
         </div>
       </div>
       {tab === 'write' ? (
-        <Textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} maxLength={maxLength} placeholder={placeholder} required={required} className="font-mono text-[13px] leading-relaxed" />
+        // ponytail: no native maxLength - it silently cuts off pastes; the counter turns red and the server rejects instead.
+        <Textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} aria-invalid={over || undefined} placeholder={placeholder} required={required} className="font-mono text-[13px] leading-relaxed" />
       ) : (
         <div className="min-h-32 rounded-lg border border-line bg-surface-1 p-4" style={{ minHeight: `${rows * 1.6}rem` }}>
           {value.trim() ? <Markdown>{value}</Markdown> : <p className="text-sm text-fg-faint">Nothing to preview yet.</p>}
         </div>
       )}
-      <p className="text-xs text-fg-faint">{hint ? `${hint} ` : ''}Markdown: **bold**, *italic*, [link](https://…), - lists, ## headings.</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs text-fg-faint">{hint ? `${hint} ` : ''}Markdown: **bold**, *italic*, [link](https://…), - lists, ## headings.</p>
+        {maxLength && (
+          <span aria-live="polite" className={cn('shrink-0 text-xs tabular-nums', over ? 'text-destructive' : 'text-fg-faint')}>
+            {value.length.toLocaleString('en-US')}/{maxLength.toLocaleString('en-US')}{over && ' - too long'}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
