@@ -30,6 +30,10 @@ ENV STORAGE_PUBLIC_BASE_URL=$STORAGE_PUBLIC_BASE_URL
 # instead of calling server actions that no longer exist. Empty = disabled.
 ARG RAILWAY_GIT_COMMIT_SHA
 ENV NEXT_DEPLOYMENT_ID=$RAILWAY_GIT_COMMIT_SHA
+# Fixed key (Railway variable, never rotate casually): server action IDs are salted
+# with it, so unchanged actions keep their ID across deploys. Empty = new key per build.
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 RUN pnpm prisma generate
 RUN pnpm run build
 RUN pnpm run build:worker
