@@ -4,12 +4,20 @@ import { ArrowUpRight } from 'lucide-react'
 import { canonical } from '@/lib/metadata'
 import { ACADEMIES, lessonCounts, sumCounts } from './_lib/content'
 import { academyHref } from './_lib/rules'
+import { AVAX_COURSES, WORKSHOPS } from './_lib/external'
+import { AvaxAcademySection, WorkshopsSection } from './_components/external-sections'
 
 export const metadata: Metadata = {
   title: 'Education',
-  description: 'Free academies from team1 for builders in the Avalanche ecosystem - video courses, flashcards and quizzes.',
+  description: 'Free academies, hands-on workshops and Avalanche Academy courses for builders in the Avalanche ecosystem.',
   ...canonical('/education'),
 }
+
+const JUMPS = [
+  ['#academies', 'team1 academies', ACADEMIES.length],
+  ['#workshops', 'Workshops', WORKSHOPS.length],
+  ['#avalanche-academy', 'Avalanche Academy', AVAX_COURSES.reduce((n, g) => n + g.courses.length, 0)],
+] as const
 
 export default function EducationPage() {
   return (
@@ -23,12 +31,20 @@ export default function EducationPage() {
             Learn what it takes to build<span className="text-brand">.</span>
           </h1>
           <p className="animate-fade-in-up mt-6 max-w-[52ch] text-lg text-fg-body [animation-delay:160ms] sm:text-xl">
-            Academies from team1 and the Avalanche ecosystem: short videos from people who have done it, flashcards to lock it in and a quiz per module.
+            Academies from team1 with short videos, flashcards and quizzes, hands-on workshops to build along with, and the technical courses of the Avalanche Academy.
           </p>
+          <nav aria-label="On this page" className="animate-fade-in-up mt-10 flex flex-wrap gap-3 [animation-delay:240ms]">
+            {JUMPS.map(([href, label, n]) => (
+              <a key={href} href={href} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface-2/60 px-4 text-sm text-fg-body backdrop-blur transition duration-200 hover:border-brand hover:text-fg-heading">
+                {label}
+                <span className="text-fg-faint tabular-nums">{n}</span>
+              </a>
+            ))}
+          </nav>
         </div>
       </section>
 
-      <section className="container-page py-16 sm:py-20">
+      <section id="academies" aria-label="team1 academies" className="container-page scroll-mt-20 py-16 sm:py-20">
         <ul className="grid gap-6">
           {ACADEMIES.map((a, i) => {
             const t = sumCounts(lessonCounts(a), [...lessonCounts(a).keys()])
@@ -65,21 +81,14 @@ export default function EducationPage() {
               </li>
             )
           })}
-          <li>
-            <a href="https://github.com/avalancheteam1/workshops" target="_blank" rel="noreferrer" className="group flex items-start justify-between gap-4 rounded-xl border border-line bg-surface-2 p-6 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow sm:p-10">
-              <div>
-                <p className="meta">Workshops · GitHub</p>
-                <h2 className="mt-3 text-2xl sm:text-3xl">Hands-on workshops</h2>
-                <p className="mt-2 max-w-[52ch] text-fg-muted">Code and slides from team1 workshops - follow along and build on Avalanche yourself.</p>
-              </div>
-              <ArrowUpRight className="arrow-nudge mt-1 size-7 shrink-0 text-brand" aria-hidden />
-            </a>
-          </li>
           <li className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-line px-6 text-center text-fg-muted">
             More academies are on the way.
           </li>
         </ul>
       </section>
+
+      <WorkshopsSection />
+      <AvaxAcademySection />
     </>
   )
 }
