@@ -9,7 +9,10 @@ export function LessonBody({ body, quizzes, flashcards }: { body: string; quizze
   return splitLesson(body).map((s, i) => {
     if (s.kind === 'md') return <Markdown key={i} className="lesson-prose">{s.text}</Markdown>
     if (s.kind === 'quiz') return <Quiz key={i} id={s.id} quiz={quizzes[s.id]} />
-    if (s.kind === 'flashcards') return <Flashcards key={i} cards={flashcards[s.id]} />
+    if (s.kind === 'flashcards') {
+      const cards = flashcards[s.id]
+      return <Flashcards key={i} cards={cards} examples={cards.map((c, j) => c.example && <Markdown key={j} className="text-sm text-fg-muted">{c.example}</Markdown>)} />
+    }
     return (
       <div key={i} className="my-10 aspect-video max-w-[72ch] overflow-hidden rounded-xl border border-line bg-surface-1 shadow-[0_8px_40px_-12px_rgb(0_0_0/0.5)]">
         <iframe

@@ -1,6 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, milestoneDoneAt, milestoneSchema, missingForSubmission, projectFieldsSchema, versionChanged, type ProjectFieldsInput } from '@/app/(app)/projects/_lib/rules'
+import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, milestoneDoneAt, missingForSubmission, versionChanged } from '@/app/(app)/projects/_lib/rules'
+import { milestoneSchema, projectFieldsSchema, type ProjectFieldsInput } from '@/app/(app)/projects/_lib/schemas'
 
 const base: ProjectFieldsInput = {
   name: 'Snowpay', shortDescription: 'Pay with AVAX in one tap', fullDescription: 'A wallet-less checkout.', techDescription: 'Next.js + Solidity',

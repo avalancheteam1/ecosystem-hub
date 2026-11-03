@@ -19,7 +19,8 @@ import { CircleCheck, CircleDashed } from 'lucide-react'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { DEFAULT_NETWORK, PROJECT_NETWORKS, type ProjectNetwork } from '@/lib/project-networks'
 import { MilestoneList, type Milestone } from './milestones'
-import { missingForSubmission, PROJECT_CATEGORIES, TECH_STACK_DEFAULTS, type ProjectFields } from '../_lib/rules'
+import { missingForSubmission, PROJECT_CATEGORIES, TECH_STACK_DEFAULTS } from '../_lib/rules'
+import type { ProjectFields } from '../_lib/schemas'
 
 // Field set and copy from builders-hub's project submission (battle-tested).
 

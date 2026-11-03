@@ -5,7 +5,7 @@ import { action, ActionError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
-import { profileSchema } from '@/lib/profile'
+import { profileSchema } from './schemas'
 import { isOwnUpload } from '@/lib/storage'
 
 export const saveProfile = action({ schema: profileSchema, permission: 'user' }, async (input, user) => {

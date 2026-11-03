@@ -11,7 +11,8 @@ import { sendMail } from '@/lib/mailer'
 import { shortId, slugify, withSuffix } from '@/lib/slug'
 import { isOwnUpload } from '@/lib/storage'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
-import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, fieldsOf, MAX_MILESTONES, milestoneDoneAt, milestoneSchema, planSave, projectFieldsSchema, TEAM_ROLES, versionChanged, type ProjectFields } from './rules'
+import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, fieldsOf, MAX_MILESTONES, milestoneDoneAt, planSave, TEAM_ROLES, versionChanged } from './rules'
+import { milestoneSchema, projectFieldsSchema, type ProjectFields } from './schemas'
 
 const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const INVITE_DAYS = 14

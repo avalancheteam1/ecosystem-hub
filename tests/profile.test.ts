@@ -1,7 +1,8 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { flagEmoji } from '@/lib/countries'
-import { hasCompleteBasicProfile, profileSchema } from '@/lib/profile'
+import { hasCompleteBasicProfile } from '@/lib/profile'
+import { profileSchema } from '@/app/(app)/profile/_lib/schemas'
 
 const base = { name: 'Ada', bio: '', country: 'AT', builderRoles: ['developer'], institution: '', companyName: '', employeeRole: '', githubAccount: '', xAccount: '', linkedinAccount: '', telegramAccount: '', otherSocials: [], wallets: [], skills: [], newsletterOptIn: false, image: null }
 
