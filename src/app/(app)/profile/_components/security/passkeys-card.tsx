@@ -24,7 +24,7 @@ export function PasskeysCard({ passkeys }: { passkeys: PasskeyRow[] }) {
                   <span className="block text-xs text-fg-faint">Added {p.added}</span>
                 </span>
               </span>
-              <ConfirmButton message={`Remove the passkey "${p.label}"? You can't sign in with it anymore.`} disabled={pending} onConfirm={() => call(() => authClient.passkey.deletePasskey({ id: p.id }), 'Passkey removed')}>Remove</ConfirmButton>
+              <ConfirmButton message={`Remove the passkey "${p.label}"? You can't sign in with it anymore, and you're signed out on all other devices.`} disabled={pending} onConfirm={() => call(() => authClient.passkey.deletePasskey({ id: p.id }), 'Passkey removed')}>Remove</ConfirmButton>
             </li>
           ))}
         </ul>

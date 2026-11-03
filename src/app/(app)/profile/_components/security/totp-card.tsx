@@ -39,7 +39,7 @@ export function TotpCard({ enabled }: { enabled: boolean }) {
         <div className="flex flex-wrap items-center gap-3">
           <StatusPill tone="success">On</StatusPill>
           <Button variant="outline" size="sm" disabled={pending} onClick={async () => { const d = await call(() => authClient.twoFactor.generateBackupCodes({})); if (d) setCodes(d.backupCodes) }}>New backup codes</Button>
-          <ConfirmButton message="Turn off the authenticator app? Your old backup codes stop working." disabled={pending} onConfirm={() => call(() => authClient.twoFactor.disable({}), 'Authenticator app turned off')}>Turn off</ConfirmButton>
+          <ConfirmButton message="Turn off the authenticator app? Your old backup codes stop working, and you're signed out on all other devices." disabled={pending} onConfirm={() => call(() => authClient.twoFactor.disable({}), 'Authenticator app turned off')}>Turn off</ConfirmButton>
         </div>
         {codes && <BackupCodes codes={codes} />}
       </div>

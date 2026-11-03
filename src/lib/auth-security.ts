@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
 import { refreshPortalProfile } from '@/lib/member-portal'
-import { afterFailedCode, allowedWhilePending, isCodeLocked, SECOND_FACTOR_PROOF_PATHS, secondFactorPending, SESSION_CODE_PATHS, type FactorState } from '@/lib/second-factor'
+import { allowedWhilePending, CODE_LOCK_MS, codeAttemptAllowed, SECOND_FACTOR_PROOF_PATHS, secondFactorPending, SESSION_CODE_PATHS, type FactorState } from '@/lib/second-factor'
 
 // Better Auth hooks for the second factor and email change (wired in src/lib/auth.ts).
 // Rules live in src/lib/second-factor.ts.
@@ -30,9 +30,32 @@ export async function secondFactorBefore(ctx: Ctx): Promise<void> {
     throw new APIError('FORBIDDEN', { message: 'Confirm it’s you with your passkey or authenticator app first.' })
   }
   // Better Auth limits wrong TOTP/backup codes only during password sign-in; on a session it doesn't.
-  if (SESSION_CODE_PATHS.includes(ctx.path)) {
-    const tf = await prisma.twoFactor.findFirst({ where: { userId: s.user.id }, select: { lockedUntil: true } })
-    if (isCodeLocked(tf?.lockedUntil ?? null, new Date())) throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many wrong codes. Try again in 15 minutes.' })
+  if (SESSION_CODE_PATHS.includes(ctx.path)) await reserveCodeAttempt(s.user.id)
+}
+
+const locked = () => new APIError('TOO_MANY_REQUESTS', { message: 'Too many wrong codes. Try again in 15 minutes.' })
+
+/**
+ * Count this attempt before the code is checked: a single UPDATE (row lock), so parallel
+ * requests are serialised and each one counts. An expired lock starts a fresh count.
+ * A correct code resets it (secondFactorAfter).
+ */
+async function reserveCodeAttempt(userId: string): Promise<void> {
+  const now = new Date()
+  const rows = await prisma.$queryRaw<{ n: number }[]>`
+    UPDATE two_factors SET
+      "failedVerificationCount" = CASE WHEN "lockedUntil" <= ${now} THEN 1 ELSE COALESCE("failedVerificationCount", 0) + 1 END,
+      "lockedUntil" = CASE WHEN "lockedUntil" <= ${now} THEN NULL ELSE "lockedUntil" END
+    WHERE "userId" = ${userId} AND ("lockedUntil" IS NULL OR "lockedUntil" <= ${now})
+    RETURNING "failedVerificationCount" AS n`
+  if (rows.length === 0) {
+    // No row = no authenticator app (the route fails on its own); a row that didn't match is locked.
+    if (await prisma.twoFactor.count({ where: { userId } })) throw locked()
+    return
+  }
+  if (!codeAttemptAllowed(rows[0]!.n)) {
+    await prisma.twoFactor.updateMany({ where: { userId, lockedUntil: null }, data: { lockedUntil: new Date(now.getTime() + CODE_LOCK_MS) } })
+    throw locked()
   }
 }
 
@@ -47,16 +70,14 @@ export async function secondFactorAfter(ctx: Ctx): Promise<void> {
   if (!s) return
   const userId = s.user.id
 
-  if (SESSION_CODE_PATHS.includes(path)) {
-    const tf = await prisma.twoFactor.findFirst({ where: { userId }, select: { id: true, failedVerificationCount: true, lockedUntil: true } })
-    if (tf) {
-      await prisma.twoFactor.update({
-        where: { id: tf.id },
-        data: failed ? afterFailedCode(tf.failedVerificationCount ?? 0, tf.lockedUntil, new Date()) : { failedVerificationCount: 0, lockedUntil: null },
-      })
-    }
+  if (failed) return // a wrong code was already counted in secondFactorBefore
+  if (SESSION_CODE_PATHS.includes(path)) await prisma.twoFactor.updateMany({ where: { userId }, data: { failedVerificationCount: 0, lockedUntil: null } })
+
+  // Removing a factor (e.g. after losing a device) signs out every other session: they may have
+  // proven exactly that factor, and their secondFactorAt would otherwise keep them trusted.
+  if (path === '/two-factor/disable' || path === '/passkey/delete-passkey') {
+    await prisma.session.deleteMany({ where: { userId, id: { not: s.session.id } } })
   }
-  if (failed) return
 
   if (SECOND_FACTOR_PROOF_PATHS.includes(path)) await prisma.session.update({ where: { id: s.session.id }, data: { secondFactorAt: new Date() } })
 

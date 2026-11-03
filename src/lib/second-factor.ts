@@ -39,14 +39,11 @@ export const superAdminActive = (isSuperAdmin: boolean, u: FactorState, secondFa
   isSuperAdmin && hasSecondFactor(u) && !!secondFactorAt
 
 // Wrong codes on a signed-in session: lock the code check after MAX_FAILED in a row (NIST SP 800-63B §5.2.2).
-// Stored on the TwoFactor row (failedVerificationCount, lockedUntil) - survives restarts.
+// Stored on the TwoFactor row (failedVerificationCount, lockedUntil) - survives restarts. Every attempt is
+// counted atomically BEFORE the code is checked (src/lib/auth-security.ts), so parallel guesses can't slip
+// past the limit; a correct code resets the count.
 export const MAX_FAILED_CODES = 10
 export const CODE_LOCK_MS = 15 * 60_000
 
-export function afterFailedCode(failed: number, lockedUntil: Date | null, now: Date): { failedVerificationCount: number; lockedUntil: Date | null } {
-  // An expired lock starts a fresh budget.
-  const count = (lockedUntil && lockedUntil <= now ? 0 : failed) + 1
-  return { failedVerificationCount: count, lockedUntil: count >= MAX_FAILED_CODES ? new Date(now.getTime() + CODE_LOCK_MS) : null }
-}
-
-export const isCodeLocked = (lockedUntil: Date | null, now: Date) => !!lockedUntil && lockedUntil > now
+/** The n-th attempt in a row (counting this one) may still be checked. */
+export const codeAttemptAllowed = (n: number) => n <= MAX_FAILED_CODES
