@@ -27,6 +27,13 @@ export const PASSKEY_SIGN_IN_PATH = '/passkey/verify-authentication'
 /** TOTP / backup-code checks on a signed-in session, which Better Auth doesn't limit itself. */
 export const SESSION_CODE_PATHS = ['/two-factor/verify-totp', '/two-factor/verify-backup-code']
 
+/**
+ * Did a Better Auth route succeed? `ctx.context.returned` in an after hook is the response or the
+ * error. Positive check on purpose: errors come in several classes (Better Auth's APIError is a
+ * subclass of better-call's, which validation errors use) - all extend Error. Nothing = no success.
+ */
+export const endpointSucceeded = (returned: unknown) => returned !== undefined && returned !== null && !(returned instanceof Error)
+
 export type FactorState = { twoFactorEnabled: boolean; passkeys: number }
 
 export const hasSecondFactor = (u: FactorState) => u.twoFactorEnabled || u.passkeys > 0

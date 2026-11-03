@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
 import { refreshPortalProfile } from '@/lib/member-portal'
-import { allowedWhilePending, CODE_LOCK_MS, codeAttemptAllowed, SECOND_FACTOR_PROOF_PATHS, secondFactorPending, SESSION_CODE_PATHS, type FactorState } from '@/lib/second-factor'
+import { allowedWhilePending, CODE_LOCK_MS, codeAttemptAllowed, endpointSucceeded, SECOND_FACTOR_PROOF_PATHS, secondFactorPending, SESSION_CODE_PATHS, type FactorState } from '@/lib/second-factor'
 
 // Better Auth hooks for the second factor and email change (wired in src/lib/auth.ts).
 // Rules live in src/lib/second-factor.ts.
@@ -22,6 +22,9 @@ const currentSession = (ctx: Ctx) => getSessionFromCtx(ctx, { disableRefresh: tr
 
 /** Runs before every Better Auth route. */
 export async function secondFactorBefore(ctx: Ctx): Promise<void> {
+  // Routes a pending session may call anyway (incl. /get-session on every page render) need no
+  // lookup - except the code checks, which count attempts.
+  if (allowedWhilePending(ctx.path) && !SESSION_CODE_PATHS.includes(ctx.path)) return
   const s = await currentSession(ctx)
   if (!s) return
   // Fail closed: a session that still owes its second factor may only prove it or sign out -
@@ -61,16 +64,18 @@ async function reserveCodeAttempt(userId: string): Promise<void> {
 
 /** Runs after every Better Auth route (success or failure). */
 export async function secondFactorAfter(ctx: Ctx): Promise<void> {
-  const failed = ctx.context.returned instanceof APIError
   const path = ctx.path
   if (!SECOND_FACTOR_PROOF_PATHS.includes(path) && path !== '/two-factor/disable' && path !== '/passkey/delete-passkey' && path !== '/email-otp/change-email') return
+  // Only act on a positive success: any error - incl. better-call's validation error, which is not
+  // Better Auth's APIError subclass - must never prove a factor. A wrong code was already counted
+  // in secondFactorBefore.
+  if (!endpointSucceeded(ctx.context.returned)) return
   // Enabling/disabling TOTP replaces the session (newSession); otherwise it's the request's session.
   const fresh = ctx.context.newSession as SessionWithFactor | null
   const s = fresh ?? (await currentSession(ctx))
   if (!s) return
   const userId = s.user.id
 
-  if (failed) return // a wrong code was already counted in secondFactorBefore
   if (SESSION_CODE_PATHS.includes(path)) await prisma.twoFactor.updateMany({ where: { userId }, data: { failedVerificationCount: 0, lockedUntil: null } })
 
   // Removing a factor (e.g. after losing a device) signs out every other session: they may have

@@ -38,11 +38,13 @@ export const enabledSocialProviders = Object.keys(socialProviders) as ('google' 
 // Cloudflare Turnstile on the "send code" step - enabled only when both keys are set.
 export const turnstileSiteKey = process.env.TURNSTILE_SECRET_KEY ? process.env.TURNSTILE_SITE_KEY || undefined : undefined
 const SEND_OTP_PATH = '/email-otp/send-verification-otp'
+const REQUEST_EMAIL_CHANGE_PATH = '/email-otp/request-email-change'
 
 // Subject/intro of an emailed code, by Better Auth's OTP type.
 const OTP_PURPOSE = {
   'sign-in': { label: 'sign-in code', why: '' },
-  'email-verification': { label: 'confirmation code', why: 'Someone asked to change the email of your account. ' },
+  // Neutral on purpose: anyone can request one for a registered address (captcha + cooldown apply).
+  'email-verification': { label: 'confirmation code', why: '' },
   'change-email': { label: 'code for your new email', why: 'Confirm this address as the new email of your account. ' },
 } as const
 
@@ -121,11 +123,13 @@ export const auth = betterAuth({
   },
   hooks: {
     // One code per address per minute (any IP), so a botnet can't mail-bomb one inbox.
-    // Same answer whether the account exists or not - no enumeration.
+    // Same answer whether the account exists or not - no enumeration. Also covers the
+    // code to the NEW address of an email change (same budget per address).
     before: createAuthMiddleware(async (ctx) => {
       await secondFactorBefore(ctx)
-      if (ctx.path !== SEND_OTP_PATH || typeof ctx.body?.email !== 'string') return
-      const email = ctx.body.email.trim().toLowerCase()
+      const target = ctx.path === SEND_OTP_PATH ? ctx.body?.email : ctx.path === REQUEST_EMAIL_CHANGE_PATH ? ctx.body?.newEmail : undefined
+      if (typeof target !== 'string') return
+      const email = target.trim().toLowerCase()
       const { ok, retryAfterSeconds } = rateLimit(`otp-email:${email}`, { limit: 1, windowMs: 60_000 })
       if (!ok) throw new APIError('TOO_MANY_REQUESTS', { message: `Please wait ${retryAfterSeconds}s before requesting another code.` })
       // Daily cap: 10 codes x 3 guesses = 30 guesses/day against a 6-digit code (~1:33,000).

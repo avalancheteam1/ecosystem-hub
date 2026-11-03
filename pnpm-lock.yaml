@@ -173,7 +173,7 @@ importers:
         specifier: ^3.1161.0
         version: 3.1161.0
       '@better-auth/passkey':
-        specifier: 1.7.15
+        specifier: ^1.7.15
         version: 1.7.15(3869a72c1203a18be7485ee92189beb5)
       '@prisma/adapter-pg':
         specifier: ^7.10.1
