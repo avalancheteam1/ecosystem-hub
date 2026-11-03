@@ -2,15 +2,17 @@
 
 `hub.team1.network` - hackathons, workshops, bounties, education and projects for builders in the team1 / Avalanche ecosystem.
 
-Contributor and agent guide: **[AGENTS.md](AGENTS.md)** (structure, permissions, conventions). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributor and agent guide: **[AGENTS.md](AGENTS.md)** (structure, permissions, conventions).
+
+Contributions are welcome - read [CONTRIBUTING.md](CONTRIBUTING.md) first. We value design, verification and polish over lines of code.
 
 ## Local setup
 
-Requires Node 24, pnpm and Docker.
+Requires Node 24, pnpm and Postgres 18. `docker compose up -d` starts a matching Postgres on `localhost:5432`; with your own Postgres, point `DATABASE_URL` in `.env` at it.
 
 ```bash
 cp .env.example .env            # set BETTER_AUTH_SECRET and your email in SUPER_ADMIN_EMAILS
-docker compose up -d            # Postgres on localhost:5433
+docker compose up -d            # Postgres on localhost:5432 (skip if you run your own)
 pnpm install
 pnpm db:migrate                 # apply migrations
 pnpm dev                        # http://localhost:3000

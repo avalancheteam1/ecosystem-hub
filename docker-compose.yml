@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: hub
       POSTGRES_PASSWORD: hub
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - hub-pg:/var/lib/postgresql
 

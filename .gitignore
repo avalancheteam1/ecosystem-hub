@@ -1,8 +1,12 @@
-.agents/
-.claude/
+# agent tool state stays local; shared skills live in .agents/skills (.claude/skills is a symlink to it)
+.agents/*
+!.agents/skills/
+.claude/*
+!.claude/skills
 .playwright-mcp/
 .superpowers/
 docs/superpowers/
+/.local/
 
 # dependencies
 node_modules
