@@ -2,7 +2,7 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 
 const config = [
-  { ignores: ["dist/**", ".next/**", ".claude/worktrees/**", "src/generated/**"] },
+  { ignores: ["dist/**", ".next/**", ".local/**", ".claude/worktrees/**", "src/generated/**"] },
   ...nextCoreWebVitals,
   ...nextTypescript,
   {

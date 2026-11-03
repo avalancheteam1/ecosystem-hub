@@ -120,6 +120,7 @@ Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads 
 - **Profile** (`src/app/(app)/profile/`, rules `src/lib/profile.ts`): builders-hub's profile fields (roles, socials with its regexes, wallets, skills, consents), ISO-2 countries (`src/lib/countries.ts`). `hasCompleteBasicProfile` (name + country + role) is required to join a hackathon.
 
 ## Conventions
+- **Local working files:** put temporary files, personal notes, generated plans, specs and review reports in `.local/` (gitignored). Configure tools to write there where supported. Reserve `docs/` for maintained, shared documentation.
 - **Dates are always stored in UTC.** Entering a date: `<DateTimeInput timeZone>` (wall-clock time in that zone) + `toUtcIso(wall, tz)` on save, initialise with `utcToZoned(date, tz)`; pick zones with `<TimeZoneSelect>` (UTC + all IANA zones). Helpers in `src/lib/timezones.ts` (Intl only, DST-safe, tested). Never use the browser's zone for stored times. A hackathon has one `timezone` (default: the Luma event's) for all its inputs and public deadlines. Display: `formatEventRange` / `formatShortDate` with the zone; admin tables print UTC.
 - Server action results are `{ ok: true, data } | { ok: false, error }` - show `error` with `toast.error`.
 - **Env vars:** a new one goes into `.env.example` and the zod schema in `src/lib/env.ts` (checked at boot, warns only, problems shown to super admins in `/admin`).
