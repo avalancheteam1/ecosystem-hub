@@ -115,6 +115,11 @@ export default async function AcademyPage({ params }: Props) {
               </li>
             ))}
           </ol>
+          {academy.credit && (
+            <p className="mt-12 text-sm text-fg-muted">
+              Course content adapted from the <a href={academy.credit.url} className="underline underline-offset-4 hover:text-fg-heading">{academy.credit.name}</a>, used under the {academy.credit.license}.
+            </p>
+          )}
         </div>
       </section>
     </>

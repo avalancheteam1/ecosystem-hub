@@ -2,7 +2,7 @@
   "name": "team1-ecosystem-hub",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "BSD-3-Clause",
   "packageManager": "pnpm@12.16.1",
   "engines": {
     "node": ">=24.0.0 <25"

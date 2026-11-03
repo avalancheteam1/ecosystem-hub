@@ -2,7 +2,7 @@
 
 `hub.team1.network` - hackathons, workshops, bounties, education and projects for builders in the team1 / Avalanche ecosystem.
 
-Contributor and agent guide: **[AGENTS.md](AGENTS.md)** (structure, permissions, conventions).
+Contributor and agent guide: **[AGENTS.md](AGENTS.md)** (structure, permissions, conventions). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Local setup
 
@@ -22,6 +22,6 @@ Google/GitHub sign-in work once their client id/secret are set (callback URLs in
 
 Checks: `pnpm typecheck && pnpm lint && pnpm test`.
 
-## Owners
+## License
 
-Application owner and technical owner are tracked in the team1 project sheet.
+[BSD 3-Clause](LICENSE), copyright Avalanche Team1. The Entrepreneur Academy content is adapted from [Avalanche Builders Hub](https://github.com/ava-labs/builders-hub) (BSD 3-Clause, Ava Labs) - see its [LICENSE](src/app/(site)/education/_content/entrepreneur/LICENSE). The team1 name and logos are trademarks and are not covered by the license.

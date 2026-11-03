@@ -47,7 +47,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params
   const project = await getProjectForMember(slug, user.id)
   if (!project?.currentVersion) notFound()
-  const canEdit = canEditProject(project.members.find((m) => m.userId === user.id)!.role)
+  const myRole = project.members.find((m) => m.userId === user.id)!.role
+  const canEdit = canEditProject(myRole)
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
       <section className="min-w-0 rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
@@ -60,7 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       <aside className="space-y-6">
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="mb-4 text-lg">Team</h2>
-          <TeamPanel projectId={project.id} meId={user.id} members={project.members} invites={project.invites} />
+          <TeamPanel projectId={project.id} meId={user.id} members={project.members} invites={myRole === 'owner' ? project.invites : []} />
         </section>
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="mb-1 text-lg">Milestones</h2>

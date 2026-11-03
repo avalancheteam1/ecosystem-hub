@@ -40,7 +40,9 @@ export const auth = betterAuth({
   appName: 'team1 Ecosystem Hub',
   // Profile edits go through our validated + audited server action
   // (profile/_lib/actions.ts), not Better Auth's generic endpoint.
-  disabledPaths: ['/update-user'],
+  // No passwords: the email-OTP plugin's password-reset routes would mail codes
+  // past the captcha + per-email cooldown (they only guard SEND_OTP_PATH).
+  disabledPaths: ['/update-user', '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password'],
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   socialProviders,
   account: {
@@ -105,8 +107,13 @@ export const auth = betterAuth({
     // Same answer whether the account exists or not - no enumeration.
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== SEND_OTP_PATH || typeof ctx.body?.email !== 'string') return
-      const { ok, retryAfterSeconds } = rateLimit(`otp-email:${ctx.body.email.trim().toLowerCase()}`, { limit: 1, windowMs: 60_000 })
+      const email = ctx.body.email.trim().toLowerCase()
+      const { ok, retryAfterSeconds } = rateLimit(`otp-email:${email}`, { limit: 1, windowMs: 60_000 })
       if (!ok) throw new APIError('TOO_MANY_REQUESTS', { message: `Please wait ${retryAfterSeconds}s before requesting another code.` })
+      // Daily cap: 10 codes x 3 guesses = 30 guesses/day against a 6-digit code (~1:33,000).
+      // ponytail: in-memory, resets on redeploy - fine at a few deploys/day; move to the DB if that changes.
+      if (!rateLimit(`otp-email-day:${email}`, { limit: 10, windowMs: 86_400_000 }).ok)
+        throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many codes requested for this address today. Try again tomorrow or sign in with Google/GitHub.' })
     }),
   },
   advanced: {
@@ -143,6 +150,7 @@ export const auth = betterAuth({
     emailOTP({
       otpLength: 6,
       expiresIn: 300,
+      storeOTP: 'hashed', // a DB/backup reader can't use live codes
       async sendVerificationOTP({ email, otp }) {
         // Better Auth runs this as a background task and always answers success
         // (no account enumeration), so a mail failure is only visible in the

@@ -65,7 +65,8 @@ export function mapPortalEvent(payload: unknown): LumaEventData | null {
     fullAddress,
     // ponytail: the portal has no location type - no address and no city reads as online
     isOnline: !fullAddress && !city,
-    lumaVisibility: str(e.status) ?? 'public',
+    // Fail closed: a missing status must never make a private event publishable (blocksPublish).
+    lumaVisibility: str(e.status) ?? 'unknown',
   }
 }
 
