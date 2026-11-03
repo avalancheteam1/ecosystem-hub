@@ -6,6 +6,7 @@
 .playwright-mcp/
 .superpowers/
 docs/superpowers/
+/docs/ideas/
 
 # dependencies
 node_modules
