@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Mail } from 'lucide-react'
+import { KeyRound, Loader2, Mail } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SocialIcon } from '@/components/social-icon'
-import { Turnstile } from './turnstile'
+import { Turnstile } from '@/components/turnstile'
 
 const PROVIDER_LABEL = { google: 'Continue with Google', github: 'Continue with GitHub' } as const
 
@@ -31,6 +31,13 @@ export function SignInForm({ next, providers, turnstileSiteKey, nonce }: { next:
     else onOk()
   }
 
+  // Passkey sign-in proves the second factor too - no extra step afterwards.
+  const passkeyButton = (
+    <Button type="button" variant="outline" className="w-full" disabled={pending} onClick={() => run(() => authClient.signIn.passkey(), () => router.refresh())}>
+      <KeyRound aria-hidden /> Sign in with a passkey
+    </Button>
+  )
+
   return (
     <div className="mt-6 space-y-6">
       {providers.length > 0 && (
@@ -47,11 +54,14 @@ export function SignInForm({ next, providers, turnstileSiteKey, nonce }: { next:
               <SocialIcon platform={p} /> {PROVIDER_LABEL[p]}
             </Button>
           ))}
+          {passkeyButton}
           <div className="flex items-center gap-3 text-xs text-fg-faint">
             <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
           </div>
         </div>
       )}
+
+      {providers.length === 0 && passkeyButton}
 
       {step === 'email' ? (
         <form

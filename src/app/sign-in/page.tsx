@@ -6,7 +6,7 @@ import { enabledSocialProviders, turnstileSiteKey } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { hasCompleteBasicProfile } from '@/lib/profile'
 import { safeNext } from '@/lib/safe-next'
-import { getCurrentUser } from '@/lib/session'
+import { getAuthState } from '@/lib/session'
 import { Logo } from '@/components/layout/logo'
 import { SignInForm } from './_components/sign-in-form'
 
@@ -22,7 +22,9 @@ const AUDIENCES = [
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const next = safeNext((await searchParams).next)
-  const user = await getCurrentUser()
+  const state = await getAuthState()
+  if (state.status === 'pending') redirect(`/sign-in/verify?next=${encodeURIComponent(next)}`)
+  const user = state.status === 'signed-in' ? state.user : null
   // Both sign-in flows land back here: incomplete profiles (= new accounts) fill it in first,
   // then continue to `next` - the dashboard greets them when they didn't come for something specific.
   if (user) {

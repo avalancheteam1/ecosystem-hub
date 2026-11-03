@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
-import { setSuperAdmin, setUserPermissions, setUserRoles } from '../_lib/actions'
+import { ConfirmButton } from '@/components/confirm-button'
+import { resetSecondFactor, setSuperAdmin, setUserPermissions, setUserRoles } from '../_lib/actions'
 import { PermissionPicker } from './permission-picker'
 
 function useSave() {
@@ -35,6 +36,19 @@ export function SuperAdminSwitch({ userId, value, envLocked, isSelf }: { userId:
         {isSelf && value && !envLocked && <span className="block text-xs text-fg-muted">You can&apos;t remove your own access.</span>}
       </label>
     </div>
+  )
+}
+
+export function ResetSecondFactorButton({ userId, name }: { userId: string; name: string }) {
+  const { pending, save } = useSave()
+  return (
+    <ConfirmButton
+      message={`Remove all passkeys and the authenticator app of ${name}, and sign them out everywhere? Only do this after you've confirmed it's really them.`}
+      disabled={pending}
+      onConfirm={() => save(() => resetSecondFactor({ userId }), 'Sign-in step reset')}
+    >
+      Reset sign-in step
+    </ConfirmButton>
   )
 }
 
