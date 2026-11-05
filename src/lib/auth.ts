@@ -206,7 +206,10 @@ export const auth = betterAuth({
     // Optional second factors. Passwordless: enabling/removing needs a session that already
     // proved its factor (enforced in src/lib/auth-security.ts), not a password.
     twoFactor({ issuer: 'team1 Ecosystem Hub', allowPasswordless: true }),
-    passkey({ rpName: 'team1 Ecosystem Hub' }),
+    // 'required': the device must check fingerprint/face/PIN (or an unlocked password manager),
+    // enforced server-side on registration and sign-in. Without it a PIN-less security key
+    // (touch only) would count as a second factor. Such keys need a PIN set to work.
+    passkey({ rpName: 'team1 Ecosystem Hub', authenticatorSelection: { userVerification: 'required' } }),
     nextCookies(), // must stay last
   ],
 })
