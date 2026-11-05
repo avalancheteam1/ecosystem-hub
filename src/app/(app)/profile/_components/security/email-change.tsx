@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthCall } from './use-auth-call'
 
-type Step = 'idle' | 'current' | 'new'
+type Step = 'idle' | 'enter' | 'current' | 'new'
 
 const codeInput = { inputMode: 'numeric' as const, autoComplete: 'one-time-code', pattern: '[0-9]{6}', maxLength: 6, required: true, className: 'h-11 tracking-[0.3em]' }
 
@@ -24,6 +24,15 @@ export function EmailChange({ email, turnstileSiteKey, nonce }: { email: string;
 
   if (step === 'idle') {
     return (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 text-sm text-fg-body">Current email: <span className="break-all text-fg-heading">{email}</span></p>
+        <Button variant="outline" onClick={() => setStep('enter')}>Change email</Button>
+      </div>
+    )
+  }
+
+  if (step === 'enter') {
+    return (
       <form
         className="space-y-3"
         onSubmit={async (e) => {
@@ -34,12 +43,15 @@ export function EmailChange({ email, turnstileSiteKey, nonce }: { email: string;
           if (ok) setStep('current')
         }}
       >
-        <p className="text-sm text-fg-body">Signed in as <span className="text-fg-heading">{email}</span></p>
-        <Field id="new-email" label="New email">
-          <Input id="new-email" type="email" autoComplete="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value.trim())} className="h-11" />
+        <p className="text-sm text-fg-body">Change your email from <span className="break-all text-fg-heading">{email}</span> to:</p>
+        <Field id="new-email" label="New email address" hint="We send a code to your current address first, then one to the new address.">
+          <Input id="new-email" type="email" autoComplete="email" required autoFocus value={newEmail} onChange={(e) => setNewEmail(e.target.value.trim())} className="h-11" />
         </Field>
         {turnstileSiteKey && <Turnstile siteKey={turnstileSiteKey} nonce={nonce} resetKey={captchaReset} onToken={setCaptchaToken} />}
-        <Button type="submit" disabled={pending || !newEmail || newEmail.toLowerCase() === email.toLowerCase() || (!!turnstileSiteKey && !captchaToken)}>Change email</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={pending || !newEmail || newEmail.toLowerCase() === email.toLowerCase() || (!!turnstileSiteKey && !captchaToken)}>Send code</Button>
+          <Button type="button" variant="ghost" onClick={reset}>Cancel</Button>
+        </div>
       </form>
     )
   }

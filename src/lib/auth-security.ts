@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
 import { refreshPortalProfile } from '@/lib/member-portal'
-import { allowedWhilePending, CODE_LOCK_MS, codeAttemptAllowed, endpointSucceeded, SECOND_FACTOR_PROOF_PATHS, secondFactorPending, SESSION_CODE_PATHS, type FactorState } from '@/lib/second-factor'
+import { allowedWhilePending, CODE_LOCK_MS, codeAttemptAllowed, endpointSucceeded, PASSKEY_NAME_MAX, PASSKEY_NAME_PATHS, passkeyNameAllowed, SECOND_FACTOR_PROOF_PATHS, secondFactorPending, SESSION_CODE_PATHS, type FactorState } from '@/lib/second-factor'
 
 // Better Auth hooks for the second factor and email change (wired in src/lib/auth.ts).
 // Rules live in src/lib/second-factor.ts.
@@ -22,6 +22,9 @@ const currentSession = (ctx: Ctx) => getSessionFromCtx(ctx, { disableRefresh: tr
 
 /** Runs before every Better Auth route. */
 export async function secondFactorBefore(ctx: Ctx): Promise<void> {
+  if (PASSKEY_NAME_PATHS.includes(ctx.path) && !passkeyNameAllowed(ctx.body?.name)) {
+    throw new APIError('BAD_REQUEST', { message: `A passkey name has 1 to ${PASSKEY_NAME_MAX} characters.` })
+  }
   // Routes a pending session may call anyway (incl. /get-session on every page render) need no
   // lookup - except the code checks, which count attempts.
   if (allowedWhilePending(ctx.path) && !SESSION_CODE_PATHS.includes(ctx.path)) return
@@ -65,7 +68,7 @@ async function reserveCodeAttempt(userId: string): Promise<void> {
 /** Runs after every Better Auth route (success or failure). */
 export async function secondFactorAfter(ctx: Ctx): Promise<void> {
   const path = ctx.path
-  if (!SECOND_FACTOR_PROOF_PATHS.includes(path) && path !== '/two-factor/disable' && path !== '/passkey/delete-passkey' && path !== '/email-otp/change-email') return
+  if (!SECOND_FACTOR_PROOF_PATHS.includes(path) && path !== '/two-factor/disable' && path !== '/passkey/delete-passkey' && path !== '/passkey/update-passkey' && path !== '/email-otp/change-email') return
   // Only act on a positive success: any error - incl. better-call's validation error, which is not
   // Better Auth's APIError subclass - must never prove a factor. A wrong code was already counted
   // in secondFactorBefore.
@@ -92,6 +95,7 @@ export async function secondFactorAfter(ctx: Ctx): Promise<void> {
   if (path === '/two-factor/verify-totp' && fresh) await audit('user.totp.enable') // first code confirms the app
   else if (path === '/two-factor/disable') await audit('user.totp.disable')
   else if (path === '/passkey/verify-registration') await audit('user.passkey.add', { entityType: 'Passkey', entityId: String((ctx.context.returned as { id?: string } | undefined)?.id ?? userId) })
+  else if (path === '/passkey/update-passkey') await audit('user.passkey.rename', { entityType: 'Passkey', entityId: String(ctx.body?.id ?? userId), after: { name: ctx.body?.name } })
   else if (path === '/passkey/delete-passkey') await audit('user.passkey.delete', { entityType: 'Passkey', entityId: String(ctx.body?.id ?? userId) })
   else if (path === '/email-otp/change-email') await afterEmailChange(userId, ctx.context.session?.user.email, String(ctx.body?.newEmail ?? '').toLowerCase())
 }

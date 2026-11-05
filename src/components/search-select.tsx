@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -19,13 +19,22 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Sele
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
   const selected = options.find((o) => o.value === value)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch('') }}>
       <PopoverTrigger asChild>
         <button
           id={id}
           type="button"
+          // Typing on the focused trigger opens the search with that letter, like a native <select>.
+          onKeyDown={(e) => {
+            if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.key === ' ') return
+            e.preventDefault()
+            setSearch((s) => s + e.key) // append: fast typing can land here again before the search input has focus
+            setOpen(true)
+          }}
           className={cn('flex h-11 w-full items-center gap-2 rounded-lg border border-input bg-transparent px-3 text-left text-sm outline-none focus-visible:border-ring disabled:opacity-50', className)}
         >
           {selected?.icon}
@@ -33,9 +42,10 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Sele
           <ChevronsUpDown className="size-4 shrink-0 text-fg-faint" aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-64 overflow-hidden rounded-lg border-line bg-surface-2 p-0">
+      {/* Radix focuses with the text selected - the next key would replace the typed letter. */}
+      <PopoverContent onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus() }} align="start" className="w-(--radix-popover-trigger-width) min-w-64 overflow-hidden rounded-lg border-line bg-surface-2 p-0">
         <Command className="bg-transparent">
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput ref={inputRef} placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
           <CommandList className="p-1">
             <CommandEmpty className="py-6 text-center text-sm text-fg-muted">No matches.</CommandEmpty>
             {options.map((o) => (

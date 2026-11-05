@@ -64,6 +64,7 @@ export const projectFieldsSchema = z
     coverUrl: optionalUrl,
     screenshots: z.array(httpUrl).max(5, 'At most 5 screenshots'),
     deployedAddresses: z.array(z.object({ address: z.string().trim().min(1, 'Address is required').max(120, 'Address: max 120 characters'), tag: z.string().trim().max(40, 'Tag: max 40 characters'), network: z.enum(NETWORK_KEYS).default(DEFAULT_NETWORK) })).max(20),
+    websiteUrl: optionalUrl,
     websites: tagged,
     socials,
   })

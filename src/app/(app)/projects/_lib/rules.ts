@@ -7,7 +7,7 @@ import type { ProjectFields } from './schemas'
 export const PROJECT_CATEGORIES = ['Consumer', 'DeFi', 'Enterprise', 'Developer Tooling', 'RWA', 'Gaming', 'Social', 'Other (Specify)'] as const
 export const TECH_STACK_DEFAULTS = ['Solidity', 'TypeScript', 'React', 'Next.js', 'Node.js', 'Rust', 'Go', 'Python', 'PostgreSQL', 'Foundry', 'Hardhat', 'wagmi', 'viem', 'Avalanche L1', 'Docker', 'x402', 'Account Abstraction']
 
-const KEYS = ['name', 'shortDescription', 'fullDescription', 'techDescription', 'techStack', 'categories', 'otherCategory', 'maturity', 'launchDate', 'country', 'githubRepos', 'demoLinks', 'videoUrl', 'logoUrl', 'coverUrl', 'screenshots', 'deployedAddresses', 'websites', 'socials'] as const
+const KEYS = ['name', 'shortDescription', 'fullDescription', 'techDescription', 'techStack', 'categories', 'otherCategory', 'maturity', 'launchDate', 'country', 'githubRepos', 'demoLinks', 'videoUrl', 'logoUrl', 'coverUrl', 'screenshots', 'deployedAddresses', 'websiteUrl', 'websites', 'socials'] as const
 
 /** Does saving `next` on top of `prev` warrant a new version? */
 export function versionChanged(prev: ProjectFields | null, next: ProjectFields): boolean {
@@ -15,15 +15,15 @@ export function versionChanged(prev: ProjectFields | null, next: ProjectFields):
   return KEYS.some((k) => JSON.stringify(prev[k] ?? null) !== JSON.stringify(next[k] ?? null))
 }
 
-/** builders-hub's "complete submission" set (minus tracks, chosen at submit time) + project stage. */
-export function missingForSubmission(v: { maturity: string | null; fullDescription: string; techDescription: string; techStack: string[]; githubRepos: string[]; demoLinks: string[] }): string[] {
+/** builders-hub's "complete submission" set (minus tracks, chosen at submit time) + project stage; a website stands in for a demo link. */
+export function missingForSubmission(v: { maturity: string | null; fullDescription: string; techDescription: string; techStack: string[]; githubRepos: string[]; demoLinks: string[]; websiteUrl: string | null }): string[] {
   const missing: string[] = []
   if (!v.maturity) missing.push('Project stage')
   if (!v.fullDescription.trim()) missing.push('Full description')
   if (!v.techDescription.trim()) missing.push('How it’s made')
   if (!v.techStack.length) missing.push('Tech stack')
   if (!v.githubRepos.length) missing.push('Code repository')
-  if (!v.demoLinks.length) missing.push('Demo link')
+  if (!v.demoLinks.length && !v.websiteUrl) missing.push('Website or demo link') // either gives judges something to open
   return missing
 }
 

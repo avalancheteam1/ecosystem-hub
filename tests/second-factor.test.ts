@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { APIError } from 'better-auth/api'
-import { allowedWhilePending, codeAttemptAllowed, endpointSucceeded, MAX_FAILED_CODES, secondFactorPending, superAdminActive } from '@/lib/second-factor'
+import { allowedWhilePending, codeAttemptAllowed, endpointSucceeded, MAX_FAILED_CODES, PASSKEY_NAME_MAX, passkeyNameAllowed, secondFactorPending, superAdminActive } from '@/lib/second-factor'
 
 // better-call's base APIError (validation errors use it) - not a direct dependency, so resolve it
 // the way Better Auth does.
@@ -51,4 +51,13 @@ test('code attempts: the first MAX are checked, the next one locks', () => {
   assert.equal(codeAttemptAllowed(1), true)
   assert.equal(codeAttemptAllowed(MAX_FAILED_CODES), true)
   assert.equal(codeAttemptAllowed(MAX_FAILED_CODES + 1), false)
+})
+
+test('passkey names: optional, not blank, capped', () => {
+  assert.equal(passkeyNameAllowed(undefined), true) // adding without a name keeps the auto name
+  assert.equal(passkeyNameAllowed('Work laptop'), true)
+  assert.equal(passkeyNameAllowed('x'.repeat(PASSKEY_NAME_MAX)), true)
+  assert.equal(passkeyNameAllowed('x'.repeat(PASSKEY_NAME_MAX + 1)), false)
+  assert.equal(passkeyNameAllowed('   '), false)
+  assert.equal(passkeyNameAllowed(42), false)
 })

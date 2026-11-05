@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthCall } from './use-auth-call'
 
-function BackupCodes({ codes }: { codes: string[] }) {
+function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   return (
     <div className="rounded-lg border border-line bg-surface-1 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -20,6 +20,7 @@ function BackupCodes({ codes }: { codes: string[] }) {
       </div>
       <p className="mt-1 text-xs text-fg-muted">Each works once if you lose your phone. Save them somewhere safe now - they won&apos;t be shown again.</p>
       <ul className="mt-3 grid grid-cols-2 gap-1 font-mono text-sm text-fg-body">{codes.map((c) => <li key={c}>{c}</li>)}</ul>
+      <Button variant="outline" size="sm" className="mt-4" onClick={onDone}>I&apos;ve saved them</Button>
     </div>
   )
 }
@@ -41,7 +42,7 @@ export function TotpCard({ enabled }: { enabled: boolean }) {
           <Button variant="outline" size="sm" disabled={pending} onClick={async () => { const d = await call(() => authClient.twoFactor.generateBackupCodes({})); if (d) setCodes(d.backupCodes) }}>New backup codes</Button>
           <ConfirmButton message="Turn off the authenticator app? Your old backup codes stop working, and you're signed out on all other devices." disabled={pending} onConfirm={() => call(() => authClient.twoFactor.disable({}), 'Authenticator app turned off')}>Turn off</ConfirmButton>
         </div>
-        {codes && <BackupCodes codes={codes} />}
+        {codes && <BackupCodes codes={codes} onDone={() => setCodes(null)} />}
       </div>
     )
   }
@@ -51,26 +52,36 @@ export function TotpCard({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="grid items-start gap-5 sm:grid-cols-[auto_1fr]">
+    <div className="grid items-start gap-6 sm:grid-cols-[auto_1fr]">
+      <div className="w-[200px] space-y-2">
         {/* eslint-disable-next-line @next/next/no-img-element -- generated data URI, not an asset */}
         {qr && <img src={qr} alt="QR code for your authenticator app" width={200} height={200} className="rounded-lg bg-white p-2" />}
-        <div className="min-w-0 space-y-2 text-sm text-fg-body">
-          <p>1. Scan the code with an authenticator app (1Password, Google Authenticator, Authy, …).</p>
-          {secret && <p className="text-fg-muted">Can&apos;t scan? Enter this key: <span className="break-all font-mono text-fg-heading">{secret}</span></p>}
-          <p>2. Enter the 6-digit code it shows.</p>
-        </div>
+        {secret && (
+          <div>
+            <p className="text-xs text-fg-muted">Can&apos;t scan? Enter this key:</p>
+            <div className="flex items-center gap-1">
+              <code className="min-w-0 break-all font-mono text-xs text-fg-heading">{secret}</code>
+              <CopyButton value={secret} label="Copy key" />
+            </div>
+          </div>
+        )}
       </div>
-      <BackupCodes codes={setup.backupCodes} />
       <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={async (e) => { e.preventDefault(); if (await call(() => authClient.twoFactor.verifyTotp({ code }), 'Authenticator app is on')) setSetup(null) }}
+        className="min-w-0 space-y-4 text-sm text-fg-body"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          if (await call(() => authClient.twoFactor.verifyTotp({ code }), 'Authenticator app is on')) { setCodes(setup.backupCodes); setSetup(null) }
+        }}
       >
-        <Field id="totp-code" label="Code from the app">
+        <p>1. Scan the QR code with an authenticator app (1Password, Google Authenticator, Authy, …).</p>
+        <Field id="totp-code" label="2. Enter the 6-digit code it shows">
           <Input id="totp-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} className="h-11 w-40 tracking-[0.3em]" />
         </Field>
-        <Button type="submit" className="h-11" disabled={pending || code.length !== 6}>Turn on</Button>
-        <Button type="button" variant="ghost" className="h-11" onClick={() => setSetup(null)}>Cancel</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={pending || code.length !== 6}>Turn on</Button>
+          <Button type="button" variant="ghost" onClick={() => setSetup(null)}>Cancel</Button>
+        </div>
+        <p className="text-xs text-fg-faint">Next you get backup codes for when you lose your phone.</p>
       </form>
     </div>
   )

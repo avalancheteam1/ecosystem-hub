@@ -30,7 +30,7 @@ export default async function SecurityPage() {
         </div>
       )}
       <div className="space-y-6">
-        <SectionCard title="Email" description="Where your sign-in codes go. Changing it needs a code to your current and to your new address.">
+        <SectionCard title="Email address" description="Where your sign-in codes go.">
           <EmailChange email={user.email} turnstileSiteKey={turnstileSiteKey} nonce={nonce} />
         </SectionCard>
         <SectionCard

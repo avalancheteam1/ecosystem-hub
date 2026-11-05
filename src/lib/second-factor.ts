@@ -24,6 +24,12 @@ export const SECOND_FACTOR_PROOF_PATHS = ['/two-factor/verify-totp', '/two-facto
 /** Passkey sign-in: the new session is verified from the start. */
 export const PASSKEY_SIGN_IN_PATH = '/passkey/verify-authentication'
 
+/** Longest passkey name (Better Auth doesn't limit it; the hub checks in src/lib/auth-security.ts). */
+export const PASSKEY_NAME_MAX = 50
+/** Passkey routes that set a user-chosen name. */
+export const PASSKEY_NAME_PATHS = ['/passkey/update-passkey', '/passkey/verify-registration']
+export const passkeyNameAllowed = (name: unknown) => name === undefined || (typeof name === 'string' && name.trim().length > 0 && name.length <= PASSKEY_NAME_MAX)
+
 /** TOTP / backup-code checks on a signed-in session, which Better Auth doesn't limit itself. */
 export const SESSION_CODE_PATHS = ['/two-factor/verify-totp', '/two-factor/verify-backup-code']
 
