@@ -2,6 +2,7 @@
   "slug": "entrepreneur",
   "title": "Entrepreneur Academy",
   "tagline": "Build a Web3 startup that lasts.",
+  "credit": { "name": "Avalanche Builders Hub by Ava Labs", "url": "https://github.com/ava-labs/builders-hub", "license": "BSD 3-Clause License" },
   "description": "Four courses on building a Web3 startup - from legal and security foundations to go-to-market, community, tokenomics and your pitch. Taught by founders, investors and operators from the Avalanche ecosystem.",
   "courses": [
     {

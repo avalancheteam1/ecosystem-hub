@@ -3,7 +3,8 @@ import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { nextCookies } from 'better-auth/next-js'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
-import { captcha, emailOTP } from 'better-auth/plugins'
+import { captcha, emailOTP, twoFactor } from 'better-auth/plugins'
+import { passkey } from '@better-auth/passkey'
 import { prisma } from '@/lib/db'
 import { brandedShell, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
@@ -13,6 +14,8 @@ import { ensureReferralCode } from '@/lib/referral-codes'
 import { refreshPortalProfile } from '@/lib/member-portal'
 import { REF_COOKIE } from '@/app/(app)/referrals/_lib/rules'
 import { rateLimit } from '@/lib/rate-limit'
+import { secondFactorAfter, secondFactorBefore } from '@/lib/auth-security'
+import { PASSKEY_SIGN_IN_PATH } from '@/lib/second-factor'
 
 // Sign-in methods: Google, GitHub, email OTP. Each social provider is enabled
 // only when its credentials are set. Member-portal SSO will be added later via
@@ -35,12 +38,28 @@ export const enabledSocialProviders = Object.keys(socialProviders) as ('google' 
 // Cloudflare Turnstile on the "send code" step - enabled only when both keys are set.
 export const turnstileSiteKey = process.env.TURNSTILE_SECRET_KEY ? process.env.TURNSTILE_SITE_KEY || undefined : undefined
 const SEND_OTP_PATH = '/email-otp/send-verification-otp'
+const REQUEST_EMAIL_CHANGE_PATH = '/email-otp/request-email-change'
+
+// Subject/intro of an emailed code, by Better Auth's OTP type.
+const OTP_PURPOSE = {
+  'sign-in': { label: 'sign-in code', why: '' },
+  // Neutral on purpose: anyone can request one for a registered address (captcha + cooldown apply).
+  'email-verification': { label: 'confirmation code', why: '' },
+  'change-email': { label: 'code for your new email', why: 'Confirm this address as the new email of your account. ' },
+} as const
 
 export const auth = betterAuth({
   appName: 'team1 Ecosystem Hub',
   // Profile edits go through our validated + audited server action
   // (profile/_lib/actions.ts), not Better Auth's generic endpoint.
-  disabledPaths: ['/update-user'],
+  // No passwords: the email-OTP plugin's password-reset routes would mail codes
+  // past the captcha + per-email cooldown (they only guard SEND_OTP_PATH).
+  // An emailed code is no second factor on top of an emailed sign-in code: no two-factor OTP.
+  disabledPaths: [
+    '/update-user',
+    '/email-otp/request-password-reset', '/forget-password/email-otp', '/email-otp/reset-password',
+    '/two-factor/send-otp', '/two-factor/verify-otp',
+  ],
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   socialProviders,
   account: {
@@ -89,6 +108,8 @@ export const auth = betterAuth({
     },
     session: {
       create: {
+        // Signing in with a passkey proves the second factor on its own.
+        before: async (session, ctx) => (ctx?.path === PASSKEY_SIGN_IN_PATH ? { data: { ...session, secondFactorAt: new Date() } } : undefined),
         // Hackathon organiser/judge invites are by email; bind them on every
         // sign-in (invites for already-verified users bind at invite time), and
         // refresh the stored member-portal copy (tier + chapters).
@@ -102,12 +123,24 @@ export const auth = betterAuth({
   },
   hooks: {
     // One code per address per minute (any IP), so a botnet can't mail-bomb one inbox.
-    // Same answer whether the account exists or not - no enumeration.
+    // Same answer whether the account exists or not - no enumeration. The code to the NEW
+    // address of an email change has its own budget: that route has no captcha and is counted
+    // before the current-address code is checked, so sharing the sign-in budget would let any
+    // signed-in user use up someone else's sign-in codes for the day.
     before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path !== SEND_OTP_PATH || typeof ctx.body?.email !== 'string') return
-      const { ok, retryAfterSeconds } = rateLimit(`otp-email:${ctx.body.email.trim().toLowerCase()}`, { limit: 1, windowMs: 60_000 })
+      await secondFactorBefore(ctx)
+      const [bucket, target] = ctx.path === SEND_OTP_PATH ? ['otp-email', ctx.body?.email] : ctx.path === REQUEST_EMAIL_CHANGE_PATH ? ['email-change', ctx.body?.newEmail] : []
+      if (typeof target !== 'string') return
+      const email = target.trim().toLowerCase()
+      const { ok, retryAfterSeconds } = rateLimit(`${bucket}:${email}`, { limit: 1, windowMs: 60_000 })
       if (!ok) throw new APIError('TOO_MANY_REQUESTS', { message: `Please wait ${retryAfterSeconds}s before requesting another code.` })
+      // Daily cap: 10 codes x 3 guesses = 30 guesses/day against a 6-digit code (~1:33,000).
+      // ponytail: in-memory, resets on redeploy - fine at a few deploys/day; move to the DB if that changes.
+      if (!rateLimit(`${bucket}-day:${email}`, { limit: 10, windowMs: 86_400_000 }).ok)
+        throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many codes requested for this address today. Try again tomorrow or sign in with Google/GitHub.' })
     }),
+    // Marks a session verified, limits wrong codes, audits factor + email changes (src/lib/auth-security.ts).
+    after: createAuthMiddleware(secondFactorAfter),
   },
   advanced: {
     // Production: visitor → Cloudflare → Railway. Cloudflare sets cf-connecting-ip (single
@@ -119,6 +152,10 @@ export const auth = betterAuth({
     // No cookie cache: every request checks the DB session, so revoking a
     // session (or deleting a user) takes effect immediately.
     cookieCache: { enabled: false },
+    additionalFields: {
+      // When this session proved a passkey / authenticator app (src/lib/second-factor.ts). Server-set only.
+      secondFactorAt: { type: 'date', required: false, input: false },
+    },
   },
   // Better Auth's built-in rate limiter is on in production by default (in-memory,
   // per instance - move to `storage: 'database'` if the web service is scaled out).
@@ -143,25 +180,33 @@ export const auth = betterAuth({
     emailOTP({
       otpLength: 6,
       expiresIn: 300,
-      async sendVerificationOTP({ email, otp }) {
+      storeOTP: 'hashed', // a DB/backup reader can't use live codes
+      // Changing the email needs a code to the current AND the new address (profile → security).
+      changeEmail: { enabled: true, verifyCurrentEmail: true },
+      async sendVerificationOTP({ email, otp, type }) {
         // Better Auth runs this as a background task and always answers success
         // (no account enumeration), so a mail failure is only visible in the
         // server log as "[Better Auth]: Failed to run background task".
+        const what = OTP_PURPOSE[type as keyof typeof OTP_PURPOSE] ?? OTP_PURPOSE['sign-in']
         await sendMail({
           to: email,
-          subject: `${otp} is your team1 Ecosystem Hub sign-in code`,
-          text: `Your team1 Ecosystem Hub sign-in code is ${otp}.\n\nIt expires in 5 minutes. If you didn't request it, ignore this email.`,
+          subject: `${otp} is your team1 Ecosystem Hub ${what.label}`,
+          text: `Your team1 Ecosystem Hub ${what.label} is ${otp}.\n\n${what.why}It expires in 5 minutes. If you didn't request it, ignore this email and don't share the code.`,
           html: brandedShell({
-            preheader: `Your team1 Ecosystem Hub sign-in code is ${otp}`,
+            preheader: `Your team1 Ecosystem Hub ${what.label} is ${otp}`,
             body: `<tr><td class="m-px" style="${CELL}">
-              <p style="${PARA}">Your team1 Ecosystem Hub sign-in code:</p>
+              <p style="${PARA}">${what.why}Your team1 Ecosystem Hub ${what.label}:</p>
               <p style="margin:24px 0;text-align:center;font-size:32px;font-weight:600;letter-spacing:0.3em;color:#18181b;font-family:monospace">${esc(otp)}</p>
-              <p style="${PARA}">It expires in 5 minutes. If you didn&rsquo;t request it, you can safely ignore this email.</p>
+              <p style="${PARA}">It expires in 5 minutes. If you didn&rsquo;t request it, you can safely ignore this email - and don&rsquo;t share the code.</p>
             </td></tr>`,
           }),
         })
       },
     }),
+    // Optional second factors. Passwordless: enabling/removing needs a session that already
+    // proved its factor (enforced in src/lib/auth-security.ts), not a password.
+    twoFactor({ issuer: 'team1 Ecosystem Hub', allowPasswordless: true }),
+    passkey({ rpName: 'team1 Ecosystem Hub' }),
     nextCookies(), // must stay last
   ],
 })

@@ -11,7 +11,7 @@ import { StageStateBadge } from '@/components/stage-state-badge'
 import { Button } from '@/components/ui/button'
 import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { formatEventRange, formatShortDate } from '@/lib/dates'
-import { readLinks } from '@/lib/links'
+import { readLinks } from '@/lib/link-schemas'
 import { cn } from '@/lib/utils'
 import { LeaveHackathonButton, WithdrawSubmissionButton } from './participant-buttons'
 

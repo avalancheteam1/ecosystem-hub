@@ -35,6 +35,11 @@ test('mapPortalEvent: no address and no city = online; defaults for missing fiel
   assert.equal(e.lumaUrl, 'https://luma.com/evt-abc123')
 })
 
+test('mapPortalEvent: a missing status blocks publishing (fail closed)', () => {
+  const e = mapPortalEvent({ ...full, status: undefined })!
+  assert.equal(blocksPublish({ source: 'portal', ...e }), true)
+})
+
 test('mapPortalEvent rejects unusable payloads', () => {
   assert.equal(mapPortalEvent(null), null)
   assert.equal(mapPortalEvent({ ...full, id: 'abc' }), null)

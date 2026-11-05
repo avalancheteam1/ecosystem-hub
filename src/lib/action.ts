@@ -32,7 +32,7 @@ export function action<S extends z.ZodType, T>(
     const user = await getCurrentUser()
     if (!user) return { ok: false, error: 'Not signed in' }
     if (opts.permission === 'superAdmin' ? !user.isSuperAdmin : opts.permission !== 'user' && !can(user, opts.permission)) {
-      return { ok: false, error: 'Forbidden' }
+      return { ok: false, error: user.superAdminNeedsSecondFactor ? 'Set up a passkey or authenticator app first (Profile → Sign-in & security) to use super admin powers.' : 'Forbidden' }
     }
     const parsed = opts.schema.safeParse(input)
     if (!parsed.success) return { ok: false, error: issueMessage(parsed.error.issues[0]) }

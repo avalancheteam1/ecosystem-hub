@@ -4,7 +4,8 @@ export type LessonMeta = { slug: string; title: string; description: string }
 export type CourseModule = { slug: string; label: string; title: string; lessons: LessonMeta[] }
 export type Course = { slug: string; title: string; description: string; intro: string; modules: CourseModule[] }
 /** One academy = one folder in `_content/` (academy.json + quizzes.json + flashcards.json). */
-export type Academy = { slug: string; title: string; tagline: string; description: string; courses: Course[] }
+/** `credit`: where the content comes from (shown on the academy page; license file in the content folder). */
+export type Academy = { slug: string; title: string; tagline: string; description: string; credit?: { name: string; url: string; license: string }; courses: Course[] }
 
 export type QuizQuestion = { question: string; options: string[]; correctAnswers: number[]; hint: string; explanation: string }
 export type Quiz = QuizQuestion & { alternates: QuizQuestion[] }

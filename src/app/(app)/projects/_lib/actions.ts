@@ -8,13 +8,18 @@ import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA, SMALL } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
+import { rateLimit } from '@/lib/rate-limit'
 import { shortId, slugify, withSuffix } from '@/lib/slug'
 import { isOwnUpload } from '@/lib/storage'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
-import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, fieldsOf, MAX_MILESTONES, milestoneDoneAt, milestoneSchema, planSave, projectFieldsSchema, TEAM_ROLES, versionChanged, type ProjectFields } from './rules'
+import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, fieldsOf, MAX_MILESTONES, milestoneDoneAt, planSave, TEAM_ROLES, versionChanged } from './rules'
+import { milestoneSchema, projectFieldsSchema, type ProjectFields } from './schemas'
 
 const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 const INVITE_DAYS = 14
+// Invites mail any address from our domain - caps keep that from becoming a spam/phishing relay.
+const MAX_OPEN_INVITES = 20
+const INVITES_PER_HOUR = 20
 const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex')
 
 async function membership(projectId: string, userId: string) {
@@ -160,6 +165,9 @@ export const inviteMember = action(
     if (!project || project.archivedAt) throw new ActionError('Project not found')
     const already = await prisma.projectMember.findFirst({ where: { projectId, user: { email } } })
     if (already) throw new ActionError('That person is already on the team') // never re-invite (no downgrades)
+    const open = await prisma.projectInvite.count({ where: { projectId, email: { not: email }, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } })
+    if (open >= MAX_OPEN_INVITES) throw new ActionError(`A project can have at most ${MAX_OPEN_INVITES} open invites - revoke some first`)
+    if (!rateLimit(`project-invite:${user.id}`, { limit: INVITES_PER_HOUR, windowMs: 3_600_000 }).ok) throw new ActionError('Too many invites sent - try again in an hour')
     const token = crypto.randomBytes(32).toString('base64url')
     await prisma.$transaction([
       prisma.projectInvite.updateMany({ where: { projectId, email, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } }),

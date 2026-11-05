@@ -18,13 +18,24 @@ function withRefCookie(request: NextRequest, res: NextResponse): NextResponse {
   return res
 }
 
+// Image hosts: Luma covers, Google/GitHub avatars, our uploads (same list as next.config.ts
+// remotePatterns). Nothing else - so user Markdown can't embed tracking pixels.
+const uploadsOrigin = (() => {
+  try {
+    return process.env.STORAGE_PUBLIC_BASE_URL ? ` ${new URL(process.env.STORAGE_PUBLIC_BASE_URL).origin}` : ''
+  } catch {
+    return ''
+  }
+})()
+const IMG_SRC = `'self' data: blob: https://images.lumacdn.com https://lh3.googleusercontent.com https://avatars.githubusercontent.com${uploadsOrigin}`
+
 function buildCsp(nonce: string): string {
   const devEval = process.env.NODE_ENV !== 'production' ? " 'unsafe-eval'" : ''
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${devEval} https://wal.team1.network https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
+    `img-src ${IMG_SRC}`,
     "font-src 'self' data:",
     "connect-src 'self' https://wal.team1.network",
     // Cloudflare Turnstile (sign-in captcha) and education videos render in iframes.

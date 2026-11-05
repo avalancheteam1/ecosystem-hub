@@ -25,6 +25,8 @@ model User {
   newsletterOptIn Boolean  @default(false)
   /// Grantable only by other super admins (/admin/access). SUPER_ADMIN_EMAILS also counts.
   isSuperAdmin    Boolean  @default(false)
+  /// Better Auth twoFactor plugin: true once a TOTP app is confirmed.
+  twoFactorEnabled Boolean @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -49,6 +51,8 @@ model User {
   referredBy         Referral?            @relation("ReferredBy")
   groupMemberships   GroupMember[]
   portalProfile      PortalProfile?
+  twoFactors         TwoFactor[]
+  passkeys           Passkey[]
 
   @@map("users")
 }
@@ -63,6 +67,8 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// When this session last proved a second factor (passkey / TOTP / backup code). See src/lib/second-factor.ts.
+  secondFactorAt DateTime?
 
   @@index([userId])
   @@index([expiresAt])
@@ -100,4 +106,40 @@ model Verification {
   @@index([identifier])
   @@index([expiresAt])
   @@map("verifications")
+}
+
+// Better Auth twoFactor plugin (TOTP + backup codes). Secret and codes are encrypted with BETTER_AUTH_SECRET.
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+  @@map("two_factors")
+}
+
+// Better Auth passkey plugin (WebAuthn credentials - public keys only).
+model Passkey {
+  id           String    @id
+  name         String?
+  publicKey    String
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime?
+  aaguid       String?
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkeys")
 }

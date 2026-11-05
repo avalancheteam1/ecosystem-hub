@@ -1,0 +1,32 @@
+name: Bug report
+description: Something on the hub doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Page URL, your role (builder, organiser, judge, admin) and the steps.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: Optional. Remove personal data and secrets first.
+  - type: checkboxes
+    id: work
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to fix this myself

@@ -2,7 +2,7 @@
   "name": "team1-ecosystem-hub",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "BSD-3-Clause",
   "packageManager": "pnpm@12.16.1",
   "engines": {
     "node": ">=24.0.0 <25"
@@ -29,15 +29,16 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",
+    "@better-auth/passkey": "^1.7.16",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "better-auth": "^1.7.14",
+    "better-auth": "^1.7.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "image-size": "^2.0.4",
-    "lucide-react": "^1.66.0",
-    "next": "^16.4.3",
+    "lucide-react": "^1.68.0",
+    "next": "^16.4.5",
     "next-themes": "^0.4.6",
     "nodemailer": "^10.3.1",
     "pg-boss": "^12.38.0",
@@ -55,7 +56,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.4",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.6",
@@ -63,12 +64,12 @@
     "@types/react-dom": "^19.3.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.5",
     "postcss": "^8.5.32",
     "prisma": "^7.10.1",
-    "tailwindcss": "^4.3.3",
+    "tailwindcss": "^4.3.4",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }

@@ -3,7 +3,7 @@ import { CircleCheck, CircleAlert } from 'lucide-react'
 import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
 import { publishChecklist } from '@/app/(site)/events/_lib/hackathons/rules'
 import { requireUser } from '@/lib/guards'
-import { readLinks } from '@/lib/links'
+import { readLinks } from '@/lib/link-schemas'
 import { OverviewForm } from './_components/overview-form'
 
 export default async function ManageOverviewPage({ params }: { params: Promise<{ id: string }> }) {

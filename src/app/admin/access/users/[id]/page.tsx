@@ -7,7 +7,7 @@ import { prisma } from '@/lib/db'
 import { requireSuperAdmin } from '@/lib/guards'
 import { isPermission } from '@/lib/permissions'
 import { isEnvSuperAdmin } from '@/lib/session'
-import { SuperAdminSwitch, UserGrantsForm, UserRolesForm } from '../../_components/user-access-forms'
+import { ResetSecondFactorButton, SuperAdminSwitch, UserGrantsForm, UserRolesForm } from '../../_components/user-access-forms'
 
 export const metadata: Metadata = { title: 'User access' }
 
@@ -18,7 +18,7 @@ export default async function UserAccessPage({ params }: { params: Promise<{ id:
     prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, name: true, email: true, emailVerified: true, isSuperAdmin: true,
+        id: true, name: true, email: true, emailVerified: true, isSuperAdmin: true, twoFactorEnabled: true, _count: { select: { passkeys: true } },
         roles: { select: { role: { select: { id: true, label: true, permissions: true } } } },
         permissions: { select: { permission: true } },
       },
@@ -44,6 +44,16 @@ export default async function UserAccessPage({ params }: { params: Promise<{ id:
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="space-y-6 rounded-xl border border-line bg-surface-2 p-6">
           <SuperAdminSwitch userId={user.id} value={user.isSuperAdmin} envLocked={envLocked} isSelf={actor.id === user.id} />
+          <div>
+            <h2 className="mb-1 text-lg">Sign-in step</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-fg-body">
+              <span>
+                {user._count.passkeys} {user._count.passkeys === 1 ? 'passkey' : 'passkeys'} · authenticator app {user.twoFactorEnabled ? 'on' : 'off'}
+                {(user.isSuperAdmin || envLocked) && !user.twoFactorEnabled && user._count.passkeys === 0 && <span className="block text-xs text-warning">Super admin powers stay off until they set one up.</span>}
+              </span>
+              {(user.twoFactorEnabled || user._count.passkeys > 0) && <ResetSecondFactorButton userId={user.id} name={user.name} />}
+            </div>
+          </div>
           <div>
             <h2 className="mb-3 text-lg">Roles</h2>
             <UserRolesForm userId={user.id} roles={roles} initial={user.roles.map((r) => r.role.id)} />

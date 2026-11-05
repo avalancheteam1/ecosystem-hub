@@ -73,6 +73,24 @@ export const setSuperAdmin = action(
   },
 )
 
+/** Recovery: someone lost every passkey and their authenticator app. Removes all of them and signs the user out everywhere. */
+export const resetSecondFactor = action(
+  { schema: z.object({ userId: z.string().min(1) }), permission: 'superAdmin' },
+  async ({ userId }, user) => {
+    const before = await prisma.user.findUnique({ where: { id: userId }, select: { twoFactorEnabled: true, _count: { select: { passkeys: true } } } })
+    if (!before) throw new ActionError('User not found')
+    await prisma.$transaction([
+      prisma.passkey.deleteMany({ where: { userId } }),
+      prisma.twoFactor.deleteMany({ where: { userId } }),
+      prisma.user.update({ where: { id: userId }, data: { twoFactorEnabled: false } }),
+      prisma.session.deleteMany({ where: { userId } }),
+    ])
+    await recordAudit({ actorId: user.id, action: 'user.secondFactor.reset', entityType: 'User', entityId: userId, before: { twoFactorEnabled: before.twoFactorEnabled, passkeys: before._count.passkeys }, after: { twoFactorEnabled: false, passkeys: 0 } })
+    revalidatePath(`/admin/access/users/${userId}`)
+    return null
+  },
+)
+
 export const setUserRoles = action(
   { schema: z.object({ userId: z.string().min(1), roleIds: z.array(z.string().min(1)).transform((ids) => [...new Set(ids)]) }), permission: 'superAdmin' },
   async ({ userId, roleIds }, user) => {

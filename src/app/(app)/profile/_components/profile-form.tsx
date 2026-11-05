@@ -41,7 +41,7 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
         <div className="grid gap-6">
           <ImageUploadField kind="avatar" ownerId={userId} value={p.image ?? null} onChange={(v) => set('image', v)} label="Profile picture" />
           <div className="grid gap-6 sm:grid-cols-2">
-            <Field id="p-name" label="Full name" required hint="Shown across the Ecosystem Hub."><Input id="p-name" required value={p.name} onChange={(e) => set('name', e.target.value)} maxLength={80} className="h-11" /></Field>
+            <Field id="p-name" label="Full name" required hint="Shown across the Ecosystem Hub."><Input id="p-name" required autoFocus={onboarding} value={p.name} onChange={(e) => set('name', e.target.value)} maxLength={80} className="h-11" /></Field>
             <Field id="p-country" label="Country" required hint="Helps match you with local programs and events.">
               <CountrySelect id="p-country" value={p.country} onChange={(v) => set('country', v)} countries={countries} />
             </Field>

@@ -37,7 +37,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       select: {
         id: true,
         slug: true,
-        currentVersion: { select: { name: true, logoUrl: true, maturity: true, updatedAt: true, fullDescription: true, techDescription: true, techStack: true, githubRepos: true, demoLinks: true } },
+        currentVersion: { select: { name: true, logoUrl: true, maturity: true, updatedAt: true, fullDescription: true, techDescription: true, techStack: true, githubRepos: true, demoLinks: true, websiteUrl: true } },
         milestones: { where: { status: { in: ['planned', 'in_progress'] } }, orderBy: { targetDate: 'asc' }, take: 1, select: { title: true, targetDate: true } },
       },
     }),
@@ -95,7 +95,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <AvatarFallback className="bg-surface-hover text-lg">{initials(u.name)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <h1 className={cn('text-3xl sm:text-4xl', !welcome && 'truncate')}>{welcome ? <>Welcome to team1, {first}<span className="text-brand">.</span></> : `Hi, ${first}`}</h1>
+          <h1 className={cn('text-3xl sm:text-4xl', !welcome && 'truncate')}>{welcome ? <>Welcome to the team1 Ecosystem Hub, {first}<span className="text-brand">.</span></> : `Hi, ${first}`}</h1>
           <p className={cn('mt-1 text-fg-muted', !welcome && 'truncate')}>{welcome ? 'You’re in. Glad to have you - here’s where to start.' : meta.length ? meta.join(' - ') : user.email}</p>
         </div>
         <Button asChild variant="outline"><Link href="/profile">Edit profile</Link></Button>

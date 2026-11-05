@@ -84,6 +84,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           )}
           <div className="rounded-xl border border-line bg-surface-2 px-5 py-2">
             <ul className="divide-y divide-line text-sm">
+              <li><Link href="/profile/security" className="flex min-h-11 items-center text-fg-body hover:text-fg-heading">Sign-in &amp; security</Link></li>
               <li><Link href="/projects" className="flex min-h-11 items-center text-fg-body hover:text-fg-heading">Your projects</Link></li>
               <li><Link href="/referrals" className="flex min-h-11 items-center text-fg-body hover:text-fg-heading">Your referral links</Link></li>
               <li>

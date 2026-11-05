@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
 import { AdminNavLink } from '@/components/layout/admin-nav-link'
 import { SiteHeader } from '@/components/layout/site-header'
 import { envProblems } from '@/lib/env'
-import { requireUser } from '@/lib/guards'
+import { denyAccess, requireUser } from '@/lib/guards'
 import { holdsAny } from '@/lib/permissions'
 import { ADMIN_NAV } from './_lib/nav'
 
@@ -11,7 +10,7 @@ export const metadata: Metadata = { title: { default: 'Admin', template: '%s · 
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
-  if (!holdsAny(user)) notFound()
+  if (!holdsAny(user)) denyAccess(user)
   const items = ADMIN_NAV.filter((i) => i.show(user))
   // Variable names only, never values.
   const envIssues = user.isSuperAdmin ? envProblems(process.env) : []

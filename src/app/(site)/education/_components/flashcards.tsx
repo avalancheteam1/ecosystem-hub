@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import type { Flashcard } from '../_lib/rules'
 
-export function Flashcards({ cards }: { cards: Flashcard[] }) {
+/** `examples[i]` is card i's example, rendered on the server (keeps the Markdown parser out of the browser). */
+export function Flashcards({ cards, examples }: { cards: Flashcard[]; examples: ReactNode[] }) {
   const [i, setI] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const card = cards[i]
@@ -23,7 +23,7 @@ export function Flashcards({ cards }: { cards: Flashcard[] }) {
         {revealed && (
           <div className="mt-4 space-y-3">
             <p className="text-fg-body">{card.definition}</p>
-            {card.example && <Markdown className="text-sm text-fg-muted">{card.example}</Markdown>}
+            {examples[i]}
           </div>
         )}
       </div>

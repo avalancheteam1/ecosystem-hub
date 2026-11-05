@@ -19,7 +19,8 @@ import { CircleCheck, CircleDashed } from 'lucide-react'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { DEFAULT_NETWORK, PROJECT_NETWORKS, type ProjectNetwork } from '@/lib/project-networks'
 import { MilestoneList, type Milestone } from './milestones'
-import { missingForSubmission, PROJECT_CATEGORIES, TECH_STACK_DEFAULTS, type ProjectFields } from '../_lib/rules'
+import { missingForSubmission, PROJECT_CATEGORIES, TECH_STACK_DEFAULTS } from '../_lib/rules'
+import type { ProjectFields } from '../_lib/schemas'
 
 // Field set and copy from builders-hub's project submission (battle-tested).
 
@@ -27,7 +28,7 @@ const EMPTY: ProjectFields = {
   name: '', shortDescription: '', fullDescription: '', techDescription: '', techStack: [], categories: [], otherCategory: null, maturity: null as unknown as ProjectFields['maturity'], // must be picked
   launchDate: null,
   country: null,
-  githubRepos: [], demoLinks: [], videoUrl: null, logoUrl: null, coverUrl: null, screenshots: [], deployedAddresses: [], websites: [], socials: [],
+  githubRepos: [], demoLinks: [], videoUrl: null, logoUrl: null, coverUrl: null, screenshots: [], deployedAddresses: [], websiteUrl: null, websites: [], socials: [],
 }
 
 function Counter({ value, max }: { value: string; max: number }) {
@@ -36,7 +37,7 @@ function Counter({ value, max }: { value: string; max: number }) {
 
 const BASICS = ['Project name', 'Short description', 'Project stage'] as const
 // Stage is also in missingForSubmission (old versions lack it); here it's a basic, required to save.
-const FOR_SUBMISSION = ['Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Demo link'] as const
+const FOR_SUBMISSION = ['Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Website or demo link'] as const
 
 function Checklist({ title, items, missing }: { title: string; items: readonly string[]; missing: string[] }) {
   return (
@@ -122,6 +123,9 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
             <Field id="name" label="Project name" required>
               <Input id="name" value={f.name} onChange={(e) => set('name', e.target.value)} required maxLength={60} placeholder="Enter your project name" className="h-11" />
             </Field>
+            <Field id="website" label="Website" hint="The project's main website - shown at the top of the project page.">
+              <Input id="website" type="url" value={f.websiteUrl ?? ''} onChange={(e) => set('websiteUrl', e.target.value)} placeholder="https://yourproject.xyz" maxLength={500} className="h-11" />
+            </Field>
             <Field id="short" label="Short description" required hint="A short and engaging overview - shown on cards and to judges first.">
               <Textarea id="short" value={f.shortDescription} onChange={(e) => set('shortDescription', e.target.value)} required maxLength={280} rows={2} />
               <div className="flex justify-end"><Counter value={f.shortDescription} max={280} /></div>
@@ -180,7 +184,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
 
         <SectionCard title="Demo & media">
           <div className="grid gap-6">
-            <Field id="demo" label="Demo and other links (for submissions)" hint="Live demo, deck, Google Drive folder, website… YouTube and Loom go in the video field.">
+            <Field id="demo" label="Demo and other links" hint="Live demo, deck, Google Drive folder… Submissions need a demo link or the website above. YouTube and Loom go in the video field.">
               <ValueListInput id="demo" value={f.demoLinks} onChange={(v) => set('demoLinks', v)} placeholder="https://yoursite.com" />
             </Field>
             <Field id="video" label="Demo video" hint="YouTube, Loom or Vimeo. At least 720p, clear audio, no background music.">
@@ -201,7 +205,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
 
         <SectionCard title="Website & socials">
           <div className="grid gap-6 lg:grid-cols-2">
-            <TaggedLinksInput label="Websites" value={f.websites} onChange={(v) => set('websites', v)} />
+            <TaggedLinksInput label="Other websites" value={f.websites} onChange={(v) => set('websites', v)} />
             <SocialLinksInput label="Socials" value={f.socials} onChange={(v) => set('socials', v)} />
           </div>
         </SectionCard>

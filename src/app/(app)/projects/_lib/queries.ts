@@ -24,7 +24,7 @@ export const getProjectForMember = cache(async (slug: string, userId: string) =>
       currentVersion: true,
       milestones: { orderBy: [{ targetDate: 'asc' }, { createdAt: 'asc' }] },
       members: { include: { user: { select: { id: true, name: true, email: true, image: true } } }, orderBy: { createdAt: 'asc' } },
-      invites: { where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } },
+      invites: { where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, select: { id: true, email: true, role: true } },
       versions: {
         orderBy: { number: 'desc' },
         select: {

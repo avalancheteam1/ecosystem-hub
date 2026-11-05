@@ -1,6 +1,7 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { linkListSchema, parseLinks, readLinks } from '@/lib/links'
+import { linkListSchema, readLinks } from '@/lib/link-schemas'
+import { parseLinks } from '@/lib/links'
 
 test('markdown links, list markers and numbering are ignored', () => {
   const text = ['- [Docs](https://docs.example.com)', '* [Faucet](https://faucet.example.com "Testnet AVAX")', '1. [Starter kit](<https://github.com/x/kit>)', '2) - [ ] [**Discord**](https://discord.gg/abc)'].join('\n')

@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Markdown } from '@/components/markdown'
 import { SocialIcon, socialPlatform } from '@/components/social-icon'
 import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
 import { initials } from '@/lib/utils'
 import { countryName, flagEmoji } from '@/lib/countries'
 import { networkLabel } from '@/lib/project-networks'
@@ -58,6 +59,11 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
               {categories.join(' / ')}
             </p>
           )}
+          {v.websiteUrl && (
+            <a href={v.websiteUrl} target="_blank" rel="noreferrer nofollow" className={buttonVariants({ className: 'mt-3 max-w-full' })}>
+              <Globe className="size-4 shrink-0" aria-hidden /> <span className="truncate">{host(v.websiteUrl)}</span>
+            </a>
+          )}
         </div>
       </header>
 
@@ -110,7 +116,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
               </dd>
             </div>
           )}
-          {[['Websites', websites], ['Socials', socials]].map(([label, links]) =>
+          {[[v.websiteUrl ? 'Other websites' : 'Websites', websites], ['Socials', socials]].map(([label, links]) =>
             (links as Tagged[]).length ? (
               <div key={label as string}>
                 <dt className="mb-2 text-fg-muted">{label as string}</dt>

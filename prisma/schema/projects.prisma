@@ -51,6 +51,8 @@ model ProjectVersion {
   screenshots       String[]
   /// [{ address, tag }]
   deployedAddresses Json      @default("[]")
+  /// The main website, shown prominently; `websites` holds further ones
+  websiteUrl        String?
   /// [{ tag, url }]
   websites          Json      @default("[]")
   /// [{ tag, url }]

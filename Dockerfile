@@ -47,6 +47,10 @@ FROM base AS worker-deps
 WORKDIR /worker
 COPY prisma/ prisma/
 COPY prisma.config.ts ./
+# the 4 top-level versions are exact, their transitive deps resolve fresh -
+# the workspace file at least applies minimumReleaseAge + overrides to them. A full
+# `pnpm i --frozen-lockfile --prod` would be exact but adds every app dep (~250 MB).
+COPY pnpm-workspace.yaml ./
 COPY --from=build /app/worker-deps.txt ./
 RUN pnpm init && pnpm add --allow-build=@prisma/engines --allow-build=prisma $(cat worker-deps.txt) && pnpm prisma generate
 
