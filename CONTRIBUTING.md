@@ -19,6 +19,16 @@ For anything beyond a small fix, align with us in an issue first - we check it's
 - **Tests.** New or changed logic comes with tests in `tests/` that fail without your change. A bug fix includes a test that reproduces the bug.
 - **Database: at most one migration per PR**, created with `pnpm db:migrate --name <change>`, never `prisma db push`. Squash your migrations into one before review and rebase so yours is the newest. Never edit an existing migration. Migrations must be safe while the previous version is still running (add columns nullable or with defaults; drop in a later release).
 - **A short description:** a few lines on what and why, the linked issue, and screenshots for UI changes. No long generated write-ups - we verify by running your branch.
+- **PR title** in the commit format below.
+
+## Commit messages
+
+[Conventional Commits](https://www.conventionalcommits.org): `type(scope): summary`, lowercase, imperative, no trailing period - e.g. `feat(events): add judge invites`, `fix(auth): lock 2fa after 10 wrong codes`.
+
+- **type:** `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore` (deps, config, tooling).
+- **scope:** the area (`events`, `projects`, `referrals`, `education`, `profile`) or `auth`, `admin`, `core`, `db`. Optional when nothing fits.
+
+Required for the PR title, recommended for the commits on your branch (not enforced).
 
 ## Before you request review
 

@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { shortId, slugify, withSuffix } from '@/lib/slug'
 import { fetchLumaEvent, type LumaEventData } from './luma'
-import { BLOCKS_PUBLISH_MESSAGE, blocksPublish, fetchPortalEvent, PortalEventError } from './portal'
+import { BLOCKS_PUBLISH_MESSAGE, blocksPublish, fetchPortalEvent, PortalEventError, PortalEventGoneError } from './portal'
 
 // Writing event data into Event rows. Shared by the import action, "refresh now"
 // and the daily job. Each event refreshes from the source it was imported from.
@@ -59,7 +59,7 @@ export async function upsertEvent(ref: string, source: EventSource, createdById:
 }
 
 /** Re-fetch one event from its source; records the error on the row instead of throwing. */
-export async function refreshEventFromSource(id: string): Promise<{ ok: boolean; error?: string }> {
+export async function refreshEventFromSource(id: string): Promise<{ ok: boolean; error?: string; archived?: boolean }> {
   const event = await prisma.event.findUnique({ where: { id }, select: { lumaEventId: true, source: true, status: true } })
   if (!event) return { ok: false, error: 'Event not found' }
   try {
@@ -68,6 +68,11 @@ export async function refreshEventFromSource(id: string): Promise<{ ok: boolean;
     await prisma.event.update({ where: { id }, data: { ...lumaFields(data), lastSyncedAt: new Date(), ...blocked } })
     return blocked.syncError ? { ok: false, error: blocked.syncError } : { ok: true }
   } catch (err) {
+    // Deleted in the portal → archive (hidden, out of the daily refresh). Reversible by an admin.
+    if (err instanceof PortalEventGoneError) {
+      await prisma.event.update({ where: { id }, data: { status: 'archived', syncError: 'Archived: deleted in the member portal' } })
+      return { ok: true, archived: true }
+    }
     const error = err instanceof Error ? err.message : String(err)
     await prisma.event.update({ where: { id }, data: { syncError: error } })
     return { ok: false, error }

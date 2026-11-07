@@ -58,7 +58,7 @@ export const setEventStatus = action(
 export const refreshEvent = action({ schema: z.object({ id: z.string().min(1) }), permission: 'user' }, async ({ id }, user) => {
   assertEvents(user)
   const res = await refreshEventFromSource(id)
-  await recordAudit({ actorId: user.id, action: 'event.refresh', entityType: 'Event', entityId: id, after: { ok: res.ok, error: res.error ?? null } })
+  await recordAudit({ actorId: user.id, action: 'event.refresh', entityType: 'Event', entityId: id, after: { ok: res.ok, error: res.error ?? null, archived: res.archived ?? false } })
   revalidatePath('/admin/events', 'layout')
   revalidatePath('/events', 'layout')
   if (!res.ok) throw new ActionError(res.error ?? 'Refresh failed')

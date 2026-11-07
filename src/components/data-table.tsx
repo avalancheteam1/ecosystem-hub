@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Columns3 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toggleSelection } from '@/lib/selection'
+import { compareSortValues } from '@/lib/table-sort'
 import { cn } from '@/lib/utils'
 
 export type DataTableColumn = {
@@ -46,12 +47,6 @@ function write(key: string, layout: Layout) {
 }
 const parse = (raw: string | null): Layout => { try { return raw ? JSON.parse(raw) : {} } catch { return {} } }
 
-function compare(a: unknown, b: unknown) {
-  if (a == null || a === '') return b == null || b === '' ? 0 : 1 // empty values last, whatever the direction
-  if (b == null || b === '') return -1
-  return typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-}
-
 /**
  * The house table: sortable headers, resizable and hideable columns (remembered per viewer).
  * Rows come pre-rendered from the server. Sorting is client-side, or - pass `sort` - server-side
@@ -90,11 +85,7 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
     return typeof cell === 'string' || typeof cell === 'number' ? cell : null
   }
   const shownRows = !serverSort && sort.key
-    ? [...rows].sort((a, b) => {
-        const va = value(a, sort.key!), vb = value(b, sort.key!)
-        if (va == null || va === '' || vb == null || vb === '') return compare(va, vb)
-        return sort.dir === 'asc' ? compare(va, vb) : -compare(va, vb)
-      })
+    ? [...rows].sort((a, b) => compareSortValues(value(a, sort.key!), value(b, sort.key!), sort.dir))
     : rows
   // Rows that disappeared after a refresh drop out of the selection.
   const selected = picked.filter((x) => rows.some((r) => r.id === x))
