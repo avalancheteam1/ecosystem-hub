@@ -13,7 +13,7 @@ export async function sendSystemAlert(alert: { title: string; message: string; p
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(alert),
+      body: JSON.stringify({ ...alert, title: `ecosystem-hub: ${alert.title}` }), // several apps share one alphorn channel
       signal: AbortSignal.timeout(5_000),
     })
     if (!res.ok) console.error(`System alert webhook responded ${res.status}`)

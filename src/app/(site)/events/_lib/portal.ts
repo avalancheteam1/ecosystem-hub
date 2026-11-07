@@ -29,6 +29,8 @@ export async function listPortalEvents(opts: { cursor?: string; from?: string } 
 export class PortalEventError extends Error {}
 /** Missing or refused API key - every further portal call would fail the same way. */
 export class PortalAuthError extends PortalEventError {}
+/** The portal answered 404 - the event was deleted there. */
+export class PortalEventGoneError extends PortalEventError {}
 
 /** A private/hidden portal event carries its exact address + description - never publish it on the hub. */
 export const blocksPublish = (e: { source: string; lumaVisibility: string }) => e.source === 'portal' && e.lumaVisibility !== 'public'
@@ -84,7 +86,7 @@ export async function fetchPortalEvent(id: string): Promise<LumaEventData> {
   } catch {
     throw new PortalEventError('The member portal is unreachable right now - try again in a minute')
   }
-  if (res.status === 404) throw new PortalEventError('The member portal has no such event')
+  if (res.status === 404) throw new PortalEventGoneError('The member portal has no such event')
   if (res.status === 401 || res.status === 403) throw new PortalAuthError('The member portal refused the API key (needs scope events:read:all)')
   if (!res.ok) throw new PortalEventError(`Member portal answered ${res.status}`)
   const data = mapPortalEvent(await res.json().catch(() => null))

@@ -14,11 +14,13 @@ export const eventsRefreshJob: Job = {
       select: { id: true, name: true },
     })
     const failed: { id: string; name: string; error?: string }[] = []
+    const archived: { id: string; name: string }[] = []
     for (const e of events) {
       const res = await refreshEventFromSource(e.id)
       if (!res.ok) failed.push({ id: e.id, name: e.name, error: res.error })
+      if (res.archived) archived.push({ id: e.id, name: e.name })
       await new Promise((r) => setTimeout(r, 500)) // be gentle with Luma / the portal
     }
-    return { checked: events.length, failed }
+    return { checked: events.length, failed, archived }
   },
 }
