@@ -165,9 +165,10 @@ export async function listAwardableSubmissions(hackathonId: string) {
   })
 }
 
-export async function listSubmissions(hackathonId: string) {
+/** `q` matches the project name or a team member's name/email. */
+export async function listSubmissions(hackathonId: string, q?: string) {
   return prisma.submission.findMany({
-    where: { hackathonId },
+    where: { hackathonId, ...(q && { project: { OR: [{ currentVersion: { name: { contains: q, mode: 'insensitive' } } }, { members: { some: { user: userSearchWhere(q) } } }] } }) },
     orderBy: { createdAt: 'asc' },
     include: {
       project: { include: { currentVersion: { select: { name: true, shortDescription: true } }, members: { include: { user: { select: { name: true, email: true } } } } } },
