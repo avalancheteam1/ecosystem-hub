@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { BackLink } from '@/components/back-link'
+import { CopyButton } from '@/components/copy-button'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, ExternalLink, MapPin } from 'lucide-react'
 import { EventStatusBadge, isReachable } from '@/app/(site)/events/_lib/status'
@@ -64,7 +65,10 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
           )}
           {event.descriptionMd && (
             <section className="rounded-xl border border-line bg-surface-2 p-6">
-              <h2 className="mb-4 text-lg">Description from {event.source === 'portal' ? 'the member portal' : 'Luma'}</h2>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-lg">Description from {event.source === 'portal' ? 'the member portal' : 'Luma'}</h2>
+                <CopyButton value={event.descriptionMd} label="Copy description as Markdown" />
+              </div>
               <Markdown>{event.descriptionMd}</Markdown>
             </section>
           )}
