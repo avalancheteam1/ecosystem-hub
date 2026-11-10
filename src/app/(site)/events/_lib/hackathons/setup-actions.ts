@@ -12,7 +12,6 @@ import { sendMail } from '@/lib/mailer'
 import { linkListSchema } from '@/lib/link-schemas'
 import { isOwnUpload } from '@/lib/storage'
 import { isTimeZone } from '@/lib/timezones'
-import { blocksPublish } from '../portal'
 import { isReachable } from '../status'
 import { verifiedUserIdByEmail } from './bind'
 import { entryTracks, judgeEligibility } from './judging'
@@ -59,7 +58,7 @@ export const createHackathon = action(
       eventId,
       timezone,
       tagline: '',
-      aboutMd: blocksPublish(event) ? '' : (event.descriptionMd ?? ''),
+      aboutMd: event.descriptionMd ?? '',
       organizers: { create: { email: user.email.toLowerCase(), userId: user.id, invitedById: user.id } },
       stages: {
         create: {
