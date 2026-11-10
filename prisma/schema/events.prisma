@@ -22,7 +22,7 @@ model Event {
   lumaVisibility String     @default("public")
   /// where import + refresh fetch from: luma (public web API) | portal (member portal, key-only)
   source         String     @default("luma")
-  /// draft | published | archived
+  /// draft | published | unlisted (link only) | archived
   status         String     @default("draft")
   lastSyncedAt   DateTime   @default(now())
   syncError      String?

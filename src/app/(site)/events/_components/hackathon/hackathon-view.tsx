@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import type { Event } from '@prisma/client'
+import type { Event as DbEvent } from '@prisma/client'
 import { ArrowUpRight, ExternalLink, Trophy } from 'lucide-react'
 import type { getMySubmissions, PublicHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
 import { advancedStageIds, pickOpenStage, placeTitle, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
@@ -17,6 +17,9 @@ import { LeaveHackathonButton, WithdrawSubmissionButton } from './participant-bu
 
 type Mine = Awaited<ReturnType<typeof getMySubmissions>>
 const Dot = () => <span className="text-brand">.</span>
+
+/** lumaUrl null = private portal event (link hidden). */
+type Event = Omit<DbEvent, 'lumaUrl'> & { lumaUrl: string | null }
 
 /** The single next step for this viewer, as a button (or a sentence when there's none). */
 function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Mine, now: Date): { href?: string; label: string } {
@@ -89,9 +92,11 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
               {step.href ? <Button asChild size="lg"><Link href={step.href}>{step.label}</Link></Button> : <p className="text-fg-body">{step.label}</p>}
               {share}
               {h.joined && !mine.length && !h.resultsPublishedAt && <LeaveHackathonButton hackathonId={h.id} />}
-              <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="group inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
-                Event page on Luma <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden />
-              </a>
+              {event.lumaUrl && (
+                <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="group inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
+                  Event page on Luma <ArrowUpRight className="arrow-nudge size-3.5" aria-hidden />
+                </a>
+              )}
             </div>
           </div>
         </div>

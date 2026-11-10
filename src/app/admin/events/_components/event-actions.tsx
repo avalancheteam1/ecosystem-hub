@@ -22,7 +22,10 @@ export function EventActions({ id, status, canPublish, canDelete, isPortal }: { 
       {status !== 'published' && canPublish && (
         <Button disabled={pending} onClick={() => run(() => setEventStatus({ id, status: 'published' }), 'Event published')}>Publish</Button>
       )}
-      {status === 'published' && (
+      {status !== 'unlisted' && (
+        <Button variant="outline" disabled={pending} title="Reachable by link only - not listed, not in search" onClick={() => run(() => setEventStatus({ id, status: 'unlisted' }), 'Event unlisted - reachable by link only')}>Unlist</Button>
+      )}
+      {(status === 'published' || status === 'unlisted') && (
         <Button variant="outline" disabled={pending} onClick={() => run(() => setEventStatus({ id, status: 'draft' }), 'Event unpublished')}>Unpublish</Button>
       )}
       <Button variant="outline" disabled={pending} onClick={() => run(() => refreshEvent({ id }), 'Refreshed')}>

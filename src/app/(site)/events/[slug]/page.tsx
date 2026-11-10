@@ -12,6 +12,7 @@ import { ShareDialog } from '@/components/share-dialog'
 import { EventManageLinks } from '../_components/event-manage-links'
 import { HackathonView } from '../_components/hackathon/hackathon-view'
 import { getMySubmissions, getPublicHackathon } from '../_lib/hackathons/queries'
+import { blocksPublish } from '../_lib/portal'
 import { getPublicEvent } from '../_lib/queries'
 
 type Props = { params: Promise<{ slug: string }> }
@@ -21,14 +22,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!event) return {}
   return {
     title: event.name,
-    description: plainText(event.descriptionMd ?? '') || `${event.name} - a team1 event for builders in the Avalanche ecosystem.`,
+    description: (!blocksPublish(event) && plainText(event.descriptionMd ?? '')) || `${event.name} - a team1 event for builders in the Avalanche ecosystem.`,
     ...canonical(`/events/${event.slug}`, event.coverUrl ? { images: [event.coverUrl] } : undefined),
+    ...(event.status === 'unlisted' && { robots: { index: false } }),
   }
 }
 
 export default async function EventPage({ params }: Props) {
-  const event = await getPublicEvent((await params).slug)
-  if (!event) notFound()
+  const found = await getPublicEvent((await params).slug)
+  if (!found) notFound()
+  // private portal event: never its address, description or (private) Luma link - city + date only
+  const event = blocksPublish(found) ? { ...found, fullAddress: null, descriptionMd: null, lumaUrl: null } : found
   const user = await getCurrentUser()
   const [hackathon, refCode] = await Promise.all([getPublicHackathon(event.id, user?.id ?? null), user ? ensureReferralCode(user.id) : null])
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
@@ -73,7 +77,7 @@ export default async function EventPage({ params }: Props) {
               </div>
             </dl>
             <div className="mt-8 flex flex-wrap gap-3">
-              {!ended && (
+              {!ended && event.lumaUrl && (
                 <Button asChild size="lg">
                   <a href={event.lumaUrl} target="_blank" rel="noreferrer">
                     Register on Luma <ExternalLink aria-hidden />

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { importEvent } from '@/app/(site)/events/_lib/actions'
 import type { PortalEvent } from '@/app/(site)/events/_lib/portal'
 import { EventCover } from '@/components/event-cover'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -85,7 +86,10 @@ export function ImportEventDialog({ portalEvents, portalError, importedIds }: { 
                       <li key={e.id} className="flex items-center gap-3 p-3">
                         <EventCover src={e.coverUrl} className="size-12 shrink-0 rounded-lg" />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-fg-heading">{e.name}</p>
+                          <p className="flex items-center gap-2 text-sm text-fg-heading">
+                            <span className="truncate">{e.name}</span>
+                            {e.status === 'private' && <Badge className="shrink-0 rounded-full border-0 bg-warning/15 text-warning" title="Can only be unlisted on the hub; address and description stay hidden">Private</Badge>}
+                          </p>
                           <p className="truncate text-xs text-fg-muted">
                             {new Date(e.startAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             {e.location.city ? ` in ${e.location.city}` : ''}
@@ -101,7 +105,7 @@ export function ImportEventDialog({ portalEvents, portalError, importedIds }: { 
                         )}
                       </li>
                     ))}
-                    {filtered.length === 0 && <li className="p-6 text-center text-sm text-fg-muted">No upcoming team1 events match.</li>}
+                    {filtered.length === 0 && <li className="p-6 text-center text-sm text-fg-muted">No team1 events match.</li>}
                   </ul>
                 </div>
               )}

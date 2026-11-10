@@ -146,7 +146,7 @@ type ChecklistInput = {
 export function publishChecklist(h: ChecklistInput): string[] {
   const problems: string[] = []
   if (h.teamSizeMin < 1 || (h.teamSizeMax != null && h.teamSizeMin > h.teamSizeMax)) problems.push('Team size: minimum must be between 1 and the maximum')
-  if (!h.eventPublished) problems.push('Publish the event first')
+  if (!h.eventPublished) problems.push('Publish or unlist the event first')
   if (h.stages.length === 0) return [...problems, 'Add at least one stage']
   problems.push(...validateStages(h.stages))
   for (const s of h.stages) {

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { BackLink } from '@/components/back-link'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, ExternalLink, MapPin } from 'lucide-react'
-import { EventStatusBadge } from '@/app/(site)/events/_lib/status'
+import { EventStatusBadge, isReachable } from '@/app/(site)/events/_lib/status'
 import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
 import { formatEventRange, formatUtc } from '@/lib/dates'
@@ -50,7 +50,7 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
             <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">
               Open on Luma <ExternalLink className="size-3.5" aria-hidden />
             </a>
-            {event.status === 'published' && (
+            {isReachable(event.status) && (
               <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">
                 View on the Ecosystem Hub <ExternalLink className="size-3.5" aria-hidden />
               </Link>
