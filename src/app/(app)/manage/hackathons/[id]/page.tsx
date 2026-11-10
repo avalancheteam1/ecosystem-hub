@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { CircleCheck, CircleAlert } from 'lucide-react'
 import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
 import { publishChecklist } from '@/app/(site)/events/_lib/hackathons/rules'
+import { isReachable } from '@/app/(site)/events/_lib/status'
 import { requireUser } from '@/lib/guards'
 import { readLinks } from '@/lib/link-schemas'
 import { OverviewForm } from './_components/overview-form'
@@ -10,7 +11,7 @@ export default async function ManageOverviewPage({ params }: { params: Promise<{
   const user = await requireUser()
   const h = await getManagedHackathon((await params).id, user)
   if (!h) notFound()
-  const problems = publishChecklist({ ...h, eventPublished: h.event.status === 'published' })
+  const problems = publishChecklist({ ...h, eventPublished: isReachable(h.event.status) })
   return (
     <div className="grid gap-8 xl:grid-cols-[1fr_320px]">
       <section className="rounded-xl border border-line bg-surface-2 p-6 sm:p-8">

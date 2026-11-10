@@ -41,7 +41,7 @@ export const importEvent = action(
 )
 
 export const setEventStatus = action(
-  { schema: z.object({ id: z.string().min(1), status: z.enum(['draft', 'published', 'archived']) }), permission: 'user' },
+  { schema: z.object({ id: z.string().min(1), status: z.enum(['draft', 'published', 'unlisted', 'archived']) }), permission: 'user' },
   async ({ id, status }, user) => {
     assertEvents(user)
     const before = await prisma.event.findUnique({ where: { id }, select: { status: true, slug: true, source: true, lumaVisibility: true } })

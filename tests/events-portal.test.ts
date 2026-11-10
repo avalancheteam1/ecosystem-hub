@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { blocksPublish, fetchPortalEvent, mapPortalEvent, PortalAuthError } from '@/app/(site)/events/_lib/portal'
+import { blocksPublish, fetchPortalEvent, listPortalEvents, mapPortalEvent, PortalAuthError } from '@/app/(site)/events/_lib/portal'
 
 const full = {
   id: 'evt-abc123',
@@ -65,6 +65,35 @@ test('fetchPortalEvent: a missing or refused key is a PortalAuthError (aborts th
     await assert.rejects(fetchPortalEvent('evt-x'), PortalAuthError)
     globalThis.fetch = async () => new Response(null, { status: 404 })
     await assert.rejects(fetchPortalEvent('evt-x'), (err) => !(err instanceof PortalAuthError))
+  } finally {
+    globalThis.fetch = realFetch
+    if (key === undefined) delete process.env.MEMBER_PORTAL_API_KEY
+    else process.env.MEMBER_PORTAL_API_KEY = key
+  }
+})
+
+test('listPortalEvents: includePrivate sends the key + include=private (never hidden); without a key it stays anonymous', async () => {
+  const key = process.env.MEMBER_PORTAL_API_KEY
+  const realFetch = globalThis.fetch
+  const calls: { url: URL; auth: string | null }[] = []
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: new URL(String(input)), auth: new Headers(init?.headers).get('authorization') })
+    return Response.json({ data: [], nextCursor: null })
+  }
+  try {
+    process.env.MEMBER_PORTAL_API_KEY = 'k'
+    await listPortalEvents({ includePrivate: true })
+    await listPortalEvents({ from: '2000-01-01T00:00:00Z' })
+    delete process.env.MEMBER_PORTAL_API_KEY
+    await listPortalEvents({ includePrivate: true })
+    const [keyed, job, noKey] = calls
+    assert.deepEqual(keyed!.url.searchParams.getAll('include'), ['private'])
+    assert.ok(Date.now() - Date.parse(keyed!.url.searchParams.get('from')!) >= 29 * 86_400_000, 'keyed list reaches back ~30 days')
+    assert.equal(keyed!.auth, 'Bearer k')
+    for (const c of [job!, noKey!]) {
+      assert.equal(c.url.searchParams.has('include'), false)
+      assert.equal(c.auth, null)
+    }
   } finally {
     globalThis.fetch = realFetch
     if (key === undefined) delete process.env.MEMBER_PORTAL_API_KEY

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
 import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
+import { isReachable } from '@/app/(site)/events/_lib/status'
 import { EventCover } from '@/components/event-cover'
 import { Badge } from '@/components/ui/badge'
 import { formatEventRange } from '@/lib/dates'
@@ -30,7 +31,7 @@ export default async function ManageLayout({ children, params }: { children: Rea
           <p className="text-sm text-fg-muted">{formatEventRange(h.event.startAt, h.event.endAt, h.event.timezone)}</p>
         </div>
         <div className="flex items-center gap-3">
-          {h.event.status === 'published' && (
+          {isReachable(h.event.status) && (
             <Link href={`/events/${h.event.slug}`} className="inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
               Public page <ExternalLink className="size-3.5" aria-hidden />
             </Link>

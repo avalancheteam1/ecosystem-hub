@@ -41,7 +41,7 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
     // the import dialog marks every already-imported event, not just this page's
     prisma.event.findMany({ select: { lumaEventId: true } }),
     isMember
-      ? listPortalEvents()
+      ? listPortalEvents({ includePrivate: true })
           .then((r) => ({ data: r.data as PortalEvent[] | null, error: null as string | null }))
           .catch((err: Error) => ({ data: [] as PortalEvent[] | null, error: err.message }))
       : { data: null, error: null },

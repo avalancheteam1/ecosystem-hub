@@ -1,7 +1,7 @@
 import type { LumaEventData } from './luma'
 
-// Member portal API. The anonymous list feeds the admin "team1 events" picker;
-// an event picked there is fetched (import + refresh) from the key-only
+// Member portal API. The list feeds the admin "team1 events" picker (with the key
+// and include=private it also lists private events, no address); an event picked there is fetched (import + refresh) from the key-only
 // `GET /api/v1/events/{id}/full` (scope `events:read:all`), not from Luma.
 // No server-only import: the worker (events-refresh job) uses this via sync.ts.
 
@@ -16,11 +16,23 @@ export type PortalEvent = {
   coverUrl: string | null
   location: { city: string | null; country: string | null }
   chapter: { slug: string; name: string } | null
+  /** only on keyed `include` lists */
+  status?: 'public' | 'private' | 'hidden'
 }
 
-export async function listPortalEvents(opts: { cursor?: string; from?: string } = {}): Promise<{ data: PortalEvent[]; nextCursor: string | null }> {
-  const qs = new URLSearchParams({ limit: '50', order: 'asc', ...(opts.from ? { from: opts.from } : {}), ...(opts.cursor ? { cursor: opts.cursor } : {}) })
-  const res = await fetch(`${PORTAL_URL}/api/v1/events?${qs}`, { signal: AbortSignal.timeout(10_000), next: { revalidate: 300 } })
+/** Anonymous: public events that haven't ended. `includePrivate`: public + private (never hidden) with
+ *  MEMBER_PORTAL_API_KEY (`events:read:all`), from `from` or else started up to 30 days ago; no key = the anonymous list. */
+export async function listPortalEvents(opts: { cursor?: string; from?: string; includePrivate?: boolean } = {}): Promise<{ data: PortalEvent[]; nextCursor: string | null }> {
+  const key = opts.includePrivate ? process.env.MEMBER_PORTAL_API_KEY : undefined
+  // keyed lists default to startAt >= now - go back so running and recent events show too
+  const from = opts.from ?? (key ? new Date(Date.now() - 30 * 86_400_000).toISOString() : undefined)
+  const qs = new URLSearchParams({ limit: key ? '200' : '50', order: 'asc', ...(from ? { from } : {}), ...(opts.cursor ? { cursor: opts.cursor } : {}), ...(key ? { include: 'private' } : {}) })
+  const res = await fetch(
+    `${PORTAL_URL}/api/v1/events?${qs}`,
+    key
+      ? { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000), cache: 'no-store' }
+      : { signal: AbortSignal.timeout(10_000), next: { revalidate: 300 } },
+  )
   if (!res.ok) throw new Error(`Member portal answered ${res.status}`)
   const body = (await res.json()) as { data?: PortalEvent[]; nextCursor?: string | null }
   return { data: body.data ?? [], nextCursor: body.nextCursor ?? null }
@@ -32,9 +44,10 @@ export class PortalAuthError extends PortalEventError {}
 /** The portal answered 404 - the event was deleted there. */
 export class PortalEventGoneError extends PortalEventError {}
 
-/** A private/hidden portal event carries its exact address + description - never publish it on the hub. */
+/** A private/hidden portal event carries its exact address + description - never publish (list) it on the hub, and never show
+ *  those details or its Luma link. It can be unlisted (link only), e.g. to run an invite-only hackathon. */
 export const blocksPublish = (e: { source: string; lumaVisibility: string }) => e.source === 'portal' && e.lumaVisibility !== 'public'
-export const BLOCKS_PUBLISH_MESSAGE = 'Not public in the member portal - it can’t be published here'
+export const BLOCKS_PUBLISH_MESSAGE = 'Not public in the member portal - it can only be unlisted here (address and description stay hidden)'
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 const date = (v: unknown): Date | null => {

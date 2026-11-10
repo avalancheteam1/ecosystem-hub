@@ -18,7 +18,7 @@ export const eventsPortalImportJob: Job = {
     const missing: string[] = []
     let cursor: string | undefined
     do {
-      // the anonymous list only returns public events; `from` in the past = past events too
+      // the anonymous list only returns public events that haven't ended (the portal ignores a past `from` without a key)
       const page = await listPortalEvents({ cursor, from: '2000-01-01T00:00:00Z' })
       for (const e of page.data) if (!known.has(e.id)) missing.push(e.id)
       cursor = page.nextCursor ?? undefined

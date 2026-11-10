@@ -12,6 +12,8 @@ import { sendMail } from '@/lib/mailer'
 import { linkListSchema } from '@/lib/link-schemas'
 import { isOwnUpload } from '@/lib/storage'
 import { isTimeZone } from '@/lib/timezones'
+import { blocksPublish } from '../portal'
+import { isReachable } from '../status'
 import { verifiedUserIdByEmail } from './bind'
 import { entryTracks, judgeEligibility } from './judging'
 import { assertManage } from './manage'
@@ -57,7 +59,7 @@ export const createHackathon = action(
       eventId,
       timezone,
       tagline: '',
-      aboutMd: event.descriptionMd ?? '',
+      aboutMd: blocksPublish(event) ? '' : (event.descriptionMd ?? ''),
       organizers: { create: { email: user.email.toLowerCase(), userId: user.id, invitedById: user.id } },
       stages: {
         create: {
@@ -515,7 +517,7 @@ export const setHackathonStatus = action({ schema: z.object({ hackathonId: id, s
   const h = await assertManage(hackathonId, user)
   if (status === 'published') {
     const full = await prisma.hackathon.findUniqueOrThrow({ where: { id: hackathonId }, include: { stages: { include: { criteria: { select: { weight: true } } } } } })
-    const problems = publishChecklist({ ...full, eventPublished: h.event.status === 'published' })
+    const problems = publishChecklist({ ...full, eventPublished: isReachable(h.event.status) })
     if (problems.length) throw new ActionError(problems[0]!)
   }
   await prisma.hackathon.update({ where: { id: hackathonId }, data: { status } })
