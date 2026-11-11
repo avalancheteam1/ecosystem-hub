@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { Briefcase, Code2, GraduationCap, Sparkles } from 'lucide-react'
 import { enabledSocialProviders, turnstileSiteKey } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { reportRejectedNext } from '@/lib/guards'
 import { hasCompleteBasicProfile } from '@/lib/profile'
 import { safeNext } from '@/lib/safe-next'
 import { getAuthState } from '@/lib/session'
@@ -21,7 +22,9 @@ const AUDIENCES = [
 ]
 
 export default async function SignInPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const next = safeNext((await searchParams).next)
+  const rawNext = (await searchParams).next
+  await reportRejectedNext(rawNext)
+  const next = safeNext(rawNext)
   const state = await getAuthState()
   if (state.status === 'pending') redirect(`/sign-in/verify?next=${encodeURIComponent(next)}`)
   const user = state.status === 'signed-in' ? state.user : null

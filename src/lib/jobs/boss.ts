@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger'
 import 'server-only'
 import { PgBoss } from 'pg-boss'
 
@@ -9,7 +10,7 @@ const globalForBoss = globalThis as unknown as { boss?: Promise<PgBoss> }
 
 function startBoss(): Promise<PgBoss> {
   const boss = new PgBoss({ connectionString: process.env.DATABASE_URL!, supervise: false, migrate: false, createSchema: false, max: 2 })
-  boss.on('error', (err) => console.error('[pg-boss send]', err))
+  boss.on('error', (err) => logger.error({ err }, '[pg-boss send]'))
   return boss.start().then(() => boss)
 }
 

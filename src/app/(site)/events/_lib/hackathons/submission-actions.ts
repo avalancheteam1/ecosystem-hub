@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { action, ActionError } from '@/lib/action'
+import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { buildAnswersSchema, stageState } from './rules'
@@ -102,7 +102,7 @@ export const withdrawSubmission = action({ schema: z.object({ submissionId: z.st
     include: { project: { include: { members: { select: { userId: true, role: true } } } }, hackathon: { include: { event: { select: { slug: true } }, stages: { orderBy: { order: 'asc' } } } } },
   })
   if (!s || !s.project.members.some((m) => m.userId === user.id)) throw new ActionError('Submission not found')
-  if (!s.project.members.some((m) => m.userId === user.id && canEditProject(m.role))) throw new ActionError('Only writers and the owner can withdraw')
+  if (!s.project.members.some((m) => m.userId === user.id && canEditProject(m.role))) throw new ForbiddenError('Only writers and the owner can withdraw')
   if (s.status !== 'active') throw new ActionError('This submission is not active')
   const last = s.hackathon.stages.at(-1)
   if (last && stageState(last, new Date()) === 'closed') throw new ActionError('The hackathon is over - submissions can no longer be withdrawn')

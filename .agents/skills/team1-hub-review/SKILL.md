@@ -42,6 +42,7 @@ Work through all groups. Report only what the diff shows, with `path:line`. Chan
 - Every new page under `/admin`, `/manage`, `/judge` calls a guard or the area's access query. Admin nav `show` mirrors the page guard.
 - Every state change writes `recordAudit`, with no secrets in it. Input validated with Zod.
 - Permission keys only added, never renamed or removed. Per-object power is data plus a predicate, not a new permission.
+- Logging (AGENTS.md "Logging and monitoring"): server code logs with `logger`, never `console`; errors are passed as `{ err }`, not interpolated into the message. No plain emails, IPs, codes or tokens in log fields, messages, alerts (`sendSystemAlert`) or GlitchTip `tags` / `extra`. A new denial path calls `securityEvent`; per-object denials throw `ForbiddenError`. No new Sentry features (tracing, replay, sessions) or weaker `sentry-scrub.ts` / `DATA_COLLECTION`.
 - Data sent to Client Components or `/api/v1` uses `select`/`omit`: no other users' emails, tokens, hashes, invite tokens, unrevealed scores.
 - Uploads: saved URLs pass `isOwnUpload`; new image kinds are registered with an owner check. Redirects go through `safeNext`. New inline scripts carry the CSP nonce.
 - Dangerous sinks: `eval(`, `new Function(`, `dangerouslySetInnerHTML`, `.innerHTML =`, `document.write(`, `$queryRawUnsafe`, `$executeRawUnsafe`, `Prisma.raw`, `child_process`. Each hit needs constant or sanitized input.

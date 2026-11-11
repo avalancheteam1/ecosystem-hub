@@ -1,5 +1,6 @@
 'use server'
 
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { action, ActionError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
@@ -11,7 +12,7 @@ export const runJobNow = action({ schema: z.object({ name: z.string() }), permis
   try {
     await enqueueJob(name)
   } catch (err) {
-    console.error('[jobs] enqueue failed', err)
+    logger.error({ err }, '[jobs] enqueue failed')
     throw new ActionError('Could not enqueue - has the worker ever started against this database?')
   }
   await recordAudit({ actorId: user.id, action: 'job.run', entityType: 'Job', entityId: name })

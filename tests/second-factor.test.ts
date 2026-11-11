@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { APIError } from 'better-auth/api'
-import { allowedWhilePending, codeAttemptAllowed, endpointSucceeded, MAX_FAILED_CODES, PASSKEY_NAME_MAX, passkeyNameAllowed, secondFactorPending, superAdminActive } from '@/lib/second-factor'
+import { allowedWhilePending, codeAttemptAllowed, endpointSucceeded, MAX_FAILED_CODES, otpCheckedEmail, otpCheckFailed, PASSKEY_NAME_MAX, passkeyNameAllowed, secondFactorPending, superAdminActive } from '@/lib/second-factor'
 
 // better-call's base APIError (validation errors use it) - not a direct dependency, so resolve it
 // the way Better Auth does.
@@ -60,4 +60,28 @@ test('passkey names: optional, not blank, capped', () => {
   assert.equal(passkeyNameAllowed('x'.repeat(PASSKEY_NAME_MAX + 1)), false)
   assert.equal(passkeyNameAllowed('   '), false)
   assert.equal(passkeyNameAllowed(42), false)
+})
+
+test('otpCheckedEmail: the address whose code each emailOTP route checks', () => {
+  assert.equal(otpCheckedEmail('/sign-in/email-otp', { email: ' A@B.io ', otp: '1' }, undefined), 'a@b.io')
+  assert.equal(otpCheckedEmail('/email-otp/verify-email', { email: 'a@b.io' }, undefined), 'a@b.io')
+  assert.equal(otpCheckedEmail('/email-otp/check-verification-otp', { email: 'a@b.io' }, undefined), 'a@b.io')
+  assert.equal(otpCheckedEmail('/email-otp/change-email', { newEmail: 'New@b.io', otp: '1' }, 'old@b.io'), 'new@b.io')
+  assert.equal(otpCheckedEmail('/email-otp/request-email-change', { newEmail: 'new@b.io', otp: '1' }, 'Old@b.io'), 'old@b.io')
+  assert.equal(otpCheckedEmail('/email-otp/request-email-change', { newEmail: 'new@b.io' }, 'old@b.io'), undefined) // no code checked
+  assert.equal(otpCheckedEmail('/email-otp/send-verification-otp', { email: 'a@b.io' }, undefined), undefined)
+  assert.equal(otpCheckedEmail('/sign-in/email-otp', { email: 42 }, undefined), undefined)
+  assert.equal(otpCheckedEmail('/sign-in/email-otp', undefined, undefined), undefined)
+})
+
+test('otpCheckFailed: only the emailOTP code-check errors count', () => {
+  assert.equal(otpCheckFailed(new APIError('BAD_REQUEST', { message: 'Invalid OTP', code: 'INVALID_OTP' })), true)
+  assert.equal(otpCheckFailed(new APIError('BAD_REQUEST', { message: 'OTP expired', code: 'OTP_EXPIRED' })), true)
+  assert.equal(otpCheckFailed(new APIError('FORBIDDEN', { message: 'Too many attempts', code: 'TOO_MANY_ATTEMPTS' })), true)
+  assert.equal(otpCheckFailed(new BaseAPIError('BAD_REQUEST', { message: 'Invalid body', code: 'VALIDATION_ERROR' })), false)
+  assert.equal(otpCheckFailed(new APIError('BAD_REQUEST', { message: 'Email is the same' })), false)
+  assert.equal(otpCheckFailed(new APIError('UNAUTHORIZED')), false)
+  assert.equal(otpCheckFailed(new Error('boom')), false)
+  assert.equal(otpCheckFailed({ token: 't' }), false)
+  assert.equal(otpCheckFailed(undefined), false)
 })

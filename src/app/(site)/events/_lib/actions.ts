@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { action, ActionError } from '@/lib/action'
+import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { getPortalProfile } from '@/lib/member-portal'
@@ -14,7 +14,7 @@ import { refreshEventFromSource, upsertEvent } from './sync'
 
 // permission 'user' + assertEvents: events.manage OR hackathons.manage (see access.ts).
 function assertEvents(user: CurrentUser) {
-  if (!canManageEvents(user)) throw new ActionError('Forbidden')
+  if (!canManageEvents(user)) throw new ForbiddenError('Forbidden')
 }
 
 export const importEvent = action(

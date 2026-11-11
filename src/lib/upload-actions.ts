@@ -1,7 +1,8 @@
 'use server'
 
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
-import { action, ActionError } from '@/lib/action'
+import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { IMAGE_KIND_KEYS, IMAGE_KINDS, type ImageKind } from '@/lib/image-kinds'
@@ -25,12 +26,12 @@ async function authorizeOwner(kind: ImageKind, ownerId: string, user: CurrentUse
     case 'project-screenshot': {
       if (ownerId === 'new') return `new-${user.id}` // before the project exists; re-checked on save
       const m = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId: ownerId, userId: user.id } } })
-      if (!m || !canEditProject(m.role)) throw new ActionError('You can’t edit this project')
+      if (!m || !canEditProject(m.role)) throw new ForbiddenError('You can’t edit this project')
       return ownerId
     }
     case 'sponsor-logo': {
       const h = await prisma.hackathon.findUnique({ where: { id: ownerId }, include: { organizers: { select: { userId: true } } } })
-      if (!h || !canManageHackathon(user, h.organizers)) throw new ActionError('Forbidden')
+      if (!h || !canManageHackathon(user, h.organizers)) throw new ForbiddenError('Forbidden')
       return ownerId
     }
   }
@@ -53,7 +54,7 @@ export const uploadImage = action({ schema: z.instanceof(FormData), permission: 
     storage = getStorage()
     await storage.put({ key, body: buf, contentType: checked.contentType })
   } catch (err) {
-    console.error('[upload] failed', err)
+    logger.error({ err }, '[upload] failed')
     throw new ActionError('Upload failed - try again')
   }
   await recordAudit({ actorId: user.id, action: 'image.upload', entityType: kind.data, entityId: owner, after: { key } })

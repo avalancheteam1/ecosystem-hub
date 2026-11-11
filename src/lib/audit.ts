@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger'
 import type { Prisma } from '@prisma/client'
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/db'
@@ -60,6 +61,6 @@ export async function recordAudit(args: AuditArgs): Promise<void> {
       },
     })
   } catch (err) {
-    console.error('[audit] failed to write entry', err)
+    logger.error({ err }, '[audit] failed to write entry')
   }
 }

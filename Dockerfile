@@ -35,10 +35,22 @@ ENV NEXT_DEPLOYMENT_ID=$RAILWAY_GIT_COMMIT_SHA
 ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 RUN pnpm prisma generate
-RUN pnpm run build
 RUN pnpm run build:worker
 # Exact lockfile-resolved versions of the worker's runtime deps (no drift).
 RUN node -p "['pg-boss','prisma','@prisma/client','@prisma/adapter-pg'].map(n => n + '@' + JSON.parse(require('fs').readFileSync('node_modules/' + n + '/package.json')).version).join(' ')" > /app/worker-deps.txt
+# GlitchTip: browser DSN (inlined) and source-map upload. Build args reach every later RUN as env, so they
+# are declared last (only the Next build sees the auth token) and in the build stage only (it never reaches
+# the runner image). No token = no upload. Railway has no documented secret mounts, hence ARG.
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ARG SENTRY_URL
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+ARG SENTRY_AUTH_TOKEN
+RUN pnpm run build
+# Browser source maps never reach the runner, even when the upload failed or was skipped.
+# Both copies: .next/static and the one copy:standalone made (the runner copies from both).
+RUN find .next/static .next/standalone/.next/static -name '*.map' -delete
 
 # /worker: the worker's runtime deps + the prisma CLI and migrations, which the
 # web service's preDeployCommand uses for `prisma migrate deploy`. Cached as

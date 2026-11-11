@@ -12,6 +12,7 @@ let transporter: Transporter | undefined
 export async function sendMail(mail: { to: string; subject: string; text: string; html?: string }): Promise<void> {
   if (!process.env.SMTP_HOST) {
     if (process.env.NODE_ENV === 'production') throw new Error('SMTP is not configured (SMTP_HOST missing)')
+    // Deliberate dev-only exception: codes are printed in the `pnpm dev` console and must never go through the log pipeline.
     console.info(`[mailer] (dev, not sent) to=${mail.to} subject="${mail.subject}"\n${mail.text}`)
     return
   }

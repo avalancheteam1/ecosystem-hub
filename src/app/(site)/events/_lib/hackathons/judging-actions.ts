@@ -1,9 +1,10 @@
 'use server'
 
+import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { action, ActionError } from '@/lib/action'
+import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
@@ -87,7 +88,7 @@ export const applyAssignment = action({ schema: z.object({ hackathonId: id, stag
       subject: `Submissions are ready for you to judge - ${h.event.name}`,
       text: `You have submissions to review for "${h.event.name}" (${stage.name}).\n\n${siteUrl()}/judge`,
       html: brandedShell({ preheader: `Submissions to review for ${h.event.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">You have submissions to review for <strong>${esc(h.event.name)}</strong> (${esc(stage.name)}).</p>${button(`${siteUrl()}/judge`, 'Start judging')}</td></tr>` }),
-    }).catch((err) => console.error('[judging] mail failed', err))
+    }).catch((err) => logger.error({ err }, '[judging] mail failed'))
   }
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   return { assigned: pairs.length, added }
@@ -183,7 +184,7 @@ export const setAdvanced = action({ schema: z.object({ hackathonId: id, stageId:
           subject: `${e.submission.project.currentVersion?.name} advanced to ${next.name}`,
           text: `Congrats - your team advanced to "${next.name}" in ${h.event.name}.\n\n${siteUrl()}/events/${h.event.slug}`,
           html: brandedShell({ preheader: `You advanced to ${next.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Congrats - <strong>${esc(e.submission.project.currentVersion?.name ?? 'your project')}</strong> advanced to <strong>${esc(next.name)}</strong> in ${esc(h.event.name)}.</p>${button(`${siteUrl()}/events/${h.event.slug}`, 'See what’s next')}</td></tr>` }),
-        }).catch((err) => console.error('[judging] mail failed', err))
+        }).catch((err) => logger.error({ err }, '[judging] mail failed'))
       }
     }
   }
@@ -253,7 +254,8 @@ export const saveReview = action(
         entry: { include: { stage: { include: { criteria: true } }, submission: { include: { project: { include: { members: { select: { userId: true } } } } } } } },
       },
     })
-    if (!a || a.judge.userId !== user.id || a.entry.submission.status !== 'active') throw new ActionError('Assignment not found')
+    if (!a || a.entry.submission.status !== 'active') throw new ActionError('Assignment not found')
+    if (a.judge.userId !== user.id) throw new ForbiddenError('Assignment not found')
     if (!a.judge.termsAcceptedAt) throw new ActionError('Accept the judge terms first')
     const stage = a.entry.stage
     if (stage.judgingClosedAt) throw new ActionError('Judging is closed - reviews can no longer change')

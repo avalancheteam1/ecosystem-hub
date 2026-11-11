@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger'
 import 'server-only'
 import crypto from 'node:crypto'
 import { after } from 'next/server'
@@ -36,7 +37,7 @@ async function fetchPortalMember(email: string): Promise<z.infer<typeof memberSc
     if (!res.ok) throw new Error(`portal answered ${res.status}`)
     return memberSchema.parse(await res.json())
   } catch (err) {
-    console.error('[member-portal] member lookup failed:', err instanceof Error ? err.message : 'unknown error')
+    logger.error({ err }, '[member-portal] member lookup failed')
     return null
   }
 }
@@ -56,7 +57,7 @@ export async function ensureChapterGroups(chapters: { slug: string; name: string
       } catch (err) {
         if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err
         // A concurrent create of the same chapter is fine; otherwise a manual group holds the slug (or `<slug>-chapter`).
-        if (!(await prisma.group.findFirst({ where: { portalChapterSlug: c.slug }, select: { id: true } }))) console.warn('[member-portal] chapter group slug collision:', c.slug)
+        if (!(await prisma.group.findFirst({ where: { portalChapterSlug: c.slug }, select: { id: true } }))) logger.warn({ slug: c.slug }, '[member-portal] chapter group slug collision')
       }
     }
   }
@@ -86,7 +87,7 @@ export async function refreshPortalProfile(userId: string): Promise<void> {
     ])
     await ensureChapterGroups(data.chapters.filter((c) => c.live)) // non-live chapters never get a group
   } catch (err) {
-    console.error('[member-portal] profile refresh failed:', err instanceof Error ? err.message : 'unknown error')
+    logger.error({ err }, '[member-portal] profile refresh failed')
   }
 }
 

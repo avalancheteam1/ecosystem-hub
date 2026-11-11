@@ -21,6 +21,11 @@ test('a bucket switches to s3, which then needs all its keys', () => {
 })
 
 test('production needs the auth secret, SMTP and Turnstile', () => {
-  assert.deepEqual(envProblems({ ...base, NODE_ENV: 'production' }), ['BETTER_AUTH_SECRET: required', 'SMTP_HOST: required', 'TURNSTILE_SITE_KEY: required', 'TURNSTILE_SECRET_KEY: required'])
-  assert.deepEqual(envProblems({ ...base, NODE_ENV: 'production', BETTER_AUTH_SECRET: 'x'.repeat(32), SMTP_HOST: 'smtp.example.com', TURNSTILE_SITE_KEY: 's', TURNSTILE_SECRET_KEY: 'k' }), [])
+  assert.deepEqual(envProblems({ ...base, NODE_ENV: 'production' }), ['BETTER_AUTH_SECRET: required', 'SMTP_HOST: required', 'TURNSTILE_SITE_KEY: required', 'TURNSTILE_SECRET_KEY: required', 'LOG_HASH_SECRET: required'])
+  assert.deepEqual(envProblems({ ...base, NODE_ENV: 'production', BETTER_AUTH_SECRET: 'x'.repeat(32), SMTP_HOST: 'smtp.example.com', TURNSTILE_SITE_KEY: 's', TURNSTILE_SECRET_KEY: 'k', LOG_HASH_SECRET: 'h'.repeat(16) }), [])
+})
+
+test('production without LOG_HASH_SECRET reports it', () => {
+  const p = envProblems({ ...base, NODE_ENV: 'production', BETTER_AUTH_SECRET: 'x'.repeat(32), SMTP_HOST: 'h', TURNSTILE_SITE_KEY: 's', TURNSTILE_SECRET_KEY: 'k' })
+  assert.deepEqual(p, ['LOG_HASH_SECRET: required'])
 })

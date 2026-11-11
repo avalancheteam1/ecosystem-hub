@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
+import { rateLimit } from '@/lib/rate-limit'
+import { getRequestIp } from '@/lib/request-ip'
 import { REF_COOKIE, REF_COOKIE_MAX_AGE, shouldSetRefCookie } from '@/app/(app)/referrals/_lib/rules'
 
 // Next 16's renamed middleware. Three jobs:
@@ -47,8 +49,18 @@ function buildCsp(nonce: string): string {
   ].join('; ')
 }
 
+// GlitchTip browser tunnel (next.config.ts tunnelRoute + src/app/sentry-tunnel). A per-IP cap (in memory only,
+// never logged) in front of the global one, so a single client can't use up the global cap for everyone.
+const TUNNEL_PATHS = ['/monitoring', '/sentry-tunnel']
+
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
+  // Next rewrites match case-insensitively (/Monitoring reaches the tunnel too), so compare lowercased.
+  if (TUNNEL_PATHS.includes(pathname.toLowerCase())) {
+    const byIp = rateLimit(`sentry-tunnel:${getRequestIp(request.headers) ?? 'unknown'}`, { limit: 60, windowMs: 60_000 })
+    const limit = byIp.ok ? rateLimit('sentry-tunnel', { limit: 600, windowMs: 60_000 }) : byIp
+    return limit.ok ? NextResponse.next() : new NextResponse(null, { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } })
+  }
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
   const csp = buildCsp(nonce)
 

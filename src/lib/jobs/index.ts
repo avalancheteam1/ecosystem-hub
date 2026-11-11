@@ -1,5 +1,8 @@
+import { logger } from '@/lib/logger'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
+import { captureError } from '@/lib/monitoring'
+import { safeErrorMessage } from '@/lib/sentry-scrub'
 import { sendSystemAlert } from '@/lib/system-alert'
 import { eventsPortalImportJob } from '@/app/(site)/events/_lib/jobs/events-portal-import'
 import { eventsRefreshJob } from '@/app/(site)/events/_lib/jobs/events-refresh'
@@ -45,8 +48,9 @@ export async function executeJob(job: Job, data?: Record<string, unknown>): Prom
     if (failed > 0) void sendSystemAlert({ title: `Job partial: ${job.name}`, message: `${failed} item(s) failed. See the run in /admin/jobs`, priority: 3 })
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
-    console.error(`[job] ${job.name} failed`, err)
+    logger.error({ err, job: job.name }, `[job] ${job.name} failed`)
+    captureError(err, { tags: { job: job.name } })
     await prisma.jobRun.update({ where: { id: run.id }, data: { status: 'failed', finishedAt: new Date(), summary: { error } } })
-    void sendSystemAlert({ title: `Job failed: ${job.name}`, message: error, priority: 4 })
+    void sendSystemAlert({ title: `Job failed: ${job.name}`, message: safeErrorMessage(err), priority: 4 })
   }
 }

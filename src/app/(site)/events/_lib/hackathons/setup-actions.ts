@@ -1,5 +1,6 @@
 'use server'
 
+import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -414,7 +415,7 @@ export const reviewRegistration = action(
           subject: `You're in - ${h.event.name}`,
           text: `Your registration for "${h.event.name}" was approved.\n\n${url}`,
           html: brandedShell({ preheader: `Your registration for ${h.event.name} was approved`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Your registration for <strong>${esc(h.event.name)}</strong> was approved. Teams form around projects - create one or get invited to one, then submit.</p>${button(url, 'Go to the hackathon')}</td></tr>` }),
-        }).catch((err) => console.error('[hackathons] mail failed', err))
+        }).catch((err) => logger.error({ err }, '[hackathons] mail failed'))
       }
     }
     revalidate(h)
@@ -441,7 +442,7 @@ async function sendRoleInvite(to: string, role: 'organiser' | 'judge', h: { id: 
         ${button(url, role === 'judge' ? 'Open judging' : 'Open the hackathon')}
       </td></tr>`,
     }),
-  }).catch((err) => console.error('[hackathons] invite mail failed', err))
+  }).catch((err) => logger.error({ err }, '[hackathons] invite mail failed'))
 }
 
 export const inviteOrganizer = action({ schema: z.object({ hackathonId: id, email }), permission: 'user' }, async ({ hackathonId, email }, user) => {

@@ -1,9 +1,10 @@
 'use server'
 
+import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { action, ActionError } from '@/lib/action'
+import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA, SMALL } from '@/lib/email-template'
@@ -24,19 +25,19 @@ const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('h
 
 async function membership(projectId: string, userId: string) {
   const m = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } }, select: { role: true } })
-  if (!m) throw new ActionError('You are not on this project')
+  if (!m) throw new ForbiddenError('You are not on this project')
   return m
 }
 
 async function requireWriter(projectId: string, userId: string) {
   const m = await membership(projectId, userId)
-  if (!canEditProject(m.role)) throw new ActionError('You can only view this project')
+  if (!canEditProject(m.role)) throw new ForbiddenError('You can only view this project')
   return m
 }
 
 async function requireOwner(projectId: string, userId: string) {
   const m = await membership(projectId, userId)
-  if (!canManageTeam(m.role)) throw new ActionError('Only the owner can manage the team')
+  if (!canManageTeam(m.role)) throw new ForbiddenError('Only the owner can manage the team')
   return m
 }
 
@@ -188,7 +189,7 @@ export const inviteMember = action(
           <p style="${SMALL}">Or copy this link:<br/>${esc(`${siteUrl()}/projects/invite/${token}`)}</p>
         </td></tr>`,
       }),
-    }).catch((err) => console.error('[projects] invite mail failed', err))
+    }).catch((err) => logger.error({ err }, '[projects] invite mail failed'))
     await recordAudit({ actorId: user.id, action: 'project.invite.create', entityType: 'Project', entityId: projectId, after: { email, role } })
     revalidatePath(`/projects/${project.slug}`)
     return null
@@ -245,7 +246,7 @@ export const removeMember = action(
   async ({ projectId, userId }, user) => {
     const me = await membership(projectId, user.id)
     const leaving = userId === user.id
-    if (!leaving && !canManageTeam(me.role)) throw new ActionError('Only the owner can remove team members')
+    if (!leaving && !canManageTeam(me.role)) throw new ForbiddenError('Only the owner can remove team members')
     const target = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } } })
     if (!target) throw new ActionError('Not on this team')
     if (target.role === 'owner') throw new ActionError(leaving ? 'Transfer ownership before you leave' : 'The owner cannot be removed')
@@ -294,7 +295,7 @@ export const setMemberRole = action(
 /** Owner-only soft delete: sets archivedAt, which hides the project everywhere. Sealed versions and past submissions stay intact. */
 export const deleteProject = action({ schema: z.object({ projectId: z.string().min(1) }), permission: 'user' }, async ({ projectId }, user) => {
   const m = await membership(projectId, user.id)
-  if (!canManageTeam(m.role)) throw new ActionError('Only the owner can delete the project')
+  if (!canManageTeam(m.role)) throw new ForbiddenError('Only the owner can delete the project')
   const running = await prisma.submission.count({ where: { projectId, status: 'active', hackathon: { resultsPublishedAt: null } } })
   if (running) throw new ActionError('This project is in a running hackathon - withdraw the submission first')
   const r = await prisma.project.updateMany({ where: { id: projectId, archivedAt: null }, data: { archivedAt: new Date() } })

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Logo } from '@/components/layout/logo'
+import { reportRejectedNext } from '@/lib/guards'
 import { safeNext } from '@/lib/safe-next'
 import { getAuthState } from '@/lib/session'
 import { VerifyForm } from '../_components/verify-form'
@@ -9,7 +10,9 @@ export const metadata: Metadata = { title: 'Confirm it’s you', robots: { index
 
 // Second step of a sign-in for accounts with a passkey or authenticator app (src/lib/second-factor.ts).
 export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const next = safeNext((await searchParams).next)
+  const rawNext = (await searchParams).next
+  await reportRejectedNext(rawNext)
+  const next = safeNext(rawNext)
   const state = await getAuthState()
   if (state.status === 'signed-out') redirect(`/sign-in?next=${encodeURIComponent(next)}`)
   if (state.status === 'signed-in') redirect(`/sign-in?next=${encodeURIComponent(next)}`) // finishes the sign-in (profile check)
