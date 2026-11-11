@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger'
 /**
  * Fire-and-forget operational alert to the SYSTEM_NOTIFICATION_URL webhook
  * (alphorn.dev-compatible JSON: { title, message, priority }), for operators -
@@ -16,8 +17,8 @@ export async function sendSystemAlert(alert: { title: string; message: string; p
       body: JSON.stringify({ ...alert, title: `ecosystem-hub: ${alert.title}` }), // several apps share one alphorn channel
       signal: AbortSignal.timeout(5_000),
     })
-    if (!res.ok) console.error(`System alert webhook responded ${res.status}`)
+    if (!res.ok) logger.error({ status: res.status }, 'System alert webhook failed')
   } catch (err) {
-    console.error('System alert failed:', err)
+    logger.error({ err }, 'System alert failed')
   }
 }

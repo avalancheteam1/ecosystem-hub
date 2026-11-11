@@ -36,7 +36,7 @@ src/app/admin/<area>/                  admin pages; import logic from @/app/(sit
 src/app/(app)/…                        signed-in builder pages (dashboard, …)
 prisma/schema/<area>.prisma            the area's models (multi-file schema)
 ```
-- **Shared core** - `src/lib/*` (auth, session, permissions, guards, action, audit, db, mailer, api-keys, jobs) and `src/components/{ui,layout}`. Areas import from the core; the core never imports from an area except through the three registries below.
+- **Shared core** - `src/lib/*` (auth, session, permissions, guards, action, audit, db, mailer, api-keys, jobs, logger, monitoring, security-events) and `src/components/{ui,layout}`. Areas import from the core; the core never imports from an area except through the three registries below.
 - **Reads** = Server Components calling `queries.ts`. **Writes** = Server Actions in `actions.ts`, always wrapped in `action()`. `src/app/api/` is only for Better Auth (`api/auth`), `api/health`, the external `api/v1` and future webhooks - don't add internal JSON endpoints for the UI.
 - Never import another area's internals (`_components`, `_lib/queries`, …). If two areas need the same thing, move it to the core in its own PR.
 
@@ -53,6 +53,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 ## Security rules (non-negotiable)
 - **A `'use server'` file may export ONLY `action(...)`-wrapped functions.** Every export of such a file becomes a public endpoint; a helper that trusts its arguments (e.g. `assertManage(id, user)`) must live in a plain server module (`import 'server-only'`).
 - **Every server action goes through `action({ schema, permission }, handler)`** (`src/lib/action.ts`). Server actions are public POST endpoints - a page guard does not protect the action. `permission` is a registry key, `'superAdmin'`, or `'user'` (any signed-in user). Throw `ActionError('message')` for user-facing errors; anything else is logged and masked.
+- **Logging and monitoring:** log with `logger` (`src/lib/logger.ts`, pino, JSON to stdout), never `console` on the server (dev email code is the one exception). Pass errors as `logger.error({ err }, 'what failed')`, never inside the message string; error text that leaves the system (`sendSystemAlert`) goes through `safeErrorMessage`. A denied or suspicious request calls `securityEvent(type, …)` (`src/lib/security-events.ts`); types and alert thresholds live in `src/lib/security-rules.ts`. Per-object denials (someone else's hackathon, project, upload) throw `ForbiddenError`, not `ActionError`. Plain emails or IPs go only into `securityEvent`'s `email` / `ip` (hashed with `LOG_HASH_SECRET`), nowhere else. Errors go to GlitchTip via the Sentry SDK (`monitoring.ts`, `monitoring-client.ts`, `sentry-scrub.ts`; browser reports tunnelled through `/monitoring`), errors only, no PII.
 - **Every admin page/layout calls a guard** (`src/lib/guards.ts`): `requireUser()`, `requirePermission(p)`, `requireSuperAdmin()`. Unauthenticated → `/sign-in?next=…`; lacking power → 404 (never reveal admin surfaces).
 - `src/proxy.ts` (Next 16's renamed middleware) only does the CSP nonce and a coarse cookie-presence wall for `/dashboard` and `/admin`. It is **not** authorization.
 - **Write an audit entry for every state-changing action**: `recordAudit({ actorId, action: 'thing.verb', entityType, entityId, before, after })` (`src/lib/audit.ts`) - diffs before/after, never throws. Never put secrets (API keys, hashes, tokens) in it.
@@ -110,6 +111,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 - **The member portal is read-only for the hub.** The hub only reads from it (GETs, plus lookup POSTs that carry a hash in the body) and never creates, changes or deletes data there. The portal owns members, chapters and events; the hub keeps read-only copies (`PortalProfile`, portal-sourced `Event`s). Never request a portal API key scope that allows writes.
 - **Member portal** (`members.team1.network`): `POST /api/v1/members/check` (scope `members:check`, body `{ emailHash }`) answers "is this a team1 member" - the intended way to give members extra features. Later also SSO via `genericOAuth`.
 - **Cascade** and others call this hub's `/api/v1` with keys from `/admin/api-keys`.
+- **Monitoring env (all optional, no-op when unset):** `LOG_HASH_SECRET`, `HEARTBEAT_URL` (worker heartbeat ping), `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_URL`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` (source maps, build arg on the web service only). See `.env.example`.
 - **Luma**: public data only (see Events). Don't add Luma API keys or luma-sync dependencies.
 
 ## Areas

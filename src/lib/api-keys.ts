@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { prisma } from '@/lib/db'
 import { rateLimit } from '@/lib/rate-limit'
 import { getRequestIp } from '@/lib/request-ip'
+import { securityEvent } from '@/lib/security-events'
 import type { ApiScope } from '@/lib/api-scopes'
 
 // API keys for /api/v1: `hub_<8 hex prefix>_<32 random bytes base64url>`.
@@ -37,17 +38,38 @@ const LAST_USED_EVERY_MS = 60_000
  *   const key = await requireApiKey(req, 'users:check'); if (key instanceof Response) return key
  */
 export async function requireApiKey(request: Request, scope: ApiScope): Promise<{ id: string; name: string } | Response> {
-  const byIp = rateLimit(`api-ip:${getRequestIp(request.headers) ?? 'unknown'}`, { limit: 300, windowMs: 60_000 })
-  if (!byIp.ok) return v1Error(429, `Too many requests, retry in ${byIp.retryAfterSeconds}s`)
+  const ip = getRequestIp(request.headers) ?? undefined
+  const byIp = rateLimit(`api-ip:${ip ?? 'unknown'}`, { limit: 300, windowMs: 60_000 })
+  if (!byIp.ok) {
+    securityEvent('api.ratelimited', { ip })
+    return v1Error(429, `Too many requests, retry in ${byIp.retryAfterSeconds}s`)
+  }
 
   const raw = request.headers.get('authorization')?.match(/^Bearer (hub_[0-9a-f]{8}_[A-Za-z0-9_-]{43})$/)?.[1]
-  if (!raw) return v1Error(401, 'Missing or malformed API key')
+  if (!raw) {
+    securityEvent('api.key.malformed', { ip })
+    return v1Error(401, 'Missing or malformed API key')
+  }
   const key = await prisma.apiKey.findUnique({ where: { keyHash: hashApiKey(raw) } })
-  if (!key || key.revokedAt) return v1Error(401, 'Invalid API key')
-  if (!key.scopes.includes(scope)) return v1Error(403, `This key lacks the ${scope} scope`)
+  if (!key) {
+    // Fixed target: random prefixes must not each get their own alert; the prefix stays in detail.
+    securityEvent('api.key.invalid', { ip, target: 'api.key.invalid', detail: { prefix: raw.split('_')[1] } })
+    return v1Error(401, 'Invalid API key')
+  }
+  if (key.revokedAt) {
+    securityEvent('api.key.revoked', { ip, target: key.id })
+    return v1Error(401, 'Invalid API key')
+  }
+  if (!key.scopes.includes(scope)) {
+    securityEvent('api.scope.denied', { ip, target: key.id, detail: { scope } })
+    return v1Error(403, `This key lacks the ${scope} scope`)
+  }
 
   const byKey = rateLimit(`api-key:${key.id}`, { limit: 120, windowMs: 60_000 })
-  if (!byKey.ok) return v1Error(429, `Too many requests, retry in ${byKey.retryAfterSeconds}s`)
+  if (!byKey.ok) {
+    securityEvent('api.ratelimited', { ip, target: key.id })
+    return v1Error(429, `Too many requests, retry in ${byKey.retryAfterSeconds}s`)
+  }
 
   if (!key.lastUsedAt || Date.now() - key.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
     await prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } })

@@ -14,7 +14,7 @@ test('without SMTP in development the mail is logged instead of sent', async () 
   vi.stubEnv('NODE_ENV', 'development')
   const log = vi.spyOn(console, 'info').mockImplementation(() => {})
   await sendMail(mail)
-  assert.ok(log.mock.calls.some((c) => String(c.join(' ')).includes('123456')))
+  assert.ok(log.mock.calls.some((c) => String(c[0]).includes('123456')))
 })
 
 test('without SMTP in production sending fails loudly', async () => {

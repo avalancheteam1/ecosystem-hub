@@ -1,4 +1,5 @@
 import { test, vi } from 'vitest'
+import { logger } from '@/lib/logger'
 import assert from 'node:assert/strict'
 
 const create = vi.hoisted(() => vi.fn())
@@ -21,7 +22,7 @@ test('recordAudit stores the diff and the request ip', async () => {
 
 test('recordAudit never throws', async () => {
   create.mockRejectedValueOnce(new Error('db down'))
-  const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const spy = vi.spyOn(logger, 'error').mockImplementation(() => {})
   await recordAudit({ actorId: null, action: 'x', entityType: 'Y' })
   assert.equal(spy.mock.calls.length, 1)
   spy.mockRestore()

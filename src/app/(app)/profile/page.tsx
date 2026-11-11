@@ -8,7 +8,7 @@ import { COUNTRIES } from '@/lib/countries'
 import { formatShortDate } from '@/lib/dates'
 import { prisma } from '@/lib/db'
 import { TIER_LABELS } from '@/lib/groups'
-import { requireUser } from '@/lib/guards'
+import { reportRejectedNext, requireUser } from '@/lib/guards'
 import { BUILDER_HUB_URL } from '@/lib/builder-hub'
 import { getPortalProfile } from '@/lib/member-portal'
 import { hasCompleteBasicProfile, type ProfileFormValues } from '@/lib/profile'
@@ -29,6 +29,7 @@ function formValues(u: User): ProfileFormValues {
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const user = await requireUser()
   const nextParam = (await searchParams).next
+  await reportRejectedNext(nextParam)
   const [u, profile, { groups }] = await Promise.all([prisma.user.findUniqueOrThrow({ where: { id: user.id } }), getPortalProfile(user.id), getUserGroups(user.id)])
   const leadGroups = groups.filter((g) => g.lead)
   const next = nextParam ? safeNext(nextParam) : null

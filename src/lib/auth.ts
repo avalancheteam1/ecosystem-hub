@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger'
 import 'server-only'
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
@@ -14,8 +15,9 @@ import { ensureReferralCode } from '@/lib/referral-codes'
 import { refreshPortalProfile } from '@/lib/member-portal'
 import { REF_COOKIE } from '@/app/(app)/referrals/_lib/rules'
 import { rateLimit } from '@/lib/rate-limit'
-import { secondFactorAfter, secondFactorBefore } from '@/lib/auth-security'
-import { PASSKEY_SIGN_IN_PATH } from '@/lib/second-factor'
+import { hookIp, secondFactorAfter, secondFactorBefore } from '@/lib/auth-security'
+import { otpCheckedEmail, otpCheckFailed, PASSKEY_SIGN_IN_PATH } from '@/lib/second-factor'
+import { securityEvent } from '@/lib/security-events'
 
 // Sign-in methods: Google, GitHub, email OTP. Each social provider is enabled
 // only when its credentials are set. Member-portal SSO will be added later via
@@ -82,8 +84,8 @@ export const auth = betterAuth({
         // ?ref= cookie (set by src/proxy.ts) → credit the referrer. Never blocks sign-up.
         after: async (user, ctx) => {
           if (!ctx) return
-          await attributeReferral(user.id, ctx.getCookie(REF_COOKIE)).catch((err) => console.error('[auth] referral attribution failed', err))
-          await ensureReferralCode(user.id).catch((err) => console.error('[auth] default referral code failed', err))
+          await attributeReferral(user.id, ctx.getCookie(REF_COOKIE)).catch((err) => logger.error({ err }, '[auth] referral attribution failed'))
+          await ensureReferralCode(user.id).catch((err) => logger.error({ err }, '[auth] default referral code failed'))
           ctx.setCookie(REF_COOKIE, '', { maxAge: 0, path: '/' })
         },
       },
@@ -100,7 +102,7 @@ export const auth = betterAuth({
           if (!user || user.image) return
           const info = await provider
             .getUserInfo({ accessToken: account.accessToken ?? undefined, idToken: account.idToken ?? undefined })
-            .catch((err) => void console.error('[auth] provider picture lookup failed', err))
+            .catch((err) => void logger.error({ err }, '[auth] provider picture lookup failed'))
           const image = info?.user.image
           if (image) await prisma.user.updateMany({ where: { id: account.userId, image: null }, data: { image } })
         },
@@ -114,7 +116,7 @@ export const auth = betterAuth({
         // sign-in (invites for already-verified users bind at invite time), and
         // refresh the stored member-portal copy (tier + chapters).
         after: async (session) => {
-          await bindInvitesForUser(session.userId).catch((err) => console.error('[auth] invite binding failed', err))
+          await bindInvitesForUser(session.userId).catch((err) => logger.error({ err }, '[auth] invite binding failed'))
           // Never throws.
           await refreshPortalProfile(session.userId)
         },
@@ -133,14 +135,25 @@ export const auth = betterAuth({
       if (typeof target !== 'string') return
       const email = target.trim().toLowerCase()
       const { ok, retryAfterSeconds } = rateLimit(`${bucket}:${email}`, { limit: 1, windowMs: 60_000 })
-      if (!ok) throw new APIError('TOO_MANY_REQUESTS', { message: `Please wait ${retryAfterSeconds}s before requesting another code.` })
+      if (!ok) {
+        securityEvent('auth.otp.cooldown', { email, ip: hookIp(ctx), detail: { bucket } })
+        throw new APIError('TOO_MANY_REQUESTS', { message: `Please wait ${retryAfterSeconds}s before requesting another code.` })
+      }
       // Daily cap: 10 codes x 3 guesses = 30 guesses/day against a 6-digit code (~1:33,000).
       // ponytail: in-memory, resets on redeploy - fine at a few deploys/day; move to the DB if that changes.
-      if (!rateLimit(`${bucket}-day:${email}`, { limit: 10, windowMs: 86_400_000 }).ok)
+      if (!rateLimit(`${bucket}-day:${email}`, { limit: 10, windowMs: 86_400_000 }).ok) {
+        securityEvent('auth.otp.daily_cap', { email, ip: hookIp(ctx), detail: { bucket } })
         throw new APIError('TOO_MANY_REQUESTS', { message: 'Too many codes requested for this address today. Try again tomorrow or sign in with Google/GitHub.' })
+      }
     }),
-    // Marks a session verified, limits wrong codes, audits factor + email changes (src/lib/auth-security.ts).
-    after: createAuthMiddleware(secondFactorAfter),
+    // Wrong, expired or exhausted email codes become security events (otpCheckFailed; validation errors etc. do not). Captcha rejections and Better Auth's own 429s never
+    // reach this hook (both answer in the router's onRequest, before any hook), nor do our 429s above.
+    // Then: marks a session verified, limits wrong codes, audits factor + email changes (src/lib/auth-security.ts).
+    after: createAuthMiddleware(async (ctx) => {
+      const email = otpCheckedEmail(ctx.path, ctx.body, ctx.context.session?.user.email)
+      if (email && otpCheckFailed(ctx.context.returned)) securityEvent('auth.otp.failed', { email, ip: hookIp(ctx), detail: { path: ctx.path } })
+      await secondFactorAfter(ctx)
+    }),
   },
   advanced: {
     // Production: visitor → Cloudflare → Railway. Cloudflare sets cf-connecting-ip (single

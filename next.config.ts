@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs/config'
 
 // Content-Security-Policy is set per request in src/proxy.ts (it carries a nonce).
 const securityHeaders = [
@@ -43,4 +44,26 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+// GlitchTip (Sentry SDK). Without SENTRY_AUTH_TOKEN nothing is uploaded and no release is created:
+// the build makes no Sentry network call. Blank values count as unset.
+const env = (k: string) => process.env[k]?.trim() || undefined
+const upload = Boolean(env('SENTRY_AUTH_TOKEN'))
+
+export default withSentryConfig(nextConfig, {
+  telemetry: false,
+  silent: true,
+  sentryUrl: env('SENTRY_URL'),
+  org: env('SENTRY_ORG'),
+  project: env('SENTRY_PROJECT'),
+  authToken: env('SENTRY_AUTH_TOKEN'),
+  release: { name: env('RAILWAY_GIT_COMMIT_SHA'), create: upload, finalize: upload },
+  // Browser source maps are uploaded, then deleted, never served publicly.
+  sourcemaps: upload ? { deleteSourcemapsAfterUpload: true } : { disable: true },
+  // Same-origin route for browser events, outside /api/ so the proxy's tunnel cap applies.
+  tunnelRoute: '/monitoring',
+  // Errors only: no build-time tracing instrumentation (server errors arrive via onRequestError).
+  buildTimeInstrumentation: false,
+  suppressOnRouterTransitionStartWarning: true,
+  // The route manifest (tracing names) would list every route, admin ones too, in the client bundle.
+  routeManifestInjection: false,
+})

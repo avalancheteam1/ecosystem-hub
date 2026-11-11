@@ -30,6 +30,8 @@ For anything beyond a small fix, align with us in an issue first - we check it's
 
 Required for the PR title, recommended for the commits on your branch (not enforced).
 
+**Branch names:** `<type>/<short-name>` with the same types, lowercase, hyphenated - e.g. `feat/judge-invites`, `fix/2fa-lockout`.
+
 ## Before you request review
 
 - **Reuse:** existing models, rules and components are used - no parallel version of something that already exists.

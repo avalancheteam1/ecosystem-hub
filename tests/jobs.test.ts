@@ -1,4 +1,5 @@
 import { beforeEach, test, vi } from 'vitest'
+import { logger } from '@/lib/logger'
 import assert from 'node:assert/strict'
 
 const jobRun = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn() }))
@@ -26,7 +27,7 @@ test('a summary with failed items is recorded as partial', async () => {
 })
 
 test('a throwing job is recorded as failed and executeJob still resolves', async () => {
-  const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const spy = vi.spyOn(logger, 'error').mockImplementation(() => {})
   await executeJob(job(async () => { throw new Error('boom') }))
   assert.equal(lastUpdate().status, 'failed')
   assert.deepEqual(lastUpdate().summary, { error: 'boom' })

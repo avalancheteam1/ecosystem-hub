@@ -2,12 +2,13 @@
 
 import { useEffect } from 'react'
 import { reloadIfStale } from '@/components/layout/stale-deploy-reload'
+import { captureClientError } from '@/lib/monitoring-client'
 
 // Last-resort boundary for errors in the root layout itself. It replaces the
 // whole document, so it can't rely on globals.css or fonts - inline styles only.
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    reloadIfStale(error)
+    if (!reloadIfStale(error)) captureClientError(error)
   }, [error])
   return (
     <html lang="en">

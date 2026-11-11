@@ -60,3 +60,24 @@ export const CODE_LOCK_MS = 15 * 60_000
 
 /** The n-th attempt in a row (counting this one) may still be checked. */
 export const codeAttemptAllowed = (n: number) => n <= MAX_FAILED_CODES
+
+/**
+ * The address whose emailed code a route checks (emailOTP plugin), normalised, or undefined when the
+ * route checks none. `/email-otp/request-email-change` checks the code sent to the current address,
+ * but only when it carries one.
+ */
+// Better Auth emailOTP's code-check errors (EMAIL_OTP_ERROR_CODES, better-auth/dist/plugins/email-otp/error-codes.mjs).
+const OTP_CHECK_FAILURES = new Set(['INVALID_OTP', 'OTP_EXPIRED', 'TOO_MANY_ATTEMPTS'])
+
+/** The endpoint returned a wrong/expired/exhausted code error - not a validation error, 401 or other failure. */
+export const otpCheckFailed = (returned: unknown) => returned instanceof Error && OTP_CHECK_FAILURES.has(String((returned as { body?: { code?: unknown } }).body?.code))
+
+export function otpCheckedEmail(path: string, body: unknown, sessionEmail: string | undefined): string | undefined {
+  const b = (body ?? {}) as Record<string, unknown>
+  const raw =
+    path === '/sign-in/email-otp' || path === '/email-otp/verify-email' || path === '/email-otp/check-verification-otp' ? b.email
+    : path === '/email-otp/change-email' ? b.newEmail
+    : path === '/email-otp/request-email-change' && b.otp ? sessionEmail
+    : undefined
+  return typeof raw === 'string' && raw.trim() ? raw.trim().toLowerCase() : undefined
+}
