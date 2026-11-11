@@ -65,7 +65,9 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
   const verifiedAt = session.session.secondFactorAt ?? null
   if (secondFactorPending(factors, verifiedAt)) return { status: 'pending', userId: row.id, factors }
   const superAdmin = isSuperAdminUser(row, process.env.SUPER_ADMIN_EMAILS)
-  const isSuperAdmin = superAdminActive(superAdmin, factors, verifiedAt)
+  // `next dev` only: super admin without a factor, for local testing. Positive match on purpose -
+  // `next build` / `next start` (Railway) force 'production', vitest uses 'test'.
+  const isSuperAdmin = superAdminActive(superAdmin, factors, verifiedAt) || (superAdmin && process.env.NODE_ENV === 'development')
   return {
     status: 'signed-in',
     user: {

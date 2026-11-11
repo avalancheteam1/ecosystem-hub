@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, expect, test } from 'vitest'
-import { createSecurityGate } from '@/lib/security-rules'
+import { authResponseEvent, createSecurityGate } from '@/lib/security-rules'
 
 const MIN = 60_000
 const T0 = 1_700_000_000_000
@@ -130,5 +130,28 @@ describe('security rules', () => {
     // 20 untargeted + 479 distinct targets = 499 stays silent; the 500th trips the global spray rule.
     for (let i = 0; i < 479; i++) assert.equal(g.evaluate('auth.otp.failed', `user${i}`, T0 + 20_000 + i).alert, null)
     assert.equal(g.evaluate('auth.otp.failed', 'user-last', T0 + 30_000).alert?.priority, 5)
+  })
+
+  test('action.invalid_input: a user fixing a form stays silent, 20 in 15 min alerts', () => {
+    const g = createSecurityGate()
+    for (let i = 0; i < 19; i++) assert.equal(g.evaluate('action.invalid_input', 'u1', T0 + i * MIN / 2).alert, null)
+    assert.equal(g.evaluate('action.invalid_input', 'u1', T0 + 10 * MIN).alert?.title, 'Security: action.invalid_input')
+  })
+
+  test('authResponseEvent maps Better Auth captcha failures and 429s, nothing else', () => {
+    assert.equal(authResponseEvent(429, undefined), 'auth.ratelimited')
+    assert.equal(authResponseEvent(403, 'VERIFICATION_FAILED'), 'auth.captcha.failed')
+    assert.equal(authResponseEvent(400, 'MISSING_RESPONSE'), 'auth.captcha.failed')
+    assert.equal(authResponseEvent(400, 'INVALID_OTP'), null)
+    assert.equal(authResponseEvent(403, 'Invalid origin'), null)
+    assert.equal(authResponseEvent(200, undefined), null)
+  })
+
+  test('captcha failures and auth 429s never alert (stale Turnstile tokens, shared IPs)', () => {
+    const g = createSecurityGate()
+    for (let i = 0; i < 1000; i++) {
+      assert.equal(g.evaluate('auth.captcha.failed', undefined, T0 + i).alert, null)
+      assert.equal(g.evaluate('auth.ratelimited', undefined, T0 + i).alert, null)
+    }
   })
 })

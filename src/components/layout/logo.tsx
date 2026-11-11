@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
-/** team1 wordmark - official files from common/brand, never redrawn. Variant follows the theme. */
+/** team1 wordmark - official team1 brand files, never redrawn. Variant follows the theme. */
 export function Logo({ className, href = '/' }: { className?: string; href?: string }) {
   return (
     <Link href={href} className={cn('inline-flex items-center gap-2', className)} aria-label="team1 Ecosystem Hub - home">

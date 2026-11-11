@@ -19,6 +19,7 @@ export type SecurityEventType =
   | 'auth.ratelimited'
   | 'action.forbidden'
   | 'action.unauthenticated'
+  | 'action.invalid_input'
   | 'page.denied'
   | 'api.key.malformed'
   | 'api.key.invalid'
@@ -39,6 +40,8 @@ const PER_TARGET: Partial<Record<SecurityEventType, { limit: number; windowMs: n
   'auth.2fa.failed': { limit: 5, windowMs: 15 * MIN },
   // Not immediate: a viewer clicking an owner-only button must not page anyone or eat the hourly alert cap.
   'action.forbidden': { limit: 5, windowMs: 15 * MIN },
+  // Forms show server validation errors, so a few per user are normal; a burst means hand-crafted calls.
+  'action.invalid_input': { limit: 20, windowMs: 15 * MIN },
 }
 const GLOBAL = { type: 'auth.otp.failed', name: 'Security: otp spraying', limit: 500, windowMs: 10 * MIN } as const
 const IMMEDIATE = new Set<SecurityEventType>([
@@ -165,4 +168,11 @@ export function createSecurityGate() {
       return { capture, alert: null }
     },
   }
+}
+
+/** Better Auth answers failed captchas and its own rate limit before any hook runs; the auth route maps those responses here. */
+export function authResponseEvent(status: number, code: unknown): SecurityEventType | null {
+  if (status === 429) return 'auth.ratelimited'
+  if ((status === 400 || status === 403) && (code === 'MISSING_RESPONSE' || code === 'VERIFICATION_FAILED')) return 'auth.captcha.failed'
+  return null
 }
