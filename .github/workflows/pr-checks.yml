@@ -1,11 +1,13 @@
 name: PR checks
 
-# lint (zero warnings), tsc, prisma validate/generate, pnpm audit (advisory, sticky PR comment).
+# lint (zero warnings), tsc, vitest, prisma validate/generate, pnpm audit (advisory, sticky PR comment).
 # Formerly the reusable avalancheteam1/common team1-pr-review workflow, inlined so the hub has no
 # dependency on that repo.
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -41,6 +43,10 @@ jobs:
 
       - name: Type check
         run: pnpm typecheck
+
+      # DB-less (vitest, tests/*.test.ts).
+      - name: Test
+        run: pnpm test
 
       # Advisory only: runs even if lint failed and never fails the job.
       - name: pnpm audit (advisory)

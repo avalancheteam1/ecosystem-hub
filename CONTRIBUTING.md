@@ -10,6 +10,15 @@ Coding is often fast, especially with AI. What we value is everything around it:
 
 For anything beyond a small fix, align with us in an issue first - we check it's wanted and nobody else is on it (an assigned issue is taken). Then think the design through: which existing models, rules and components you reuse ([AGENTS.md](AGENTS.md)), who may see and do what, and the UI flow including empty and error states.
 
+## Branches and releases
+
+- **Fork, branch from `main`, open the PR against `main`.** Never against `prod`.
+- **Branch names:** `<type>/<short-name>` with the types from "Commit messages", lowercase, hyphenated - e.g. `feat/judge-invites`, `fix/2fa-lockout`.
+- **Stay current by rebasing** on `main`, not by merging it in.
+- **CI** runs on every push to your PR. For first-time contributors it starts once a maintainer approves the run.
+- **No preview environments.** PRs run code from outside, so they never get a deployment with real secrets - we verify by running your branch locally.
+- **After merge**, `main` deploys to the test environment. Maintainers release to production by fast-forwarding `prod` to a tested `main`.
+
 ## What every PR must meet
 
 - **One change per PR.** Touch only what the change needs. Small refactoring that serves the change is fine; larger refactors, mass reformatting or renames get their own PR, aligned first. Unrelated issues go into a separate issue.
@@ -29,8 +38,6 @@ For anything beyond a small fix, align with us in an issue first - we check it's
 - **scope:** the area (`events`, `projects`, `referrals`, `education`, `profile`) or `auth`, `admin`, `core`, `db`. Optional when nothing fits.
 
 Required for the PR title, recommended for the commits on your branch (not enforced).
-
-**Branch names:** `<type>/<short-name>` with the same types, lowercase, hyphenated - e.g. `feat/judge-invites`, `fix/2fa-lockout`.
 
 ## Before you request review
 
