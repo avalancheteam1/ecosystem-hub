@@ -1,9 +1,131 @@
 name: PR checks
 
+# lint (zero warnings), tsc, vitest, prisma validate/generate, pnpm audit (advisory, sticky PR comment).
+# Formerly the reusable avalancheteam1/common team1-pr-review workflow, inlined so the hub has no
+# dependency on that repo.
+
 on:
   pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write # audit comment
 
 jobs:
-  team1:
-    # Shared team1 checks: lint (zero warnings), tsc, prisma validate/generate, pnpm audit.
-    uses: avalancheteam1/common/.github/workflows/team1-pr-review.yml@main
+  review:
+    name: team1 PR review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Third-party action in a job with pull-requests: write - pinned to a commit. Version from packageManager.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1 (pnpm 12 needs >= v6.1.0)
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Dummy URL only satisfies env("DATABASE_URL"); neither command connects.
+      - name: Prisma checks
+        env:
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/db"
+        run: |
+          pnpm exec prisma validate
+          pnpm exec prisma generate
+
+      - name: Lint
+        run: pnpm lint --max-warnings=0
+
+      - name: Type check
+        run: pnpm typecheck
+
+      # DB-less (vitest, tests/*.test.ts).
+      - name: Test
+        run: pnpm test
+
+      # Advisory only: runs even if lint failed and never fails the job.
+      - name: pnpm audit (advisory)
+        if: always()
+        run: |
+          pnpm audit --prod --json > audit.json 2>/dev/null || true
+          pnpm audit --prod        > audit.txt  2>&1     || true
+
+      # Job summary + one sticky PR comment, updated in place:
+      # nothing/low → no comment (resolves an earlier one), moderate → ⚠️, high/critical → 🚨.
+      - name: Report pnpm audit results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let vulns = {};
+            try {
+              vulns = (JSON.parse(fs.readFileSync('audit.json', 'utf8')).metadata || {}).vulnerabilities || {};
+            } catch (e) {
+              core.warning(`Could not parse pnpm audit JSON output: ${e.message}`);
+            }
+            const n = (k) => Number(vulns[k] || 0);
+            const c = { info: n('info'), low: n('low'), moderate: n('moderate'), high: n('high'), critical: n('critical') };
+            const level = (c.high + c.critical) > 0 ? 'high' : c.moderate > 0 ? 'moderate' : 'ok';
+
+            let detail = '';
+            try { detail = fs.readFileSync('audit.txt', 'utf8').trim(); } catch (e) {}
+
+            const tally = `**Critical:** ${c.critical} · **High:** ${c.high} · **Moderate:** ${c.moderate} · **Low:** ${c.low} · **Info:** ${c.info}`;
+
+            if (level === 'ok') {
+              await core.summary.addRaw('✅ **pnpm audit**: no moderate or higher vulnerabilities in production dependencies.').write();
+            } else {
+              const icon = level === 'high' ? '🚨' : '⚠️';
+              core.warning(`pnpm audit: ${level === 'high' ? 'high/critical' : 'moderate'} vulnerabilities found - see the PR comment / job summary.`, { title: 'pnpm audit' });
+              await core.summary.addRaw(`### ${icon} pnpm audit found vulnerabilities\n\n${tally}\n`).addCodeBlock(detail || '(no output captured)').write();
+            }
+
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+
+            const marker = '<!-- team1-pr-review:audit -->';
+            const { owner, repo } = context.repo;
+            const issue_number = pr.number;
+
+            try {
+              const all = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+              const existing = all.find((x) => x.body && x.body.includes(marker));
+
+              if (level === 'ok') {
+                if (existing) {
+                  await github.rest.issues.updateComment({
+                    owner, repo, comment_id: existing.id,
+                    body: `${marker}\n### ✅ pnpm audit\n\nNo moderate or higher vulnerabilities in production dependencies. Previously reported issues are resolved.`,
+                  });
+                }
+                return;
+              }
+
+              const header = level === 'high'
+                ? '### 🚨 pnpm audit: high or critical vulnerabilities\n\n> [!WARNING]\n> Production dependencies contain **high or critical** severity vulnerabilities. Please review and remediate before merging.'
+                : '### ⚠️ pnpm audit: moderate vulnerabilities\n\nProduction dependencies contain **moderate** severity vulnerabilities.';
+
+              // GitHub caps comment bodies at 65536 chars.
+              const clip = detail.length > 60000 ? detail.slice(0, 60000) + '\n… (truncated - see the job summary)' : detail;
+              const body = [
+                marker, header, '', tally, '',
+                '<details><summary>Full <code>pnpm audit</code> report</summary>', '',
+                '```', clip || '(no output captured)', '```', '',
+                '</details>',
+              ].join('\n');
+
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              }
+            } catch (e) {
+              core.warning(`Could not post the pnpm audit PR comment (often a read-only token on fork PRs): ${e.message}`);
+            }

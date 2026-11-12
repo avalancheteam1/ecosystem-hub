@@ -45,7 +45,12 @@ export function action<S extends z.ZodType, T>(
       return { ok: false, error: user.superAdminNeedsSecondFactor ? 'Set up a passkey or authenticator app first (Profile → Sign-in & security) to use super admin powers.' : 'Forbidden' }
     }
     const parsed = opts.schema.safeParse(input)
-    if (!parsed.success) return { ok: false, error: issueMessage(parsed.error.issues[0]) }
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      // Field path + zod code only, never the submitted value.
+      securityEvent('action.invalid_input', { userId: user.id, ip, detail: { field: issue?.path.join('.').slice(0, 100), issue: issue?.code } })
+      return { ok: false, error: issueMessage(issue) }
+    }
     try {
       return { ok: true, data: await handler(parsed.data, user) }
     } catch (err) {

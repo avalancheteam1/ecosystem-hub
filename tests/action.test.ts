@@ -122,3 +122,13 @@ test('an anonymous call records action.unauthenticated', async () => {
   await action({ schema, permission: 'user' }, async () => 1)({ n: 1 })
   assert.deepEqual(sec.securityEvent.mock.calls, [['action.unauthenticated', { ip: '203.0.113.1' }]])
 })
+
+test('invalid input records action.invalid_input with the field and zod code, never the value', async () => {
+  current.user = viewer
+  await action({ schema, permission: 'users.view' }, async () => 1)({ n: 'jane@x.io' } as never)
+  assert.equal(sec.securityEvent.mock.calls.length, 1)
+  const [type, ctx] = sec.securityEvent.mock.calls[0]!
+  assert.equal(type, 'action.invalid_input')
+  assert.deepEqual(ctx, { userId: viewer.id, ip: '203.0.113.1', detail: { field: 'n', issue: 'invalid_type' } })
+  assert.ok(!JSON.stringify(ctx).includes('jane@x.io'))
+})

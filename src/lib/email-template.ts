@@ -1,5 +1,4 @@
-// team1 branded email template - source of truth: team1/common/email/.
-// Copied from team1/common/email/team1-email.ts - change it there first, then copy here.
+// team1 branded email template (originally copied from team1/common/email/team1-email.ts, now owned here).
 //
 // Usage (nodemailer):
 //   const html = brandedShell({ preheader: 'Your code', body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Hey,</p></td></tr>` })
