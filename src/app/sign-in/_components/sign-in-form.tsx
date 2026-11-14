@@ -78,7 +78,9 @@ export function SignInForm({ next, providers, turnstileSiteKey, nonce }: { next:
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
           {turnstileSiteKey && <Turnstile siteKey={turnstileSiteKey} nonce={nonce} resetKey={captchaReset} onToken={setCaptchaToken} />}
           <Button type="submit" className="w-full" disabled={pending || (!!turnstileSiteKey && !captchaToken)}>
-            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Mail aria-hidden />} Continue with email
+            {pending ? <Loader2 className="animate-spin" aria-hidden /> : <Mail aria-hidden />}
+            {/* own element: browser translation swaps bare text nodes, which breaks React's icon swap */}
+            <span>Continue with email</span>
           </Button>
         </form>
       ) : (
@@ -104,7 +106,7 @@ export function SignInForm({ next, providers, turnstileSiteKey, nonce }: { next:
             className="h-11 text-center text-lg tracking-[0.5em]"
           />
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending && <Loader2 className="animate-spin" aria-hidden />} Continue
+            {pending && <Loader2 className="animate-spin" aria-hidden />}<span>Continue</span>
           </Button>
           <p className="text-center text-xs text-fg-faint">No email after a minute? Check your spam folder.</p>
           <button type="button" className="w-full text-sm text-fg-muted hover:text-fg-heading" onClick={() => { setStep('email'); setOtp('') }}>
