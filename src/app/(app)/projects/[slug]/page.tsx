@@ -6,9 +6,10 @@ import { ProjectVersionView } from '@/components/project-version-view'
 import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/guards'
 import { MilestonesPanel } from '../_components/milestones'
+import { SealVersionButton } from '../_components/seal-version-button'
 import { TeamPanel } from '../_components/team-panel'
 import { getProjectForMember } from '../_lib/queries'
-import { canEditProject, versionLabel, type MilestoneStatus } from '../_lib/rules'
+import { canEditProject, versionLabel, wasReplaced, type MilestoneStatus } from '../_lib/rules'
 
 const VISIBLE_VERSIONS = 3
 
@@ -16,6 +17,7 @@ type VersionEntry = { id: string; stage: { name: string; hackathon: { event: { n
 
 function VersionItem({ slug, v }: { slug: string; v: { number: number; note: string | null; sealedAt: Date | null; updatedAt: Date; stageEntries: VersionEntry[] } }) {
   const submitted = v.stageEntries.length > 0
+  const replaced = wasReplaced({ ...v, entries: v.stageEntries.length })
   return (
     <li className="relative">
       {submitted ? (
@@ -33,7 +35,10 @@ function VersionItem({ slug, v }: { slug: string; v: { number: number; note: str
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-fg-muted">{v.sealedAt ? v.note : 'Your current edits - not submitted yet'}</p>
+        <p className="text-sm text-fg-muted">
+          {v.sealedAt ? v.note : 'Your current edits - not saved as a version yet'}
+          {replaced && <span className="text-fg-faint"> · replaced by a later version</span>}
+        </p>
       )}
       <p className="meta">{(v.sealedAt ?? v.updatedAt).toISOString().slice(0, 10)}</p>
     </li>
@@ -70,7 +75,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </section>
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="mb-1 text-lg">Versions</h2>
-          <p className="mb-4 text-sm text-fg-muted">Edits change your draft. Submitting to a hackathon seals it as a version that never changes.</p>
+          <p className="mb-4 text-sm text-fg-muted">Edits change your draft. Saving it as a version, or submitting it to a hackathon, seals it - sealed versions never change.</p>
+          {canEdit && !project.currentVersion.sealedAt && <SealVersionButton projectId={project.id} number={project.currentVersion.number} />}
           <ol className="relative space-y-4 border-l border-line pl-5">
             {project.versions.slice(0, VISIBLE_VERSIONS).map((v) => <VersionItem key={v.id} slug={slug} v={v} />)}
           </ol>

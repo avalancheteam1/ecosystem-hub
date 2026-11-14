@@ -7,7 +7,7 @@ import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { buildAnswersSchema, stageState } from './rules'
 import { canSubmitToStage } from './submissions'
-import { canEditProject, missingForSubmission, planSeal, TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
+import { canEditProject, missingForSubmission, planSeal, submissionNote, TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
 
 /** Submit (or update) a project to a stage: pins the project's CURRENT version and the team. */
 export const submitToStage = action(
@@ -77,7 +77,7 @@ export const submitToStage = action(
       const current = await tx.projectVersion.findUniqueOrThrow({ where: { id: project.currentVersionId! } })
       if (planSeal(current) === 'seal-draft') {
         const stageLabel = h.stages.length > 1 ? ` - ${stage.name}` : ''
-        await tx.projectVersion.update({ where: { id: current.id }, data: { sealedAt: new Date(), note: `Submitted to ${h.event.name}${stageLabel}` } })
+        await tx.projectVersion.update({ where: { id: current.id }, data: { sealedAt: new Date(), note: submissionNote(`${h.event.name}${stageLabel}`) } })
       }
       const sub = await tx.submission.upsert({
         where: { hackathonId_projectId: { hackathonId, projectId } },

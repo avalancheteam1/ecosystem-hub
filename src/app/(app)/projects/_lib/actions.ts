@@ -122,6 +122,22 @@ export const saveProject = action(
   },
 )
 
+/** Seal the draft as a version by hand (like a submission does), with a note on what changed. */
+export const sealVersion = action(
+  { schema: z.object({ projectId: z.string().min(1), note: z.string().trim().min(1, 'Say what changed').max(200) }), permission: 'user' },
+  async ({ projectId, note }, user) => {
+    await requireWriter(projectId, user.id)
+    const project = await prisma.project.findUnique({ where: { id: projectId }, include: { currentVersion: { select: { id: true, number: true } } } })
+    if (!project || project.archivedAt || !project.currentVersion) throw new ActionError('Project not found')
+    // sealedAt: null guard - already sealed (no edits since, or a submission sealed it meanwhile) means nothing to save.
+    const r = await prisma.projectVersion.updateMany({ where: { id: project.currentVersion.id, sealedAt: null }, data: { sealedAt: new Date(), note } })
+    if (!r.count) throw new ActionError('Nothing changed since the last version - edit the project first')
+    await recordAudit({ actorId: user.id, action: 'project.version.seal', entityType: 'ProjectVersion', entityId: project.currentVersion.id, after: { number: project.currentVersion.number, note } })
+    revalidatePath(`/projects/${project.slug}`, 'layout')
+    return null
+  },
+)
+
 // ── Milestones: live list, writers and the owner edit ───────────────────────
 
 async function editableProject(projectId: string, userId: string) {
