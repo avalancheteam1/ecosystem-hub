@@ -109,7 +109,9 @@ export function createSecurityGate() {
 
       let capture = true
       // Only immediate-alert types are always captured; the rest (incl. failed codes) stop at 50/type/hour.
-      if (!IMMEDIATE.has(type)) {
+      // Validation failures are normal form use: log only. A burst still reaches GlitchTip via its alert (security.alert).
+      if (type === 'action.invalid_input') capture = false
+      else if (!IMMEDIATE.has(type)) {
         const c = captured.get(type)
         const cur = !c || now - c.start >= HOUR ? { start: now, count: 0 } : c
         cur.count += 1

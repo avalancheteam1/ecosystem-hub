@@ -35,25 +35,32 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
   const set = <K extends keyof ProfileFormValues>(k: K, v: ProfileFormValues[K]) => setP((x) => ({ ...x, [k]: v }))
   const roles = p.builderRoles as string[]
   const { pending, run } = useActionToast()
+  // The required trio (same as hasCompleteBasicProfile). Country and roles are not native inputs, so the browser can't check them.
+  const missing = { name: !p.name.trim(), country: !p.country, roles: roles.length === 0 }
+  const incomplete = missing.name || missing.country || missing.roles
+  const [showErrors, setShowErrors] = useState(false)
+  const error = (show: boolean, message: string) => showErrors && show && <p role="alert" className="text-xs text-destructive">{message}</p>
   return (
     <form className="grid gap-6" onSubmit={(e) => { e.preventDefault(); run(() => saveProfile(p), onboarding ? 'You’re all set' : 'Profile saved', () => next && router.push(next)) }}>
       <SectionCard title="About you">
         <div className="grid gap-6">
           <ImageUploadField kind="avatar" ownerId={userId} value={p.image ?? null} onChange={(v) => set('image', v)} label="Profile picture" />
           <div className="grid gap-6 sm:grid-cols-2">
-            <Field id="p-name" label="Full name" required hint="Shown across the Ecosystem Hub."><Input id="p-name" required autoFocus={onboarding} value={p.name} onChange={(e) => set('name', e.target.value)} maxLength={80} className="h-11" /></Field>
+            <Field id="p-name" label="Full name" required hint="Shown across the Ecosystem Hub."><Input id="p-name" required autoFocus={onboarding} value={p.name} onChange={(e) => set('name', e.target.value)} maxLength={80} aria-invalid={(showErrors && missing.name) || undefined} className="h-11" />{error(missing.name, 'Name is required')}</Field>
             <Field id="p-country" label="Country" required hint="Helps match you with local programs and events.">
               <CountrySelect id="p-country" value={p.country} onChange={(v) => set('country', v)} countries={countries} />
+              {error(missing.country, 'Pick a country')}
             </Field>
           </div>
           <Field id="p-bio" label="Short bio" hint="A sentence or two about what you build.">
             <Textarea id="p-bio" value={p.bio ?? ''} onChange={(e) => set('bio', e.target.value)} maxLength={250} rows={3} placeholder="Building education programs for Avalanche L1s." />
             <div className="flex justify-end text-xs text-fg-faint tabular-nums">{(p.bio ?? '').length}/250</div>
           </Field>
-          <fieldset className="space-y-3">
+          <fieldset id="p-roles" className="space-y-3">
             <legend className="text-sm">What roles describe you? <span aria-hidden className="text-destructive">*</span><span className="sr-only">(required, pick at least one)</span></legend>
             <p className="text-sm text-fg-muted">Pick all that fit - business folks, students and the curious are as welcome as developers.</p>
             <ChipToggle label="Roles" options={BUILDER_ROLES.map((r) => ({ value: r.id, label: r.name }))} value={roles} onChange={(v) => set('builderRoles', v as ProfileFormValues['builderRoles'])} />
+            {error(missing.roles, 'Pick at least one role')}
             <div className="grid gap-4 sm:grid-cols-2">
               {roles.includes('university') && <Field id="p-inst" label="Institution name"><Input id="p-inst" value={p.institution ?? ''} onChange={(e) => set('institution', e.target.value)} maxLength={120} className="h-11" /></Field>}
               {(roles.includes('founder') || roles.includes('employee')) && <Field id="p-company" label="Company name"><Input id="p-company" value={p.companyName ?? ''} onChange={(e) => set('companyName', e.target.value)} maxLength={120} className="h-11" /></Field>}
@@ -95,7 +102,25 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
         </div>
       </SectionCard>
 
-      <div><Button type="submit" size={onboarding ? 'lg' : 'default'} disabled={pending}>{onboarding ? 'Continue' : 'Save profile'}</Button></div>
+      <div>
+        {/* aria-disabled, not disabled: a disabled button gets no click, and the click is what reveals the errors. */}
+        <Button
+          type="submit"
+          size={onboarding ? 'lg' : 'default'}
+          disabled={pending}
+          aria-disabled={incomplete || undefined}
+          className="aria-disabled:scale-100! aria-disabled:opacity-50"
+          onClick={(e) => {
+            if (!incomplete) return
+            e.preventDefault()
+            setShowErrors(true)
+            // Focus also scrolls there: on the full profile the button sits far below these fields.
+            document.querySelector<HTMLElement>(missing.name ? '#p-name' : missing.country ? '#p-country' : '#p-roles button')?.focus()
+          }}
+        >
+          {onboarding ? 'Continue' : 'Save profile'}
+        </Button>
+      </div>
     </form>
   )
 }

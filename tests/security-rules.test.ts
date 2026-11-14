@@ -134,8 +134,10 @@ describe('security rules', () => {
 
   test('action.invalid_input: a user fixing a form stays silent, 20 in 15 min alerts', () => {
     const g = createSecurityGate()
-    for (let i = 0; i < 19; i++) assert.equal(g.evaluate('action.invalid_input', 'u1', T0 + i * MIN / 2).alert, null)
-    assert.equal(g.evaluate('action.invalid_input', 'u1', T0 + 10 * MIN).alert?.title, 'Security: action.invalid_input')
+    for (let i = 0; i < 19; i++) assert.deepEqual(g.evaluate('action.invalid_input', 'u1', T0 + i * MIN / 2), { capture: false, alert: null })
+    const burst = g.evaluate('action.invalid_input', 'u1', T0 + 10 * MIN)
+    assert.equal(burst.alert?.title, 'Security: action.invalid_input')
+    assert.equal(burst.capture, false) // the burst reaches GlitchTip as security.alert, not as 20 warnings
   })
 
   test('authResponseEvent maps Better Auth captcha failures and 429s, nothing else', () => {
