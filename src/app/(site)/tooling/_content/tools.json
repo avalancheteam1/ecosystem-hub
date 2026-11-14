@@ -1,0 +1,79 @@
+{
+  "categories": [
+    { "slug": "sdks", "label": "SDKs & components" },
+    { "slug": "web-tools", "label": "Web tools" },
+    { "slug": "bots", "label": "Bots" }
+  ],
+  "tools": [
+    {
+      "slug": "evalanche",
+      "name": "Evalanche",
+      "category": "sdks",
+      "purpose": "Wallet and execution SDK for AI agents on Avalanche, with onchain identity (ERC-8004) and x402 payments.",
+      "builder": { "name": "iJaack", "url": "https://github.com/iJaack" },
+      "licence": "MIT",
+      "language": "TypeScript",
+      "install": "npm install evalanche",
+      "note": "Signs real transactions. Read its security notes before giving it a funded key.",
+      "links": [
+        { "label": "Code", "url": "https://github.com/iJaack/evalanche" },
+        { "label": "Site", "url": "https://evalanche-xyz.vercel.app" },
+        { "label": "Security notes", "url": "https://github.com/iJaack/evalanche/blob/main/SECURITY.md" }
+      ],
+      "checked": "2026-11-03"
+    },
+    {
+      "slug": "avakit",
+      "name": "AvaKit",
+      "category": "sdks",
+      "purpose": "Drop-in social-login wallet button and React hooks for Avalanche apps, built on shadcn/ui.",
+      "builder": { "name": "mericcintosun", "url": "https://github.com/mericcintosun" },
+      "licence": "MIT",
+      "language": "TypeScript",
+      "install": "pnpm add @avakit/react @avakit/core viem",
+      "note": "The balance, NFT and history hooks read from the AvaCloud Data API.",
+      "links": [
+        { "label": "Docs", "url": "https://avakit.dev/docs/react" },
+        { "label": "Code", "url": "https://github.com/mericcintosun/AvaKit" }
+      ],
+      "checked": "2026-11-03"
+    },
+    {
+      "slug": "avax-toolkit",
+      "name": "AVAX Toolkit",
+      "category": "web-tools",
+      "purpose": "Local-first web toolkit: C-Chain explorer, validator dashboards, and wallet and transaction utilities, with no backend.",
+      "builder": { "name": "arminreiter", "url": "https://github.com/arminreiter" },
+      "licence": null,
+      "language": "TypeScript",
+      "install": null,
+      "note": "Its wallet manager can keep private keys in your browser, so use a test wallet.",
+      "links": [
+        { "label": "Open the toolkit", "url": "https://avaxtoolkit.com" },
+        { "label": "Code", "url": "https://github.com/arminreiter/avaxtoolkit" }
+      ],
+      "checked": "2026-11-03"
+    },
+    {
+      "slug": "wolfie",
+      "name": "Wolfie",
+      "category": "bots",
+      "purpose": "Telegram companion for Avalanche hackathons: follows the active event, answers coding questions and hands out capped Fuji test AVAX.",
+      "builder": { "name": "iJaack", "url": "https://github.com/iJaack" },
+      "licence": null,
+      "language": "Python",
+      "install": null,
+      "note": "Self-hosted: you run your own Telegram bot and model account.",
+      "links": [
+        { "label": "Code", "url": "https://github.com/iJaack/wolfie-hackathon-bot" }
+      ],
+      "checked": "2026-11-03"
+    }
+  ],
+  "official": [
+    { "label": "Docs", "url": "https://go.team1.network/docs" },
+    { "label": "Console", "url": "https://build.avax.network/console" },
+    { "label": "Faucet", "url": "https://go.team1.network/faucet" },
+    { "label": "BuilderKit by Ava Labs", "url": "https://github.com/ava-labs/builderkit" }
+  ]
+}

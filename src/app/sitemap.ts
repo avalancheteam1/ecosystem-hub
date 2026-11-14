@@ -2,6 +2,8 @@ import type { MetadataRoute } from 'next'
 import { prisma } from '@/lib/db'
 import { ACADEMIES } from '@/app/(site)/education/_lib/content'
 import { academyHref, allLessons, courseHref } from '@/app/(site)/education/_lib/rules'
+import { TOOLING } from '@/app/(site)/tooling/_lib/content'
+import { toolHref } from '@/app/(site)/tooling/_lib/rules'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 
@@ -21,5 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...a.courses.map((c) => ({ url: `${siteUrl}${courseHref(a, c)}`, changeFrequency: 'monthly' as const })),
       ...allLessons(a).map((l) => ({ url: `${siteUrl}${l.href}`, changeFrequency: 'yearly' as const })),
     ]),
+    { url: `${siteUrl}/tooling`, changeFrequency: 'weekly', priority: 0.8 },
+    ...TOOLING.tools.map((t) => ({ url: `${siteUrl}${toolHref(t)}`, changeFrequency: 'monthly' as const })),
   ]
 }

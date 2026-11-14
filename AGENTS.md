@@ -120,6 +120,7 @@ Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads 
 - **Projects** - `src/app/(app)/projects/AGENTS.md` (roles, draft/sealed versions - also what a hackathon team and submission are)
 - **Referrals & groups** - `src/app/(app)/referrals/AGENTS.md` (`/groups/[slug]`, `/admin/groups`)
 - **Education** - `src/app/(site)/education/AGENTS.md`
+- **Tooling** - `src/app/(site)/tooling/AGENTS.md` (community tools listed from a JSON file in git; the PR review is the listing review)
 - **Profile** (`src/app/(app)/profile/`, rules `src/lib/profile.ts`): builders-hub's profile fields (roles, socials with its regexes, wallets, skills, consents), ISO-2 countries (`src/lib/countries.ts`). `hasCompleteBasicProfile` (name + country + role) is required to join a hackathon.
 
 ## Conventions
