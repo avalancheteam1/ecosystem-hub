@@ -139,3 +139,13 @@ test('team roles: readers view, writers edit + submit, only the owner manages th
   assert.equal(canEditProject('member'), false) // unknown/legacy roles get nothing
   assert.ok(!(ASSIGNABLE_ROLES as readonly string[]).includes('owner')) // ownership moves only by transfer
 })
+
+test('wasReplaced: only submission-sealed versions that lost their stage entries', async () => {
+  const { wasReplaced, submissionNote } = await import('@/app/(app)/projects/_lib/rules')
+  const sealedAt = new Date()
+  const note = submissionNote('Hackathon A')
+  assert.equal(wasReplaced({ sealedAt, note, entries: 0 }), true)
+  assert.equal(wasReplaced({ sealedAt, note, entries: 1 }), false)
+  assert.equal(wasReplaced({ sealedAt, note: 'Added mainnet deploy', entries: 0 }), false)
+  assert.equal(wasReplaced({ sealedAt: null, note: null, entries: 0 }), false)
+})

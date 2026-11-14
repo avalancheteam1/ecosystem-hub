@@ -49,6 +49,12 @@ export function planSeal(current: VersionState): 'seal-draft' | 'reuse-sealed' {
   return current.sealedAt ? 'reuse-sealed' : 'seal-draft'
 }
 
+// ponytail: the generated note marks submission seals - no column needed. Ceiling: a manual note typed as "Submitted to …" reads as one too.
+const SUBMITTED_PREFIX = 'Submitted to '
+export const submissionNote = (target: string) => `${SUBMITTED_PREFIX}${target}`
+/** A version sealed by a submission that no stage entry points at any more was re-submitted with a later version. */
+export const wasReplaced = (v: { sealedAt: Date | null; note: string | null; entries: number }) => !!v.sealedAt && v.entries === 0 && !!v.note?.startsWith(SUBMITTED_PREFIX)
+
 export function versionLabel(v: { number: number; sealedAt: Date | null }): string {
   return v.sealedAt ? `Version ${v.number}` : `Version ${v.number} · draft`
 }
