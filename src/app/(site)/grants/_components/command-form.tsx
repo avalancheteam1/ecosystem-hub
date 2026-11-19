@@ -1,0 +1,394 @@
+'use client'
+
+import { useId, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import { Field } from '@/components/field'
+import { FormDialog } from '@/components/form-dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { NativeSelect } from '@/components/ui/native-select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { useActionToast } from '@/hooks/use-action-toast'
+import { changeApplication, createApplication } from '../_lib/actions'
+import { answers, commandSchema, createSchema, money } from '../_lib/schemas'
+
+export type GrantRepeater = { path: string; label: string; limit: number; template: Record<string, unknown>; fields: GrantField[] }
+export type GrantField = {
+  path: string
+  label: string
+  type?: 'text' | 'textarea' | 'number' | 'money' | 'date' | 'select' | 'checkbox'
+  options?: { value: string; label: string }[]
+  hint?: string
+  optional?: boolean
+}
+const read = (data: unknown, path: string): unknown =>
+  path
+    .split('.')
+    .reduce<unknown>((value, key) => (value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined), data)
+function write(data: Record<string, unknown>, path: string, value: unknown) {
+  const keys = path.split('.')
+  let target: Record<string, unknown> = data
+  for (const key of keys.slice(0, -1)) {
+    if (['__proto__', 'constructor', 'prototype'].includes(key)) throw new Error('Invalid field')
+    if (!target[key] || typeof target[key] !== 'object') target[key] = {}
+    target = target[key] as Record<string, unknown>
+  }
+  target[keys.at(-1)!] = value
+}
+
+/** One form contract for the native grant writes; the server revalidates and authorizes each command. */
+export function GrantCommandForm({
+  applicationId,
+  revision,
+  data,
+  fields,
+  label,
+  dialog = false,
+  create = false,
+  repeaters = [],
+  initialStep = 0,
+}: {
+  applicationId?: string
+  revision?: number
+  data: Record<string, unknown>
+  fields: GrantField[]
+  label: string
+  dialog?: boolean
+  create?: boolean
+  repeaters?: GrantRepeater[]
+  initialStep?: number
+}) {
+  const uid = useId(),
+    router = useRouter(),
+    pathname = usePathname(),
+    params = useSearchParams(),
+    { pending, run } = useActionToast()
+  const [counts, setCounts] = useState(() =>
+    Object.fromEntries(
+      repeaters.map((r) => [r.path, Math.max(1, Array.isArray(read(data, r.path)) ? (read(data, r.path) as unknown[]).length : 1)]),
+    ),
+  )
+  const repeatedFields = repeaters.flatMap((r) =>
+    Array.from({ length: counts[r.path] }, (_, i) =>
+      r.fields.map((f) => ({ ...f, path: `${r.path}.${i}.${f.path}`, label: `${r.label} ${i + 1}: ${f.label}` })),
+    ).flat(),
+  )
+  const allFields = [...fields, ...repeatedFields]
+  const [values, setValues] = useState<Record<string, string | boolean>>(() =>
+    Object.fromEntries(
+      allFields.map((f) => {
+        const value = read(data, f.path)
+        return [
+          f.path,
+          f.type === 'checkbox'
+            ? value === true
+            : value === null || value === undefined
+              ? ''
+              : f.type === 'money'
+                ? (Number(value) / 100).toFixed(2)
+                : String(value),
+        ]
+      }),
+    ),
+  )
+  const wizard = create || data.kind === 'save_application'
+  const [step, setStep] = useState(initialStep),
+    [confirmed, setConfirmed] = useState(false),
+    [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const goStep = (value: number) => {
+    setStep(value)
+    const next = new URLSearchParams(params.toString())
+    next.set('step', ['project', 'outcome', 'milestone', 'review'][value])
+    router.replace(`${pathname}?${next}`, { scroll: false })
+  }
+  const [error, setError] = useState('')
+  async function submit(submitNow = false) {
+    const payload = structuredClone(data)
+    if (create) {
+      payload.submit = submitNow
+      payload.confirm = confirmed
+    }
+    if (submitNow && !confirmed) {
+      setError('Confirm before submitting the application.')
+      return false
+    }
+    for (const r of repeaters)
+      write(
+        payload,
+        r.path,
+        Array.from({ length: counts[r.path] }, () => structuredClone(r.template)),
+      )
+    for (const f of allFields) {
+      const raw = values[f.path] ?? ''
+      if (f.type === 'money') {
+        if (f.optional && (raw === '' || Number(raw) === 0)) {
+          write(payload, f.path, 0)
+          continue
+        }
+        const parsed = money.safeParse(raw)
+        if (!parsed.success) {
+          setError(`${f.label}: ${parsed.error.issues[0]?.message}`)
+          return false
+        }
+        write(payload, f.path, parsed.data)
+      } else write(payload, f.path, f.type === 'number' ? (raw === '' ? null : Number(raw)) : raw)
+    }
+    if (payload.kind === 'record_decision' && payload.outcome !== 'approved') payload.terms = null
+    if (submitNow && !create) {
+      const complete = answers.safeParse(payload.answers)
+      if (!complete.success) {
+        setError(complete.error.issues[0]?.message || 'Complete the application')
+        return false
+      }
+    }
+    const parsed = create ? createSchema.safeParse(payload) : commandSchema.safeParse(payload)
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      setError(`${issue?.path.join('.') || 'Form'}: ${issue?.message || 'Check the fields'}`)
+      return false
+    }
+    setError('')
+    try {
+      return await run(
+        async () => {
+          if (create) {
+            const result = await createApplication(createSchema.parse(payload))
+            if (result.ok) router.push(`/grants/applications/${result.data.id}`)
+            return result
+          }
+          const saved = await changeApplication({
+            applicationId: applicationId!,
+            revision: revision!,
+            command: commandSchema.parse(payload),
+          })
+          if (saved.ok && submitNow && data.kind === 'save_application')
+            return changeApplication({
+              applicationId: applicationId!,
+              revision: saved.data.revision,
+              command: { kind: 'submit_application', confirm: true },
+            })
+          return saved
+        },
+        submitNow ? 'Application submitted' : create || data.kind === 'save_application' ? 'Draft saved' : 'Grant record saved',
+      )
+    } catch {
+      toast.error('The request could not complete. Refresh to check the latest record before retrying.')
+      return false
+    }
+  }
+  const renderField = (f: GrantField, i: number) => {
+    const fieldId = `${uid}-${i}`,
+      value = values[f.path] ?? ''
+    const update = (v: string | boolean) => setValues((old) => ({ ...old, [f.path]: v }))
+    if (f.type === 'checkbox')
+      return (
+        <label key={f.path} className="flex min-h-11 items-start gap-3 text-sm">
+          <Checkbox id={fieldId} checked={value === true} onCheckedChange={(v) => update(v === true)} className="mt-1" />
+          <span>{f.label}</span>
+        </label>
+      )
+    return (
+      <Field key={f.path} id={fieldId} label={f.label} hint={f.hint}>
+        {f.type === 'select' ? (
+          <NativeSelect id={fieldId} value={String(value)} onChange={(e) => update(e.target.value)} required={!f.optional}>
+            <option value="">Choose</option>
+            {f.options?.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </NativeSelect>
+        ) : f.type === 'textarea' ? (
+          <Textarea
+            id={fieldId}
+            value={String(value)}
+            onChange={(e) => update(e.target.value)}
+            required={!f.optional}
+            rows={4}
+            maxLength={10000}
+          />
+        ) : (
+          <Input
+            id={fieldId}
+            className="h-11"
+            type={f.type === 'money' ? 'text' : f.type || 'text'}
+            inputMode={f.type === 'money' ? 'decimal' : undefined}
+            value={String(value)}
+            onChange={(e) => update(e.target.value)}
+            required={!f.optional}
+            step={f.type === 'number' ? 'any' : undefined}
+            maxLength={10000}
+          />
+        )}
+      </Field>
+    )
+  }
+  const visibleFields = allFields.filter((f) => {
+    if (data.kind === 'record_decision' && String(values.outcome ?? data.outcome) !== 'approved' && f.path.startsWith('terms.'))
+      return false
+    if (!wizard) return true
+    const group = ['projectId', 'roundId'].includes(f.path)
+      ? 0
+      : ['answers.problem', 'answers.outcome', 'answers.capability'].includes(f.path)
+        ? 1
+        : 2
+    return group === step
+  })
+  const assessmentIds = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']
+  const content = (
+    <>
+      {wizard && (
+        <nav aria-label="Application steps" className="no-scrollbar mb-6 flex gap-2 overflow-x-auto border-b border-line">
+          {['Project', 'Avalanche outcome', 'Milestone & budget', 'Review & submit'].map((name, index) => (
+            <Button
+              type="button"
+              key={name}
+              variant="ghost"
+              aria-current={step === index ? 'step' : undefined}
+              onClick={() => goStep(index)}
+              className={step === index ? 'rounded-none border-b-2 border-brand' : 'rounded-none'}
+            >
+              {name}
+            </Button>
+          ))}
+        </nav>
+      )}
+      {wizard && step === 0 && !create && (
+        <p className="text-sm text-fg-muted">
+          This draft reuses your saved Hub project and current team. Your project version is sealed only on submission.
+        </p>
+      )}
+      {wizard && step === 3 && (
+        <div className="space-y-5">
+          <h2 className="text-lg">Review the application</h2>
+          <dl className="space-y-4">
+            {allFields
+              .filter((f) => f.type !== 'checkbox')
+              .map((f) => (
+                <div key={f.path}>
+                  <dt className="text-sm text-fg-muted">{f.label}</dt>
+                  <dd className="whitespace-pre-wrap">{String(values[f.path] ?? '') || 'Not yet provided'}</dd>
+                </div>
+              ))}
+          </dl>
+          <label className="flex min-h-11 items-start gap-3">
+            <Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} className="mt-1" />
+            <span>I confirm this application is accurate and ready for review. Submission seals the current project version.</span>
+          </label>
+        </div>
+      )}
+
+      {data.kind === 'save_assessment' ? (
+        <>
+          {assessmentIds.map((id, index) => {
+            const row = visibleFields.filter((f) => f.path.startsWith(`assessment.criteria.${id}.`))
+            return (
+              <fieldset key={id} className="border-b border-line py-0.5">
+                <legend className="sr-only">{row[0]?.label}</legend>
+                <div className="grid grid-cols-[minmax(0,1fr)_2rem_3.5rem_3.25rem] items-center gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_2.5rem_4.5rem_4rem]">
+                  <button
+                    type="button"
+                    aria-expanded={expanded[id] === true}
+                    aria-controls={`${uid}-detail-${id}`}
+                    onClick={() => setExpanded((old) => ({ ...old, [id]: !old[id] }))}
+                    className="min-h-11 text-left"
+                  >
+                    {row[0]?.label}
+                  </button>
+                  <span className="text-xs text-fg-muted">{id === 'c9' ? '20%' : '10%'}</span>
+                  {row
+                    .filter((f) => f.type === 'select')
+                    .map((f, i) => (
+                      <div key={f.path} className="[&_label]:sr-only [&_select]:pr-6 [&_select]:pl-2">
+                        {renderField(f, index * 4 + i)}
+                      </div>
+                    ))}
+                </div>
+                {expanded[id] && (
+                  <div id={`${uid}-detail-${id}`} className="space-y-4 py-3">
+                    {row.filter((f) => f.type !== 'select').map((f, i) => renderField(f, 100 + index * 4 + i))}
+                  </div>
+                )}
+              </fieldset>
+            )
+          })}
+          <details>
+            <summary className="inline-flex min-h-11 cursor-pointer items-center">Other readiness conditions</summary>
+            <div className="space-y-4 py-4">
+              {visibleFields.filter((f) => f.path.includes('.clearances.')).map((f, i) => renderField(f, 200 + i))}
+            </div>
+          </details>
+          {visibleFields.filter((f) => f.path === 'assessment.note').map((f) => renderField(f, 300))}
+        </>
+      ) : (
+        visibleFields.map(renderField)
+      )}
+      {(!wizard || step === 2) &&
+        repeaters.map((r) => (
+          <div key={r.path} className="flex gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={counts[r.path] >= r.limit}
+              onClick={() => setCounts((old) => ({ ...old, [r.path]: old[r.path] + 1 }))}
+            >
+              Add {r.label.toLowerCase()}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={counts[r.path] <= 1}
+              onClick={() => setCounts((old) => ({ ...old, [r.path]: old[r.path] - 1 }))}
+            >
+              Remove last {r.label.toLowerCase()}
+            </Button>
+          </div>
+        ))}
+      {error && (
+        <p role="alert" className="border-l-2 border-destructive pl-3 text-sm text-fg-heading">
+          {error}
+        </p>
+      )}
+    </>
+  )
+  return dialog ? (
+    <FormDialog title={label} trigger={<Button>{label}</Button>} submitLabel={label} pending={pending} onSubmit={() => submit()}>
+      {content}
+    </FormDialog>
+  ) : (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (wizard && step < 3) goStep(step + 1)
+        else void submit(wizard)
+      }}
+    >
+      {content}
+      <div className="flex flex-wrap justify-between gap-3">
+        {wizard && (
+          <>
+            <Button type="button" variant="secondary" disabled={step === 0 || pending} onClick={() => goStep(step - 1)}>
+              Back
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => {
+                void submit(false)
+              }}
+            >
+              Save draft
+            </Button>
+          </>
+        )}
+        <Button type="submit" disabled={pending}>
+          {pending ? 'Saving...' : wizard ? (step < 3 ? 'Continue' : 'Submit application') : label}
+        </Button>
+      </div>
+    </form>
+  )
+}

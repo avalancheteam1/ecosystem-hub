@@ -1,0 +1,77 @@
+// Grant-owned records. Existing projects, accounts and permissions remain authoritative.
+model GrantRound {
+  id           String   @id @default(cuid())
+  name         String
+  published    Boolean  @default(false)
+  revision     Int      @default(0)
+  choices      Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  applications GrantApplication[]
+  snapshots    GrantRoundSnapshot[]
+
+  @@map("grant_rounds")
+}
+
+model GrantApplication {
+  id               String         @id @default(cuid())
+  roundId          String
+  round            GrantRound     @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  projectVersionId String
+  projectVersion   ProjectVersion @relation(fields: [projectVersionId], references: [id], onDelete: Restrict)
+  revision         Int            @default(0)
+  status           String         @default("draft")
+  // Validated by stateSchema on every read/write; never accepted from a client.
+  state            Json
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  revisions        GrantRevision[]
+  paymentReferences GrantPaymentReference[]
+
+  @@unique([roundId, projectId])
+  @@index([projectId])
+  @@index([roundId, status])
+  @@map("grant_applications")
+}
+
+// Append-only authoritative revision receipt, in the same transaction as the head.
+model GrantRevision {
+  id            String           @id @default(cuid())
+  applicationId String
+  application   GrantApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  number        Int
+  actorId       String
+  kind          String
+  state         Json
+  createdAt     DateTime         @default(now())
+
+  @@unique([applicationId, number])
+  @@map("grant_revisions")
+}
+
+// Unique across grants, not just within a client's current list.
+model GrantPaymentReference {
+  reference     String           @id
+  applicationId String
+  application   GrantApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  createdAt     DateTime         @default(now())
+
+  @@index([applicationId])
+  @@map("grant_payment_references")
+}
+
+model GrantRoundSnapshot {
+  id        String     @id @default(cuid())
+  roundId   String
+  round     GrantRound @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  number    Int
+  actorId   String
+  note      String
+  data      Json
+  createdAt DateTime   @default(now())
+
+  @@unique([roundId, number])
+  @@map("grant_round_snapshots")
+}
