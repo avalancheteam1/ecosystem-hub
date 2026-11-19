@@ -1,0 +1,23 @@
+// Public team1 listings. A null publication timestamp keeps the listing private.
+model EarnBounty {
+  id                String    @id @db.Uuid
+  title             String
+  description       String
+  deliverables      String
+  participation     String
+  participationUrl  String?
+  category          String
+  reward            String
+  deadline          DateTime
+  hubModule         String?
+  githubIssueUrl    String?
+  publishedAt       DateTime?
+  revision          Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([publishedAt, deadline, id])
+  @@index([deadline, id])
+  @@index([updatedAt, id])
+  @@map("earn_bounties")
+}
