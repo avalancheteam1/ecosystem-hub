@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/empty-state'
 import { requirePermission } from '@/lib/guards'
 import { can } from '@/lib/permissions'
 import { prisma } from '@/lib/db'
-import { OperationsNav } from '@/app/(site)/grants/_components/navigation'
+import { OperationsNav, RoundIntakeStatus } from '@/app/(site)/grants/_components/navigation'
 import { RoundControls } from '@/app/(site)/grants/_components/round-controls'
 import { RoundTable } from '@/app/(site)/grants/_components/round-table'
 import { stateSchema, assessment, storedRoundChoice } from '@/app/(site)/grants/_lib/schemas'
@@ -141,13 +141,11 @@ export default async function RoundsPage({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg">{round.name}</h2>
-              <p className="text-sm text-fg-muted">
+              <div className="mt-2 space-y-2">
                 {frozen
-                  ? `Read-only snapshot / ${frozen.createdAt.toISOString()}`
-                  : round.published
-                    ? 'Applications open'
-                    : 'Applications closed'}
-              </p>
+                  ? <p className="text-sm text-fg-muted">Read-only snapshot from {frozen.createdAt.toISOString().slice(0, 10)}</p>
+                  : <RoundIntakeStatus open={round.published} />}
+              </div>
             </div>
             {manage && !frozen && (
               <div className="flex flex-wrap gap-3">
@@ -174,7 +172,7 @@ export default async function RoundsPage({
                   {choice.disposition.replaceAll('_', ' ')} / {choice.rationale}
                 </p>
                 <p className="text-xs text-fg-muted">
-                  {choice.at} / owner {choice.ownerId}
+                  {choice.at.slice(0, 10)} · {owners.find(({ value }) => value === choice.ownerId)?.label ?? 'Former reviewer'}
                 </p>
                 {choice.history.length > 0 && (
                   <details>

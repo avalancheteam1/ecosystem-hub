@@ -1,8 +1,10 @@
 'use client'
 
-import { useId, useState } from 'react'
+import Link from 'next/link'
+import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { ProjectPicker, type ProjectPickerOption } from '@/components/project-picker'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
@@ -14,6 +16,7 @@ import { useActionToast } from '@/hooks/use-action-toast'
 import { changeApplication, createApplication } from '../_lib/actions'
 import { answers, commandSchema, createSchema, money } from '../_lib/schemas'
 
+export type GrantRoadmap = { id: string; slug: string; milestones: { id: string; title: string; targetDate: string }[] }
 export type GrantRepeater = { path: string; label: string; limit: number; template: Record<string, unknown>; fields: GrantField[] }
 export type GrantField = {
   path: string
@@ -22,6 +25,7 @@ export type GrantField = {
   options?: { value: string; label: string }[]
   hint?: string
   optional?: boolean
+  maxLength?: number
 }
 const read = (data: unknown, path: string): unknown =>
   path
@@ -49,6 +53,9 @@ export function GrantCommandForm({
   create = false,
   repeaters = [],
   initialStep = 0,
+  roadmaps = [],
+  roundOpen = true,
+  projectOptions = [],
 }: {
   applicationId?: string
   revision?: number
@@ -59,6 +66,9 @@ export function GrantCommandForm({
   create?: boolean
   repeaters?: GrantRepeater[]
   initialStep?: number
+  roadmaps?: GrantRoadmap[]
+  roundOpen?: boolean
+  projectOptions?: ProjectPickerOption[]
 }) {
   const uid = useId(),
     router = useRouter(),
@@ -103,17 +113,45 @@ export function GrantCommandForm({
     next.set('step', ['project', 'outcome', 'milestone', 'review'][value])
     router.replace(`${pathname}?${next}`, { scroll: false })
   }
-  const [error, setError] = useState('')
+  const [refreshingRoadmap, refreshRoadmap] = useTransition()
+  const [error, setError] = useState<{ path?: string; message: string } | null>(null)
+  const errorSummary = useRef<HTMLParagraphElement>(null)
+  useEffect(() => { if (error) errorSummary.current?.focus() }, [error])
+  const groupFor = (path: string) => ['projectId', 'roundId'].includes(path)
+    ? 0 : ['answers.problem', 'answers.outcome', 'answers.whyGrant', 'answers.capability'].includes(path) ? 1 : 2
+  const roadmap = create ? roadmaps.find((project) => project.id === values.projectId) : roadmaps[0]
+  const milestone = roadmap?.milestones.find((m) => m.id === values['answers.projectMilestoneId'])
+  const milestoneOptions = roadmap?.milestones.map((m) => ({ value: m.id, label: `${m.title} · ${m.targetDate}` })) ?? []
+  const optionsFor = (f: GrantField) => f.path === 'answers.projectMilestoneId' ? milestoneOptions : f.options
+  const fail = (message: string, path?: string) => {
+    setError({ path, message })
+    if (wizard && path) goStep(groupFor(path))
+    return false
+  }
+  const showIssue = (issue?: { path: PropertyKey[]; message: string }) => {
+    const path = issue?.path.join('.') ?? ''
+    const field = allFields.find((f) => f.path === path)
+    const message = path === 'projectId' ? 'Choose the Hub project you want to apply with.'
+      : path === 'roundId' ? 'Choose an open round.'
+      : field ? `${field.label}: ${!values[path] && field.type !== 'checkbox' ? 'Enter a value.' : issue?.message}`
+        : issue?.message || 'Check the application and try again.'
+    return fail(message, field?.path || (wizard && path === 'answers.costs' ? 'answers.costs.0.amountMinor' : undefined))
+  }
   async function submit(submitNow = false) {
     const payload = structuredClone(data)
     if (create) {
       payload.submit = submitNow
       payload.confirm = confirmed
     }
-    if (submitNow && !confirmed) {
-      setError('Confirm before submitting the application.')
-      return false
-    }
+    if (submitNow && !roundOpen) return fail('This round is closed. You can still save your draft.')
+    if (submitNow && !confirmed) return fail('Confirm before submitting the application.')
+    if (create && !values.projectId) return fail('Choose the Hub project you want to apply with.', 'projectId')
+    if (create && !values.roundId) return fail('Choose an open round.', 'roundId')
+    if (submitNow && create && projectOptions.find((project) => project.id === values.projectId)?.missing.length)
+      return fail('Complete the missing project details before submitting.', 'projectId')
+    if (submitNow && !milestone) return fail('Choose a milestone from your project roadmap before submitting.', 'answers.projectMilestoneId')
+    if (submitNow && !String(values['answers.whyGrant'] ?? '').trim())
+      return fail('Explain why this grant would make a difference.', 'answers.whyGrant')
     for (const r of repeaters)
       write(
         payload,
@@ -129,27 +167,29 @@ export function GrantCommandForm({
         }
         const parsed = money.safeParse(raw)
         if (!parsed.success) {
-          setError(`${f.label}: ${parsed.error.issues[0]?.message}`)
-          return false
+          return fail(`${f.label}: Enter a dollar amount from $1 to $10,000 with up to two decimal places.`, f.path)
         }
         write(payload, f.path, parsed.data)
       } else write(payload, f.path, f.type === 'number' ? (raw === '' ? null : Number(raw)) : raw)
+    }
+    if (wizard) {
+      write(payload, 'answers.projectMilestoneId', milestone?.id)
+      write(payload, 'answers.terms.title', milestone?.title ?? '')
+      write(payload, 'answers.terms.due', milestone?.targetDate ?? '')
     }
     if (payload.kind === 'record_decision' && payload.outcome !== 'approved') payload.terms = null
     if (submitNow && !create) {
       const complete = answers.safeParse(payload.answers)
       if (!complete.success) {
-        setError(complete.error.issues[0]?.message || 'Complete the application')
-        return false
+        const issue = complete.error.issues[0]
+        return showIssue(issue && { ...issue, path: ['answers', ...issue.path] })
       }
     }
     const parsed = create ? createSchema.safeParse(payload) : commandSchema.safeParse(payload)
     if (!parsed.success) {
-      const issue = parsed.error.issues[0]
-      setError(`${issue?.path.join('.') || 'Form'}: ${issue?.message || 'Check the fields'}`)
-      return false
+      return showIssue(parsed.error.issues[0])
     }
-    setError('')
+    setError(null)
     try {
       return await run(
         async () => {
@@ -181,20 +221,35 @@ export function GrantCommandForm({
   const renderField = (f: GrantField, i: number) => {
     const fieldId = `${uid}-${i}`,
       value = values[f.path] ?? ''
-    const update = (v: string | boolean) => setValues((old) => ({ ...old, [f.path]: v }))
+    const invalid = error?.path === f.path
+    const descriptors = { 'aria-invalid': invalid || undefined, 'aria-describedby': invalid ? `${uid}-form-error` : undefined }
+    const update = (v: string | boolean) => {
+      setConfirmed(false)
+      setValues((old) => ({ ...old, [f.path]: v, ...(f.path === 'projectId' ? { 'answers.projectMilestoneId': '' } : {}) }))
+      if (invalid) setError(null)
+    }
+    if (f.path === 'projectId' && projectOptions.length)
+      return (
+        <fieldset key={f.path}>
+          <legend className="mb-2 text-lg">Your Hub project</legend>
+          <ProjectPicker projects={projectOptions} projectId={String(value)} onChange={update}
+            returnTo={`${pathname}?project=${encodeURIComponent(String(value))}`} name={fieldId} invalid={invalid}
+            describedBy={descriptors['aria-describedby']} />
+        </fieldset>
+      )
     if (f.type === 'checkbox')
       return (
         <label key={f.path} className="flex min-h-11 items-start gap-3 text-sm">
-          <Checkbox id={fieldId} checked={value === true} onCheckedChange={(v) => update(v === true)} className="mt-1" />
+          <Checkbox {...descriptors} id={fieldId} checked={value === true} onCheckedChange={(v) => update(v === true)} className="mt-1" />
           <span>{f.label}</span>
         </label>
       )
     return (
       <Field key={f.path} id={fieldId} label={f.label} hint={f.hint}>
         {f.type === 'select' ? (
-          <NativeSelect id={fieldId} value={String(value)} onChange={(e) => update(e.target.value)} required={!f.optional}>
+          <NativeSelect {...descriptors} id={fieldId} value={String(value)} onChange={(e) => update(e.target.value)} required={!f.optional}>
             <option value="">Choose</option>
-            {f.options?.map((o) => (
+            {optionsFor(f)?.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -202,15 +257,17 @@ export function GrantCommandForm({
           </NativeSelect>
         ) : f.type === 'textarea' ? (
           <Textarea
+            {...descriptors}
             id={fieldId}
             value={String(value)}
             onChange={(e) => update(e.target.value)}
             required={!f.optional}
             rows={4}
-            maxLength={10000}
+            maxLength={f.maxLength ?? 10000}
           />
         ) : (
           <Input
+            {...descriptors}
             id={fieldId}
             className="h-11"
             type={f.type === 'money' ? 'text' : f.type || 'text'}
@@ -219,8 +276,21 @@ export function GrantCommandForm({
             onChange={(e) => update(e.target.value)}
             required={!f.optional}
             step={f.type === 'number' ? 'any' : undefined}
-            maxLength={10000}
+            maxLength={f.maxLength ?? 10000}
           />
+        )}
+        {f.path === 'answers.projectMilestoneId' && roadmap && (
+          <div className="text-sm text-fg-muted">
+            <p>{milestoneOptions.length ? 'Title and target date come from the project roadmap.' : 'This project has no planned or in-progress milestone with a current target date.'}</p>
+            <div className="flex flex-wrap items-center gap-x-3">
+              <Link href={`/projects/${roadmap.slug}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
+                Open project roadmap <span className="sr-only">(opens in a new tab)</span>
+              </Link>
+              <Button type="button" variant="ghost" disabled={refreshingRoadmap} onClick={() => refreshRoadmap(() => router.refresh())}>
+                {refreshingRoadmap ? 'Refreshing milestones…' : 'Refresh milestones'}
+              </Button>
+            </div>
+          </div>
         )}
       </Field>
     )
@@ -229,18 +299,18 @@ export function GrantCommandForm({
     if (data.kind === 'record_decision' && String(values.outcome ?? data.outcome) !== 'approved' && f.path.startsWith('terms.'))
       return false
     if (!wizard) return true
-    const group = ['projectId', 'roundId'].includes(f.path)
-      ? 0
-      : ['answers.problem', 'answers.outcome', 'answers.capability'].includes(f.path)
-        ? 1
-        : 2
-    return group === step
+    return groupFor(f.path) === step
   })
   const assessmentIds = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']
   const content = (
     <>
+      {error && (
+        <p ref={errorSummary} id={`${uid}-form-error`} tabIndex={-1} role="alert" className="border-l-2 border-destructive pl-3 text-sm text-fg-heading">
+          {error.message}
+        </p>
+      )}
       {wizard && (
-        <nav aria-label="Application steps" className="no-scrollbar mb-6 flex gap-2 overflow-x-auto border-b border-line">
+        <nav aria-label="Application steps" className="mb-6 grid grid-cols-2 gap-2 border-b border-line sm:flex sm:flex-wrap">
           {['Project', 'Avalanche outcome', 'Milestone & budget', 'Review & submit'].map((name, index) => (
             <Button
               type="button"
@@ -248,7 +318,7 @@ export function GrantCommandForm({
               variant="ghost"
               aria-current={step === index ? 'step' : undefined}
               onClick={() => goStep(index)}
-              className={step === index ? 'rounded-none border-b-2 border-brand' : 'rounded-none'}
+              className={step === index ? 'justify-start rounded-none border-b-2 border-brand' : 'justify-start rounded-none'}
             >
               {name}
             </Button>
@@ -269,7 +339,10 @@ export function GrantCommandForm({
               .map((f) => (
                 <div key={f.path}>
                   <dt className="text-sm text-fg-muted">{f.label}</dt>
-                  <dd className="whitespace-pre-wrap">{String(values[f.path] ?? '') || 'Not yet provided'}</dd>
+                  <dd className="whitespace-pre-wrap">
+                    {(optionsFor(f)?.find((option) => option.value === values[f.path])?.label
+                      ?? (f.type === 'select' ? '' : String(values[f.path] ?? ''))) || 'Not yet provided'}
+                  </dd>
                 </div>
               ))}
           </dl>
@@ -346,11 +419,6 @@ export function GrantCommandForm({
             </Button>
           </div>
         ))}
-      {error && (
-        <p role="alert" className="border-l-2 border-destructive pl-3 text-sm text-fg-heading">
-          {error}
-        </p>
-      )}
     </>
   )
   return dialog ? (
@@ -362,8 +430,12 @@ export function GrantCommandForm({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
-        if (wizard && step < 3) goStep(step + 1)
-        else void submit(wizard)
+        if (wizard && step < 3) {
+          if (step === 0 && create && !values.projectId) fail('Choose the Hub project you want to apply with.', 'projectId')
+          else if (step === 0 && create && !values.roundId) fail('Choose an open round.', 'roundId')
+          else if (step === 2 && !milestone) fail('Choose a milestone from your project roadmap before continuing.', 'answers.projectMilestoneId')
+          else { setError(null); goStep(step + 1) }
+        } else void submit(wizard)
       }}
     >
       {content}
@@ -385,7 +457,7 @@ export function GrantCommandForm({
             </Button>
           </>
         )}
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || (wizard && step === 3 && !roundOpen)}>
           {pending ? 'Saving...' : wizard ? (step < 3 ? 'Continue' : 'Submit application') : label}
         </Button>
       </div>

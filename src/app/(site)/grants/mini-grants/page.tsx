@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import { canonical } from '@/lib/metadata'
 import Link from 'next/link'
 import { PageHeader } from '@/components/layout/page-header'
+import { SectionCard } from '@/components/section-card'
 import { BackLink } from '@/components/back-link'
 import { buttonVariants } from '@/components/ui/button'
-import { BuilderHubGrantsLink } from '../_components/navigation'
+import { BuilderHubGrantsLink, RoundIntakeStatus } from '../_components/navigation'
 import { publishedRounds } from '../_lib/queries'
 
 export const metadata: Metadata = {
@@ -38,17 +39,18 @@ export default async function MiniGrantsPage() {
             {rounds.length ? 'Start application' : 'View my applications'}
           </Link>
         </section>
-        <aside className="border-t border-line pt-6 text-sm text-fg-muted md:border-t-0 md:border-l md:pt-0 md:pl-8">
-          <h2 className="text-lg">Before you begin</h2>
-          <p className="mt-3">
-            Use an existing project, report overlapping funding and agree an acceptance test. Funding and terms are decided separately from
-            the assessment score.
-          </p>
-          <p className="mt-4">
-            {rounds.length ? `${rounds.length} round(s) currently accepting applications.` : 'There is no open application round on this Hub.'}
-          </p>
+        <SectionCard title="Application rounds">
+          <RoundIntakeStatus open={rounds.length > 0} />
+          {rounds.length ? (
+            <ul className="mt-3 space-y-2 text-sm">
+              {rounds.map((round) => <li key={round.id}>{round.name}</li>)}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-fg-muted">You can still open existing applications and respond to requests.</p>
+          )}
+          <p className="mt-4 text-sm text-fg-muted">The grant team opens and closes intake for each round. Choose an open round when applying.</p>
           {!rounds.length && <BuilderHubGrantsLink />}
-        </aside>
+        </SectionCard>
       </div>
     </div>
   )

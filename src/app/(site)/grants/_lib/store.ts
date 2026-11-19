@@ -35,6 +35,26 @@ async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versi
   return version.id
 }
 
+// The live roadmap supplies the selection. The submitted terms retain the title
+// and date even when the project team later edits or removes its roadmap entry.
+async function resolveMilestone(tx: Prisma.TransactionClient, projectId: string, answers: Answers, required: boolean): Promise<Answers> {
+  if (required && !answers.whyGrant?.trim())
+    throw new ActionError('Explain why this grant would make a difference before submitting.')
+  if (!answers.projectMilestoneId) {
+    if (required) throw new ActionError('Choose a milestone from your Hub project roadmap before submitting.')
+    return { ...answers, terms: { ...answers.terms, title: '', due: '' } }
+  }
+  const milestone = await tx.projectMilestone.findFirst({
+    where: { id: answers.projectMilestoneId, projectId, status: { in: ['planned', 'in_progress'] } },
+    select: { title: true, targetDate: true },
+  })
+  if (!milestone || milestone.targetDate < new Date().toISOString().slice(0, 10))
+    throw new ActionError('That milestone is no longer selectable. Update the Hub project roadmap or choose another milestone.')
+  if ((required || answers.terms.title || answers.terms.due) && (answers.terms.title !== milestone.title || answers.terms.due !== milestone.targetDate))
+    throw new ActionError('The milestone changed on the project roadmap. Refresh and review its current title and date before submitting.')
+  return { ...answers, terms: { ...answers.terms, title: milestone.title, due: milestone.targetDate } }
+}
+
 export async function createGrant(projectId: string, roundId: string, answers: Answers, user: CurrentUser, submit = false) {
   return transaction(async (tx) => {
     const { project, role } = await projectAccess(tx, projectId, user)
@@ -42,7 +62,7 @@ export async function createGrant(projectId: string, roundId: string, answers: A
     if (!project?.currentVersionId || project.archivedAt) throw new ActionError('Choose an active project with a saved version')
     const round = await tx.grantRound.findFirst({ where: { id: roundId, published: true }, select: { id: true } })
     if (!round) throw new ActionError('This round is not accepting applications')
-    const initial = initialState(answers)
+    const initial = initialState(await resolveMilestone(tx, projectId, answers, submit))
     const versionId = submit ? await pinVersion(tx, projectId, project.currentVersionId) : project.currentVersionId
     const state = submit
       ? transition(
@@ -86,11 +106,16 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       if (row.revision !== revision) throw conflict()
       let projectVersionId = row.projectVersionId
       if (command.kind === 'submit_application' || command.kind === 'answer_request') {
-        if (command.kind === 'submit_application' && !row.round.published) throw new ActionError('This round is closed')
+        if (command.kind === 'submit_application' && !row.round.published) throw new ActionError('This round has closed. You can keep editing the draft and submit when it reopens.')
         projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '')
       }
+      if (command.kind === 'submit_application')
+        state.answers = await resolveMilestone(tx, row.projectId, state.answers, true)
+      const effectiveCommand = command.kind === 'save_application'
+        ? { ...command, answers: await resolveMilestone(tx, row.projectId, command.answers, false) }
+        : command
       const now = new Date().toISOString()
-      const next = transition(state, command, { id: randomUUID(), actorId: user.id, now, projectVersionId })
+      const next = transition(state, effectiveCommand, { id: randomUUID(), actorId: user.id, now, projectVersionId })
       // Actor identities supplied as references must be real grant staff, not arbitrary strings.
       const assignee = 'ownerId' in command ? command.ownerId : null
       if (assignee) await assertReviewer(tx, assignee, user)

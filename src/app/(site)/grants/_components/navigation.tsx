@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { StatusPill } from '@/components/status-pill'
 
 export function GrantTabs({ base, active, items }: { base: string; active: string; items: string[] }) {
   return (
@@ -70,5 +71,14 @@ export function BuilderHubGrantsLink() {
     >
       Grants on Avalanche Builder Hub
     </a>
+  )
+}
+
+
+export function RoundIntakeStatus({ open }: { open: boolean }) {
+  return (
+    <StatusPill tone={open ? 'success' : 'neutral'} className="text-fg-heading">
+      {open ? 'Open for applications' : 'Closed to new applications'}
+    </StatusPill>
   )
 }

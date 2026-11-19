@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import { canonical } from '@/lib/metadata'
 import Link from 'next/link'
-import { Layers, CheckCircle2, CircleMinus, UsersRound, ArrowUpRight } from 'lucide-react'
-import { SectionHeading } from '@/components/section-heading'
+import Image from 'next/image'
+import { Layers, UsersRound, Globe } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { BuilderHubGrantsLink, DiscoveryNav } from './_components/navigation'
+import { BuilderHubGrantsLink, RoundIntakeStatus } from './_components/navigation'
 import { publishedRounds } from './_lib/queries'
 
 export const metadata: Metadata = {
@@ -17,37 +17,30 @@ export const dynamic = 'force-dynamic'
 export default async function GrantsPage() {
   const rounds = await publishedRounds()
   return (
-    <div className="container-page py-14 sm:py-20">
-      <SectionHeading
-        title={
-          <>
-            Grants<span className="text-brand">.</span>
-          </>
-        }
-      >
-        Focused support for your next useful milestone on Avalanche.
-      </SectionHeading>
-      <DiscoveryNav active="Programmes" />
-      <div className="grid gap-6 md:grid-cols-[1.27fr_1fr]">
-        <Card className="border-line bg-surface-2">
+    <>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="overflow-hidden border-line bg-surface-2 pt-0">
+          <div className="relative aspect-[2/1] overflow-hidden bg-surface-1">
+            <Image src="https://www.team1.network/grants/mini.jpg" alt="" fill loading="eager" sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
+          </div>
           <CardContent>
             <h2 className="text-2xl">Mini Grants</h2>
             <p className="mt-4 flex items-center gap-3">
               <Layers className="size-5" aria-hidden /> Up to $10,000
             </p>
-            <p className="mt-2 flex items-center gap-3">
-              {rounds.length ? <CheckCircle2 className="size-5" aria-hidden /> : <CircleMinus className="size-5" aria-hidden />}
-              {rounds.length ? 'Open applications' : 'No open Hub round'}
-            </p>
-            <p className="mt-6 max-w-[280px] text-lg">
+            <div className="mt-3"><RoundIntakeStatus open={rounds.length > 0} /></div>
+            <p className="mt-6 max-w-prose text-base text-fg-muted">
               For early-stage builders and community initiatives with a concrete Avalanche outcome.
             </p>
-            <Link className={buttonVariants({ className: 'mt-8' })} href="/grants/mini-grants">
+            <Link className={buttonVariants({ className: 'mt-6' })} href="/grants/mini-grants">
               View programme
             </Link>
           </CardContent>
         </Card>
-        <Card className="border-line bg-surface-2">
+        <Card className="overflow-hidden border-line bg-surface-2 pt-0">
+          <div className="relative aspect-[2/1] overflow-hidden bg-surface-1">
+            <Image src="https://www.team1.network/grants/builder.jpg" alt="" fill sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
+          </div>
           <CardContent>
             <h2 className="text-2xl">Accelerator Grants</h2>
             <p className="mt-4 flex items-center gap-3">
@@ -56,22 +49,28 @@ export default async function GrantsPage() {
             <p className="mt-2 flex items-center gap-3">
               <UsersRound className="size-5" aria-hidden /> Committee selected
             </p>
-            <p className="mt-6 max-w-[280px] text-lg">
+            <p className="mt-6 max-w-prose text-base text-fg-muted">
               Projects are proposed and voted on by the committee. Strong projects can be fast-tracked without a Mini Grant.
             </p>
-            <Link href="/grants/how-it-works" className="mt-8 inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
+            <Link href="/grants/how-it-works" className="mt-6 inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
               How selection works
             </Link>
           </CardContent>
         </Card>
       </div>
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-4 text-sm text-fg-muted">
-        <p>Participation does not guarantee funding.</p>
-        <BuilderHubGrantsLink />
-        <Link className="inline-flex min-h-11 items-center gap-2" href="/grants/applications">
-          My applications <ArrowUpRight className="size-4" aria-hidden />
-        </Link>
-      </div>
-    </div>
+      <Card className="mt-6 border-line bg-surface-2">
+        <CardContent className="flex flex-wrap items-center gap-4">
+          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-surface-1">
+            <Globe className="size-6 text-brand" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1 basis-48">
+            <h2 className="text-lg">Avalanche Builder Hub grants</h2>
+            <p className="text-sm text-fg-muted">Explore grant programmes across the broader Avalanche ecosystem.</p>
+          </div>
+          <BuilderHubGrantsLink />
+        </CardContent>
+      </Card>
+      <p className="mt-6 text-sm text-fg-muted">Participation does not guarantee funding.</p>
+    </>
   )
 }

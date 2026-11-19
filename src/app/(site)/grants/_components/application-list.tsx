@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/empty-state'
 import { StatusPill } from '@/components/status-pill'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { applicationStatusCopy } from '../_lib/rules'
+import { RoundIntakeStatus } from './navigation'
 import type { listApplications } from '../_lib/queries'
 export function ApplicationList({ rows, staff }: { rows: Awaited<ReturnType<typeof listApplications>>; staff: boolean }) {
   const base = staff ? '/admin/grants/applications' : '/grants/applications'
@@ -65,7 +66,12 @@ export function ApplicationList({ rows, staff }: { rows: Awaited<ReturnType<type
                 </p>
               </>
             ),
-            round: r.round.name,
+            round: (
+              <div className="flex flex-col items-start gap-1">
+                <span>{r.round.name}</span>
+                <RoundIntakeStatus open={r.round.published} />
+              </div>
+            ),
             status: (
               <div className="flex flex-wrap gap-2">
                 <StatusPill className="text-fg-heading" tone={r.status === 'approved' ? 'success' : r.status === 'draft' ? 'neutral' : 'info'}>

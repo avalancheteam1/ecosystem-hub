@@ -53,6 +53,8 @@ export const draftTerms = terms.extend({
   verifier: z.string().max(10000),
 })
 export const draftAnswers = z.object({
+  projectMilestoneId: id.optional(),
+  whyGrant: z.string().max(4000).optional(),
   problem: z.string().max(10000),
   outcome: z.string().max(10000),
   capability: z.string().max(10000),
@@ -65,8 +67,12 @@ export const draftAnswers = z.object({
 export const answers = draftAnswers.superRefine((a, ctx) => {
   for (const key of ['problem', 'outcome', 'capability', 'funding', 'maintenance', 'risks'] as const)
     if (!a[key].trim()) ctx.addIssue({ code: 'custom', path: [key], message: 'Complete this answer' })
-  if (!a.terms.title.trim() || !a.terms.acceptance.trim() || !a.terms.due || a.terms.amountMinor < 100)
-    ctx.addIssue({ code: 'custom', path: ['terms'], message: 'Complete the milestone, acceptance test, target date and amount' })
+  if (!a.terms.title.trim() || !a.terms.due)
+    ctx.addIssue({ code: 'custom', path: ['projectMilestoneId'], message: 'Choose a milestone with a title and target date.' })
+  if (!a.terms.acceptance.trim())
+    ctx.addIssue({ code: 'custom', path: ['terms', 'acceptance'], message: 'Explain how the reviewer can verify delivery.' })
+  if (a.terms.amountMinor < 100)
+    ctx.addIssue({ code: 'custom', path: ['terms', 'amountMinor'], message: 'Enter at least $1.' })
   if (
     !a.costs.length ||
     a.costs.some((c) => !c.title.trim() || c.amountMinor <= 0) ||
@@ -187,6 +193,8 @@ export const createSchema = z
   .superRefine((input, ctx) => {
     if (input.submit) {
       if (!input.confirm) ctx.addIssue({ code: 'custom', path: ['confirm'], message: 'Confirm before submitting' })
+      if (!input.answers.whyGrant?.trim())
+        ctx.addIssue({ code: 'custom', path: ['answers', 'whyGrant'], message: 'Explain why this grant would make a difference.' })
       const complete = answers.safeParse(input.answers)
       if (!complete.success)
         for (const issue of complete.error.issues)

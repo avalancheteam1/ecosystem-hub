@@ -51,6 +51,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
   const fields = () =>
     answers.parse({
       problem: 'Problem',
+      whyGrant: 'Support will fund a reproducible example for builders.',
       outcome: 'Avalanche output',
       capability: 'Evidence',
       funding: 'No overlap',
@@ -128,7 +129,10 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       },
     })
     await db.project.update({ where: { id: p.id }, data: { currentVersionId: version.id } })
-    return { id: p.id, versionId: version.id }
+    const milestone = await db.projectMilestone.create({
+      data: { projectId: p.id, title: fields().terms.title, targetDate: fields().terms.due },
+    })
+    return { id: p.id, versionId: version.id, milestoneId: milestone.id }
   }
   async function acceptedGrant() {
     const p = await project(),
@@ -176,7 +180,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
   })
   it('seals and pins the real project version atomically on submission', async () => {
     const p = await project(),
-      created = await store.createGrant(p.id, roundId, fields(), builder)
+      created = await store.createGrant(p.id, roundId, { ...fields(), projectMilestoneId: p.milestoneId }, builder)
     applications.push(created.id)
     expect((await db.projectVersion.findUniqueOrThrow({ where: { id: p.versionId } })).sealedAt).toBeNull()
     await store.mutateGrant(created.id, 0, { kind: 'submit_application', confirm: true }, builder)
@@ -187,6 +191,41 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     expect(update.count).toBe(0)
     expect(await db.grantRevision.count({ where: { applicationId: created.id } })).toBe(2)
   })
+  it('uses the chosen project roadmap milestone and rejects cross-project or outdated selections', async () => {
+    const one = await project()
+    const two = await project()
+    await expect(store.createGrant(one.id, roundId, { ...fields(), projectMilestoneId: two.milestoneId }, builder, true))
+      .rejects.toThrow('no longer selectable')
+    const row = await store.createGrant(one.id, roundId, { ...fields(), projectMilestoneId: one.milestoneId }, builder)
+    applications.push(row.id)
+    await db.projectMilestone.update({ where: { id: one.milestoneId }, data: { title: 'Updated roadmap deliverable' } })
+    await expect(store.mutateGrant(row.id, 0, { kind: 'submit_application', confirm: true }, builder))
+      .rejects.toThrow('milestone changed')
+    const updated = { ...fields(), projectMilestoneId: one.milestoneId, terms: { ...fields().terms, title: 'Updated roadmap deliverable' } }
+    await store.mutateGrant(row.id, 0, { kind: 'save_application', answers: updated }, builder)
+    await store.mutateGrant(row.id, 1, { kind: 'submit_application', confirm: true }, builder)
+    await db.projectMilestone.delete({ where: { id: one.milestoneId } })
+    const saved = await db.grantApplication.findUniqueOrThrow({ where: { id: row.id } })
+    expect(saved.state).toMatchObject({ answers: { terms: { title: 'Updated roadmap deliverable' } }, status: 'submitted' })
+  })
+
+  it('keeps a selected milestone draft editable after the round closes but blocks submission', async () => {
+    const p = await project()
+    const selected = { ...fields(), projectMilestoneId: p.milestoneId }
+    const row = await store.createGrant(p.id, roundId, selected, builder)
+    applications.push(row.id)
+    await db.grantRound.update({ where: { id: roundId }, data: { published: false } })
+    try {
+      await store.mutateGrant(row.id, 0, { kind: 'save_application', answers: selected }, builder)
+      await expect(store.mutateGrant(row.id, 1, { kind: 'submit_application', confirm: true }, builder))
+        .rejects.toThrow('This round has closed')
+      expect(await db.grantApplication.findUniqueOrThrow({ where: { id: row.id }, select: { status: true } }))
+        .toEqual({ status: 'draft' })
+    } finally {
+      await db.grantRound.update({ where: { id: roundId }, data: { published: true } })
+    }
+  })
+
   it('keeps draft applications private from staff writes', async () => {
     const p = await project()
     const row = await store.createGrant(p.id, roundId, fields(), builder)
@@ -234,7 +273,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
   })
   it('publishes a funding signal through the authorised action and applicant reads', async () => {
     const p = await project()
-    const row = await store.createGrant(p.id, roundId, fields(), builder, true)
+    const row = await store.createGrant(p.id, roundId, { ...fields(), projectMilestoneId: p.milestoneId }, builder, true)
     applications.push(row.id)
     const session = await import('@/lib/session')
     const queries = await import('@/app/(site)/grants/_lib/queries')

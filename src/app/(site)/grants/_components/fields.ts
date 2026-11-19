@@ -17,9 +17,11 @@ export const termsFields = (prefix = 'terms'): GrantField[] => [
 ]
 export const applicationFields: GrantField[] = [
   { path: 'answers.problem', label: 'Problem and beneficiaries', type: 'textarea' },
-  { path: 'answers.outcome', label: 'Avalanche outcome', type: 'textarea' },
+  { path: 'answers.outcome', label: 'What will this grant fund?', type: 'textarea', hint: 'Summarise the work and its expected benefit to Avalanche.' },
+  { path: 'answers.whyGrant', label: 'Why is your project a good fit for this grant?', type: 'textarea', maxLength: 4000, hint: 'Explain why funding matters now and what it makes possible.' },
   { path: 'answers.capability', label: 'Execution capability', type: 'textarea' },
-  ...termsFields('answers.terms'),
+  { path: 'answers.projectMilestoneId', label: 'Project milestone', type: 'select', optional: true },
+  ...termsFields('answers.terms').filter((field) => !['answers.terms.title', 'answers.terms.due'].includes(field.path)),
   { path: 'answers.funding', label: 'Other funding and cost basis', type: 'textarea' },
   { path: 'answers.maintenance', label: 'Maintenance and measurement', type: 'textarea' },
   { path: 'answers.risks', label: 'Risks and dependencies', type: 'textarea' },

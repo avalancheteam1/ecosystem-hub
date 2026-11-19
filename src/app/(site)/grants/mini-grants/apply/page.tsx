@@ -1,10 +1,13 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { PageHeader } from '@/components/layout/page-header'
+import { missingForSubmission } from '@/lib/project-submission'
+import { SectionCard } from '@/components/section-card'
 import { BackLink } from '@/components/back-link'
 import { EmptyState } from '@/components/empty-state'
 import { myProjects, publishedRounds } from '../../_lib/queries'
 import { GrantCommandForm } from '../../_components/command-form'
+import { BuilderHubGrantsLink, RoundIntakeStatus } from '../../_components/navigation'
 import { applicationFields, costRepeater } from '../../_components/fields'
 export const metadata: Metadata = {
   title: 'New grant application',
@@ -12,10 +15,14 @@ export const metadata: Metadata = {
     index: false,
   },
 }
-export default async function ApplyPage({ searchParams }: { searchParams: Promise<{ step?: string }> }) {
+export default async function ApplyPage({ searchParams }: { searchParams: Promise<{ step?: string; project?: string }> }) {
   const query = await searchParams
   const initialStep = Math.max(0, ['project', 'outcome', 'milestone', 'review'].indexOf(query.step || 'project'))
   const [projects, rounds] = await Promise.all([myProjects(), publishedRounds()])
+  const projectOptions = projects.flatMap(({ id, slug, currentVersion: v, _count }) => v ? [{
+    id, slug, name: v.name, tagline: v.shortDescription, imageUrl: v.logoUrl ?? v.coverUrl, maturity: v.maturity,
+    versionNumber: v.number, sealed: !!v.sealedAt, members: _count.members, missing: missingForSubmission(v),
+  }] : [])
   return (
     <div className="container-page py-10">
       <BackLink href="/grants/applications">All applications</BackLink>
@@ -32,9 +39,9 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
             </Link>
           }
         >
-          Applications will open when a grant round is published.
+          Check the programmes page when a round reopens. <BuilderHubGrantsLink />
         </EmptyState>
-      ) : !projects.length ? (
+      ) : !projectOptions.length ? (
         <EmptyState
           title="Create your project first"
           action={
@@ -50,20 +57,23 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
           <GrantCommandForm
             create
             initialStep={initialStep}
+            projectOptions={projectOptions}
+            roadmaps={projects.map(({ id, slug, milestones }) => ({ id, slug, milestones }))}
             label="Save application draft"
             fields={[
               {
                 path: 'projectId',
                 label: 'Your Hub project',
                 type: 'select',
-                options: projects.map((p) => ({
+                options: projectOptions.map((p) => ({
                   value: p.id,
-                  label: p.currentVersion?.name || p.slug,
+                  label: p.name,
                 })),
               },
               {
                 path: 'roundId',
-                label: 'Application round',
+                label: 'Open application round',
+                hint: 'This list only includes rounds currently accepting applications.',
                 type: 'select',
                 options: rounds.map((r) => ({
                   value: r.id,
@@ -77,11 +87,12 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
             ]}
             repeaters={[costRepeater()]}
             data={{
-              projectId: '',
+              projectId: projectOptions.find((project) => project.id === query.project)?.id ?? '',
               roundId: rounds[0].id,
               answers: {
                 problem: '',
                 outcome: '',
+                whyGrant: '',
                 capability: '',
                 funding: '',
                 maintenance: '',
@@ -106,13 +117,14 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
               },
             }}
           />
-          <aside className="border-t border-line pt-6 text-sm text-fg-muted lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-            <h2 className="text-lg">Your request</h2>
-            <p className="mt-4">One useful standalone output, a measurable acceptance test and remaining costs only.</p>
-            <p className="mt-4">
+          <SectionCard title="Before you apply" className="self-start">
+            <RoundIntakeStatus open />
+            <p className="mt-4 text-sm text-fg-muted">Choose a planned or in-progress milestone on your project roadmap. Define a measurable acceptance test and list the costs for the remaining work.</p>
+            <p className="mt-4 text-sm text-fg-muted">Keep project links on your Hub project and contact details in <Link href="/profile" className="underline">your profile</Link>.</p>
+            <p className="mt-4 text-sm text-fg-muted">
               Saving a draft does not seal your project or submit an application. Submission happens only after explicit confirmation.
             </p>
-          </aside>
+          </SectionCard>
         </div>
       )}
     </div>

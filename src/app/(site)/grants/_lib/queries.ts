@@ -11,11 +11,26 @@ import { applicantProjection, applicationStatus } from './rules'
 export const publishedRounds = () =>
   prisma.grantRound.findMany({ where: { published: true }, select: { id: true, name: true }, orderBy: { createdAt: 'desc' }, take: 50 })
 
+const roadmapMilestones = () => ({
+  where: { status: { in: ['planned', 'in_progress'] }, targetDate: { gte: new Date().toISOString().slice(0, 10) } },
+  orderBy: [{ targetDate: 'asc' }, { id: 'asc' }],
+  select: { id: true, title: true, targetDate: true },
+  take: 30,
+} satisfies import('@prisma/client').Prisma.Project$milestonesArgs)
+
 export async function myProjects() {
   const user = await requireUser()
   return prisma.project.findMany({
     where: { archivedAt: null, members: { some: { userId: user.id, role: { in: TEAM_ROLES } } } },
-    select: { id: true, slug: true, currentVersion: { select: { id: true, name: true } } },
+    select: {
+      id: true, slug: true,
+      currentVersion: { select: {
+        name: true, shortDescription: true, logoUrl: true, coverUrl: true, maturity: true, number: true, sealedAt: true,
+        fullDescription: true, techDescription: true, techStack: true, githubRepos: true, demoLinks: true, websiteUrl: true,
+      } },
+      _count: { select: { members: { where: { role: { in: TEAM_ROLES } } } } },
+      milestones: roadmapMilestones(),
+    },
     take: 100,
   })
 }
@@ -35,7 +50,7 @@ export async function listApplications(staff: boolean, search = '') {
       updatedAt: true,
       state: true,
       projectVersion: { select: { name: true, maturity: true } },
-      round: { select: { name: true } },
+      round: { select: { name: true, published: true } },
     },
     orderBy: { updatedAt: 'desc' },
     take: 100,
@@ -55,8 +70,8 @@ export async function readApplication(id: string, staff: boolean) {
       status: true,
       state: true,
       projectVersion: true,
-      project: { select: { members: { where: { userId: user.id }, select: { role: true } } } },
-      round: { select: { name: true } },
+      project: { select: { slug: true, members: { where: { userId: user.id }, select: { role: true } } } },
+      round: { select: { name: true, published: true } },
     },
   })
   if (!row) notFound()
@@ -77,10 +92,15 @@ export async function readApplication(id: string, staff: boolean) {
     revision: row.revision,
     name: row.projectVersion.name,
     round: row.round.name,
+    roundOpen: row.round.published,
+    projectSlug: row.project.slug,
     userId: user.id,
     writer: canEditProject(role ?? ''),
   }
-  if (!staff) return { ...common, staff: false as const, state: applicantProjection(state), projectVersion: row.projectVersion }
+  const milestones = !staff && canEditProject(role ?? '') && row.status === 'draft'
+    ? await prisma.projectMilestone.findMany({ ...roadmapMilestones(), where: { ...roadmapMilestones().where, projectId: row.projectId } })
+    : []
+  if (!staff) return { ...common, staff: false as const, state: applicantProjection(state), projectVersion: row.projectVersion, milestones }
   // The server component consumes this private state. Only the explicit view data goes to client forms.
   return {
     ...common,

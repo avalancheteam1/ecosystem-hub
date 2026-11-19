@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/layout/page-header'
+import { SectionCard } from '@/components/section-card'
 import { BackLink } from '@/components/back-link'
 import { DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/empty-state'
@@ -11,7 +12,7 @@ import { activeTerms, addDays, applicationStatus, applicationStatusCopy, readine
 import { reviewStatus, type Command } from '../_lib/schemas'
 import { GrantCommandForm, type GrantField, type GrantRepeater } from './command-form'
 import { applicationFields, assessmentFields, costRepeater, metricRepeater, options, termsFields } from './fields'
-import { GrantTabs } from './navigation'
+import { GrantTabs, RoundIntakeStatus } from './navigation'
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -100,6 +101,8 @@ export function GrantCaseView({
       fields={fields}
       dialog={dialog}
       repeaters={repeaters}
+      roadmaps={!data.staff && kind === 'save_application' ? [{ id: data.projectId, slug: data.projectSlug, milestones: data.milestones }] : undefined}
+      roundOpen={data.roundOpen}
     />
   )
   const termsView = (value: typeof s.answers.terms) => (
@@ -152,7 +155,8 @@ export function GrantCaseView({
             <>
               {[
                 ['Problem and beneficiaries', s.answers.problem],
-                ['Avalanche outcome', s.answers.outcome],
+                ['What will this grant fund?', s.answers.outcome],
+                ...(s.answers.whyGrant ? [['Why this grant matters', s.answers.whyGrant]] : []),
                 ['Execution capability', s.answers.capability],
                 ['Other funding and cost basis', s.answers.funding],
                 ['Maintenance and measurement', s.answers.maintenance],
@@ -188,8 +192,8 @@ export function GrantCaseView({
             </>
           )}
         </section>
-        <aside className="space-y-5 border-t border-line pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-          <h2 className="text-lg">{data.staff ? 'Applicant visibility' : 'What happens next'}</h2>
+        <SectionCard title={data.staff ? 'Applicant visibility' : 'What happens next'} className="self-start space-y-4">
+          {s.status === 'draft' && !data.roundOpen && <p>You can keep editing this draft. You can submit when this round reopens.</p>}
           <p className="text-fg-muted">{statusCopy.detail}</p>
           {publicStatus.updateRequested && (
             <Link href={`${base}?tab=Requests`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
@@ -208,7 +212,7 @@ export function GrantCaseView({
             'withdraw_application', 'Withdraw application', { confirm: false },
             [{ path: 'confirm', label: 'Withdraw this application from consideration.', type: 'checkbox' }], true,
           )}
-        </aside>
+        </SectionCard>
       </div>
     )
   else if (tab === 'Evidence') content = <ProjectVersionView version={data.projectVersion} />
@@ -971,7 +975,7 @@ export function GrantCaseView({
                 <p className="whitespace-pre-wrap">{report.narrative}</p>
                 {report.observations.map((o) => (
                   <p key={o.metricId} className="text-sm">
-                    {o.metricId}: {o.value === null ? 'Unmeasured' : o.value} / {o.evidence || 'No measurement evidence'} / {o.method}
+                    {s.impactPlan?.metrics.find((metric) => metric.id === o.metricId)?.name ?? 'Retired metric'}: {o.value === null ? 'Unmeasured' : o.value} / {o.evidence || 'No measurement evidence'} / {o.method}
                   </p>
                 ))}
                 {report.review && <p>Review: {report.review}</p>}
@@ -1103,7 +1107,7 @@ export function GrantCaseView({
           <div key={a.id} className="border-b border-line py-4">
             <h3>Application v{i + 1}</h3>
             <p className="text-sm text-fg-muted">
-              {a.at} / pinned project version {a.projectVersionId}
+              {a.at.slice(0, 10)} · {a.answers.terms.title || 'Project version captured'}
             </p>
           </div>
         ))}
@@ -1148,6 +1152,7 @@ export function GrantCaseView({
         {publicStatus.updateRequested && <StatusPill className="text-fg-heading" tone="warning">Update requested</StatusPill>}
         {s.status === 'approved' && <StatusPill className="text-fg-heading" tone={workflowTone}>{workflowLabel}</StatusPill>}
       </div>
+      <div className="mb-4"><RoundIntakeStatus open={data.roundOpen} /></div>
       <GrantTabs base={base} active={tab} items={tabs} />
       {s.closedAt && (
         <p className="mb-6 rounded-lg border border-line p-4 text-sm">

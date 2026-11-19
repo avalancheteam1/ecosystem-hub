@@ -1,9 +1,6 @@
 import type { Metadata } from 'next'
 import { canonical } from '@/lib/metadata'
 import Link from 'next/link'
-import { PageHeader } from '@/components/layout/page-header'
-import { BackLink } from '@/components/back-link'
-import { DiscoveryNav } from '../_components/navigation'
 import { buttonVariants } from '@/components/ui/button'
 
 export const metadata: Metadata = {
@@ -13,14 +10,11 @@ export const metadata: Metadata = {
 }
 export default function HowGrantsWork() {
   return (
-    <div className="container-page py-10">
-      <BackLink href="/grants">All programmes</BackLink>
-      <PageHeader title="How grants work" description="From a concrete outcome to a useful delivery." />
-      <DiscoveryNav active="How it works" />
+    <>
       <ol className="max-w-3xl space-y-8">
         {[
           ['Choose your project', 'Reuse the project and team you already have in the Hub.'],
-          ['Define one useful milestone', 'Describe the outcome, acceptance test, date, remaining costs and funding overlap.'],
+          ['Choose a roadmap milestone', 'Select a planned or in-progress milestone from your Hub project. Describe the acceptance test, remaining costs and funding overlap.'],
           [
             'Share evidence',
             'Reviewers assess supported evidence and ask for clarification where needed. A score alone does not approve funding.',
@@ -46,6 +40,6 @@ export default function HowGrantsWork() {
       <Link className={buttonVariants({ className: 'mt-10' })} href="/grants/mini-grants">
         Prepare your application
       </Link>
-    </div>
+    </>
   )
 }
