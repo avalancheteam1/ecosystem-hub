@@ -31,7 +31,7 @@ export default async function BountyPage({ params, searchParams }: {
   const open = !bounty.resultsAnnouncedAt && bounty.deadline > new Date()
   const { stage, page } = await searchParams
   const awardCount = bounty.resultsAnnouncedAt ? await getAwardSummary(bounty.id) : 0
-  const status = bounty.resultsAnnouncedAt ? 'Results announced' : open ? 'Open' : 'Closed'
+  const status = bounty.resultsAnnouncedAt ? 'Results announced' : open ? 'Accepting submissions' : 'Submissions closed'
 
   return (
     <div className="container-page py-10 sm:py-14">
@@ -39,6 +39,17 @@ export default async function BountyPage({ params, searchParams }: {
       <PageHeader title={bounty.title} description={`team1 · ${bounty.category}`}>
         <StatusPill tone={open ? 'success' : 'neutral'}>{status}</StatusPill>
       </PageHeader>
+      <p className="mb-6 text-sm text-fg-body">
+        {bounty.resultsAnnouncedAt ? (
+          <>Announced <time dateTime={bounty.resultsAnnouncedAt.toISOString()}>{formatUtc(bounty.resultsAnnouncedAt)}</time>.</>
+        ) : (
+          <>
+            {open ? 'Submit work by ' : 'Deadline was '}
+            <time dateTime={bounty.deadline.toISOString()}>{formatUtc(bounty.deadline)}</time>.
+            {!open && bounty.stages.length > 0 && ' Review is underway. Results will appear here when announced.'}
+          </>
+        )}
+      </p>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
           <SectionCard title="The bounty"><p className="whitespace-pre-wrap break-words">{bounty.description}</p></SectionCard>
@@ -49,7 +60,7 @@ export default async function BountyPage({ params, searchParams }: {
             <p className="mt-2 text-sm text-fg-muted">Contributors can check their own receipts for award details.</p>
           </SectionCard>}
           {bounty.stages.length > 0 && bounty.terms ? (
-            <BountyStages instructions={bounty.participation} id={bounty.id} stages={bounty.stages} active={textParam(stage, 36)} page={pageParam(page)} open={open} resultsAnnounced={!!bounty.resultsAnnouncedAt} terms={bounty.terms} termsVersion={bounty.termsVersion} />
+            <BountyStages instructions={bounty.participation} githubIssueUrl={bounty.githubIssueUrl} id={bounty.id} stages={bounty.stages} active={textParam(stage, 36)} page={pageParam(page)} open={open} resultsAnnounced={!!bounty.resultsAnnouncedAt} terms={bounty.terms} termsVersion={bounty.termsVersion} />
           ) : <SectionCard title="How to participate">
             {open ? (
               <>
@@ -64,9 +75,8 @@ export default async function BountyPage({ params, searchParams }: {
           </SectionCard>}
         </div>
         <aside className="space-y-6" aria-label="Bounty details">
-          <SectionCard title="Reward and deadline">
+          <SectionCard title="Reward">
             <p className="break-words text-2xl text-fg-heading">{bounty.reward}</p>
-            <time dateTime={bounty.deadline.toISOString()} className="mt-3 block text-fg-body">{formatUtc(bounty.deadline)}</time>
           </SectionCard>
           {bounty.hubModule && bounty.githubIssueUrl && (
             <SectionCard title="Hub feature">

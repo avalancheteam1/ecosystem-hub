@@ -51,7 +51,7 @@ export default async function ReceiptPage({ params, searchParams }: {
           <Pager page={page} hasMore={entry.hasMore} params={{}} />
         </SectionCard>
         {canRevise && bounty.terms && <SectionCard title="Revise your submission">
-          <SubmissionForm key={entry.version} bountyId={id} stageId={stage.id} requiresPullRequest={stage.requiresPullRequest} terms={bounty.terms} termsVersion={bounty.termsVersion} revision={{ ...latest, id: entry.id, version: entry.version }} />
+          <SubmissionForm key={entry.version} bountyId={id} stageId={stage.id} requiresPullRequest={stage.requiresPullRequest} githubIssueUrl={bounty.githubIssueUrl} terms={bounty.terms} termsVersion={bounty.termsVersion} revision={{ ...latest, id: entry.id, version: entry.version }} />
         </SectionCard>}
       </div>
     </div>
