@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
 }))
 
+vi.mock('server-only', () => ({}))
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => state.user }))
 vi.mock('@/lib/security-events', () => ({ securityEvent: vi.fn() }))
 vi.mock('@/lib/monitoring', () => ({ captureError: vi.fn() }))
@@ -26,7 +27,7 @@ const draft = {
   hubModule: null, githubIssueUrl: null,
 }
 const publish = { id, revision: 1, publish: true }
-const tx = { earnBounty: { findUnique: state.findUnique, updateMany: state.updateMany }, auditLog: { create: state.auditLogCreate } }
+const tx = { $queryRaw: vi.fn(async () => []), earnBounty: { findUnique: state.findUnique, updateMany: state.updateMany }, auditLog: { create: state.auditLogCreate } }
 
 describe('native Earn publishing boundaries', () => {
   beforeEach(() => {

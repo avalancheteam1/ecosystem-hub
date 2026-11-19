@@ -1,7 +1,9 @@
 # Earn
 
-- The public catalog and brief read only published rows through server-only queries. Use explicit field projections, apply visibility before pagination, and keep deadlines in UTC.
-- Central team1 publishes through `/admin/earn`. Grant `earn.publish` only to designated staff using Hub access management. Reads and all mutations independently check the same permission.
-- Drafts are private. Make publication explicit, protect updates with the listing revision, and persist audit metadata in the same transaction. Edit a published brief by first taking it offline.
-- GitHub issue links are public references. Enter only URLs cleared for public sharing. Earn does not verify links against the GitHub API.
-- Member-only opportunities use the Member Portal. The Hub catalog does not model private Portal work, handle rewards, or write XP.
+- The public catalog and brief read published rows through server-only queries. Use explicit field projections, apply visibility before pagination, and keep deadlines in UTC.
+- Central team1 publishes through `/admin/earn`. Grant `earn.publish` only to designated staff. Review pages and actions require `earn.review`, and private final selection also requires `earn.finalize`. Only a Hub super admin can cancel a public listing or announce results. Never use Portal membership to grant Hub staff access.
+- Drafts and receipts are private. Put object and owner checks on writes and reads. Participant projections never select internal notes. Private final-stage approval and its feedback stay hidden until announcement.
+- Serialize cross-row state decisions by locking the bounty row inside the transaction. Check submission version, stage gate, deadline and terms version on the server. Append revision evidence and decision history, and write audit metadata in the same transaction. Use the Hub rate limiter on contributor writes. Do not log work evidence or private notes in audit metadata.
+- A published brief can be taken offline to edit only before it receives work. Cancellation closes the listing and keeps contributor receipts and staff history. Keep stages and terms stable once a receipt exists. Approval of an intermediate stage can open later stages. Only the final stage produces awards, once announced. Finalizers can undo an unpublished selection with a private reason.
+- GitHub references are manually verified. Public briefs may contain only GitHub issue links cleared for public sharing. Pull requests in contributor receipts stay private.
+- Members-only opportunities run in the Member Portal. The Hub records external reward declarations and never executes payment or writes XP.

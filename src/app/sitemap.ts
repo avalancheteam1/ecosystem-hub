@@ -20,7 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${siteUrl}/events`, changeFrequency: 'daily', priority: 0.8 },
     ...events.map((e) => ({ url: `${siteUrl}/events/${e.slug}`, lastModified: e.updatedAt })),
     { url: `${siteUrl}/earn`, changeFrequency: 'daily', priority: 0.8 },
-    ...bounties.map((bounty) => ({ url: `${siteUrl}/earn/${bounty.id}`, lastModified: bounty.updatedAt })),
+    ...bounties.map((bounty) => ({ url: `${siteUrl}/earn/${bounty.id}`, lastModified: bounty.resultsAnnouncedAt ?? bounty.publishedAt ?? undefined })),
     { url: `${siteUrl}/education`, changeFrequency: 'monthly', priority: 0.8 },
     ...ACADEMIES.flatMap((a) => [
       { url: `${siteUrl}${academyHref(a)}`, changeFrequency: 'monthly' as const, priority: 0.8 },

@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
 import { utcToZoned } from '@/lib/timezones'
 import { createBountyDraft, saveBountyDraft } from '@/app/(site)/earn/_lib/actions'
+import { blankStage, StageFields, type DraftStage } from './stage-fields'
 import { earnCategories } from '@/app/(site)/earn/_lib/schemas'
 
 type Draft = {
@@ -26,18 +27,23 @@ type Draft = {
   deadline: Date
   hubModule: string | null
   githubIssueUrl: string | null
+  terms?: string | null
+  stages?: DraftStage[]
 }
 
 export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
   const router = useRouter()
   const { pending, run } = useActionToast()
   const [deadline, setDeadline] = useState(utcToZoned(initial?.deadline, 'UTC'))
+  const [native, setNative] = useState(Boolean(initial?.stages?.length))
+  const [stages, setStages] = useState(() => initial?.stages?.length ? initial.stages : [blankStage('first', 'Submission')])
   const [feature, setFeature] = useState(Boolean(initial?.hubModule))
   return (
     <form className="space-y-6" onSubmit={async (event) => {
       event.preventDefault()
       const fields = new FormData(event.currentTarget)
       const text = (name: string) => String(fields.get(name) ?? '').trim()
+      const prStage = stages.find((stage) => stage.requiresPullRequest)?.id ?? stages.at(-1)?.id
       const draft = {
         title: text('title'),
         description: text('description'),
@@ -49,6 +55,11 @@ export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
         deadline: toUtcIso(deadline, 'UTC'),
         hubModule: feature ? text('hubModule') : null,
         githubIssueUrl: feature ? text('githubIssueUrl') : null,
+        terms: native ? text('terms') : null,
+        stages: native ? stages.map((stage) => ({
+          title: stage.title, deliverables: stage.deliverables, submissionPolicy: stage.submissionPolicy, approvalLimit: stage.approvalLimit,
+          requiresPrevApproval: stage.requiresPrevApproval, requiresPullRequest: feature && stage.id === prStage,
+        })) : [],
       }
       if (initial) {
         await run(() => saveBountyDraft({ id, revision: initial.revision, draft }), 'Draft saved')
@@ -92,6 +103,7 @@ export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
           )}
         </div>
       </SectionCard>
+      <StageFields enabled={native} onEnabled={setNative} stages={stages} onStages={setStages} feature={feature} terms={initial?.terms} />
       <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save draft'}</Button>
     </form>
   )

@@ -7,7 +7,7 @@ export function earnCatalogFilters(input: Record<string, string | string[] | und
   const type = textParam(input.type)
   return {
     q: textParam(input.q, 120) ?? '',
-    status: status === 'closed' || status === 'all' ? status : 'open',
+    status: status === 'closed' || status === 'announced' || status === 'all' ? status : 'open',
     type: type === 'feature' || type === 'standard' ? type : 'all',
     page: pageParam(input.page),
   } as const
