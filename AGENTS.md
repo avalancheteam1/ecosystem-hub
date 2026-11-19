@@ -131,6 +131,7 @@ Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads 
 - **Events + hackathons** - `src/app/(site)/events/AGENTS.md` (hackathon logic in `_lib/hackathons/`, organiser console `/manage`, judges `/judge`, admin `/admin/events`)
 - **Projects** - `src/app/(app)/projects/AGENTS.md` (roles, draft/sealed versions - also what a hackathon team and submission are)
 - **Referrals & groups** - `src/app/(app)/referrals/AGENTS.md` (`/groups/[slug]`, `/admin/groups`)
+- **Earn** - `src/app/(site)/earn/AGENTS.md` (public bounties and central publishing at `/admin/earn`)
 - **Education** - `src/app/(site)/education/AGENTS.md`
 - **Campus** - `src/app/(app)/campus/AGENTS.md` (universities + blockchain clubs, student profile data, `/admin/campus`)
 - **Tooling** - `src/app/(site)/tooling/AGENTS.md` (builders submit live Developer Tooling projects, `tooling.review` approves sealed versions, `/admin/tooling`)

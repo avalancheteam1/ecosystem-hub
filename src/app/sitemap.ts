@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { prisma } from '@/lib/db'
+import { listEarnSitemapEntries } from '@/app/(site)/earn/_lib/queries'
 import { ACADEMIES } from '@/app/(site)/education/_lib/content'
 import { academyHref, allLessons, courseHref } from '@/app/(site)/education/_lib/rules'
 import { listPublicToolSlugs } from '@/app/(site)/tooling/_lib/queries'
@@ -14,11 +15,17 @@ export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const toolsOn = await isFlagOn('tooling')
-  const [events, tools] = await Promise.all([prisma.event.findMany({ where: { status: 'published' }, select: { slug: true, updatedAt: true } }), toolsOn ? listPublicToolSlugs() : []])
+  const [events, bounties, tools] = await Promise.all([
+    prisma.event.findMany({ where: { status: 'published' }, select: { slug: true, updatedAt: true } }),
+    listEarnSitemapEntries(),
+    toolsOn ? listPublicToolSlugs() : [],
+  ])
   return [
     { url: siteUrl, changeFrequency: 'weekly', priority: 1 },
     { url: `${siteUrl}/events`, changeFrequency: 'daily', priority: 0.8 },
     ...events.map((e) => ({ url: `${siteUrl}/events/${e.slug}`, lastModified: e.updatedAt })),
+    { url: `${siteUrl}/earn`, changeFrequency: 'daily', priority: 0.8 },
+    ...bounties.map((bounty) => ({ url: `${siteUrl}/earn/${bounty.id}`, lastModified: bounty.updatedAt })),
     { url: `${siteUrl}/education`, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${siteUrl}/ecosystem`, changeFrequency: 'monthly', priority: 0.8 },
     ...ACADEMIES.flatMap((a) => [
