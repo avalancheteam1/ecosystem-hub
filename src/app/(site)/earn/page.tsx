@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Code2, ExternalLink } from 'lucide-react'
+import { Code2 } from 'lucide-react'
 import { EmptyState } from '@/components/empty-state'
 import { Field } from '@/components/field'
-import { PageHeader } from '@/components/layout/page-header'
 import { Pager } from '@/components/layout/pager'
 import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
@@ -14,6 +13,7 @@ import { formatShortDate } from '@/lib/dates'
 import { canonical } from '@/lib/metadata'
 import { listPublicBounties } from './_lib/queries'
 import { earnCatalogFilters } from './_lib/rules'
+import { EarnDirectoryHeader } from './_components/earn-directory-header'
 
 export const metadata: Metadata = {
   title: 'Earn',
@@ -28,15 +28,8 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="container-page py-10 sm:py-14">
-      <PageHeader title="Earn" description="Find public team1 bounties to contribute to the Avalanche ecosystem.">
-        {user && <Button asChild variant="outline"><Link href="/earn/submissions">My submissions</Link></Button>}
-      </PageHeader>
-      <p className="mb-6 text-sm text-fg-body">
-        Looking for member opportunities?{' '}
-        <a href="https://members.team1.network" className="inline-flex min-h-11 items-center gap-2 underline underline-offset-4">
-          Open the Member Portal <ExternalLink className="size-4" aria-hidden />
-        </a>
-      </p>
+      <EarnDirectoryHeader current="/earn" signedIn={!!user} />
+      <form id="earn-reset-filters" action="/earn" method="get" />
       <form action="/earn" role="search" aria-label="Filter bounties" className="mb-8 grid items-end gap-4 rounded-xl border border-line bg-surface-1 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Field id="earn-search" label="Search bounties" className="sm:col-span-2">
           <Input id="earn-search" name="q" defaultValue={filters.q} placeholder="Title or Hub module" maxLength={120} className="h-11 bg-surface-2" />
@@ -50,15 +43,15 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
         </Field>
         <Field id="earn-status" label="Status">
           <NativeSelect id="earn-status" name="status" defaultValue={filters.status} className="w-full bg-surface-2">
-            <option value="open">Open</option>
-            <option value="closed">Closed</option>
+            <option value="open">Accepting submissions</option>
+            <option value="closed">Submissions closed</option>
             <option value="announced">Results announced</option>
             <option value="all">All statuses</option>
           </NativeSelect>
         </Field>
         <div className="flex gap-2">
           <Button type="submit" className="min-h-11">Apply filters</Button>
-          <Button asChild variant="outline" className="min-h-11"><Link href="/earn">Reset</Link></Button>
+          <Button type="submit" form="earn-reset-filters" variant="outline" className="min-h-11">Reset</Button>
         </div>
       </form>
       {rows.length ? (
@@ -66,7 +59,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
           {rows.map((bounty) => (
             <li key={bounty.id} className="flex min-w-0 flex-col rounded-xl border border-line bg-surface-2 p-6">
               <div className="mb-3 flex flex-wrap gap-2">
-                <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Open' : 'Closed'}</StatusPill>
+                <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
                 {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
               </div>
               <p className="text-sm text-fg-muted">{bounty.category}</p>

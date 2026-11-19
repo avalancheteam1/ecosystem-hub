@@ -4,8 +4,12 @@ import { githubReference } from './github'
 export const earnCategories = ['Development', 'Research', 'Design'] as const
 
 const httpsLink = z.string().trim().max(2000).transform((value, ctx) => {
-  const url = URL.parse(value)
-  if (url?.protocol === 'https:' && !url.username && !url.password) return url.href
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'https:' && !url.username && !url.password) return url.href
+  } catch {
+    // Invalid input is reported by the field validator below.
+  }
   ctx.addIssue({ code: 'custom', message: 'Use an HTTPS link without credentials.' })
   return z.NEVER
 })
@@ -60,22 +64,25 @@ export const bountyRevisionSchema = z.strictObject({ id: bountyIdSchema, revisio
 
 export const requiredNote = z.string().trim().min(1, 'Add a reason.').max(6000)
 export const revisionEvidenceSchema = z.strictObject({
-  notes: z.string().trim().max(6000),
-  links: z.array(httpsLink).max(10),
+  notes: z.string().trim().max(6000, 'Use up to 6,000 characters for reviewer notes.'),
+  links: z.array(httpsLink).max(10, 'Enter up to 10 work links.'),
   pullRequests: z.array(z.string().trim().max(500).transform((value, ctx) => {
     const pr = githubReference(value, 'pull')
     if (pr) return pr.url
     ctx.addIssue({ code: 'custom', message: 'Enter a GitHub pull request URL.' })
     return z.NEVER
-  })).max(10),
+  })).max(10, 'Enter up to 10 pull request URLs.'),
   accepted: z.literal(true, { error: 'Accept the bounty terms.' }),
   termsVersion: z.number().int().min(1).max(2147483646),
 }).superRefine((evidence, ctx) => {
   if (!(evidence.notes || evidence.links.length || evidence.pullRequests.length)) {
     ctx.addIssue({ code: 'custom', path: ['notes'], message: 'Add a description or a work link.' })
   }
-  if (new Set(evidence.links).size !== evidence.links.length || new Set(evidence.pullRequests).size !== evidence.pullRequests.length) {
-    ctx.addIssue({ code: 'custom', path: ['links'], message: 'Remove duplicate links.' })
+  if (new Set(evidence.links).size !== evidence.links.length) {
+    ctx.addIssue({ code: 'custom', path: ['links'], message: 'Remove duplicate work links.' })
+  }
+  if (new Set(evidence.pullRequests).size !== evidence.pullRequests.length) {
+    ctx.addIssue({ code: 'custom', path: ['pullRequests'], message: 'Remove duplicate pull requests.' })
   }
 })
 

@@ -37,7 +37,7 @@ export async function getOwnReceipt(bountyId: string, id: string, page: number) 
       stage: { select: {
         id: true, title: true, position: true, submissionPolicy: true, requiresPullRequest: true,
         bounty: { select: {
-          title: true, deadline: true, terms: true, termsVersion: true, resultsAnnouncedAt: true, cancelledAt: true,
+          title: true, deadline: true, terms: true, termsVersion: true, githubIssueUrl: true, resultsAnnouncedAt: true, cancelledAt: true,
           _count: { select: { stages: true } },
         } },
       } },
@@ -135,7 +135,7 @@ export async function listMySubmissions(page: number) {
   const rows = await prisma.earnSubmission.findMany({
     where: { contributorId: user.id, stage: historicalStage },
     select: {
-      id: true, status: true, revision: true, award: { select: { id: true } },
+      id: true, status: true, revision: true, createdAt: true, award: { select: { id: true } },
       stage: { select: { title: true, position: true, bounty: { select: { id: true, title: true, cancelledAt: true, resultsAnnouncedAt: true, _count: { select: { stages: true } } } } } },
     },
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],

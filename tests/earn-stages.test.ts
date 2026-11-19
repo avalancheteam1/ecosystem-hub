@@ -76,6 +76,15 @@ describe('native Earn stage rules', () => {
     expect(stageEvidenceError(true, base.githubIssueUrl, ['https://github.com/example/hub/pull/1'])).toBeNull()
   })
 
+  it('reports duplicate normalized evidence under the field that supplied it', () => {
+    const link = 'https://example.com/work'
+    const pull = 'https://github.com/example/hub/pull/1'
+    const result = revisionEvidenceSchema.safeParse({
+      notes: '', links: [link, link], pullRequests: [pull, pull + '/'], accepted: true, termsVersion: 1,
+    })
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['links'], ['pullRequests']])
+  })
+
   it('requires contributor feedback for a rejection or change request', () => {
     const ref = { id: '83a2f90c-8226-400c-8df0-19fe4827db49', bountyId: '17f149fa-6932-4c27-85f5-096379ba4db6', version: 1 }
     expect(reviewSchema.safeParse({ ...ref, decision: 'rejected', internalNote: 'Private reason', feedback: '' }).success).toBe(false)
