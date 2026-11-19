@@ -29,7 +29,7 @@ export default async function EarnAdminPage({ searchParams }: { searchParams: Pr
                   <Link href={`/admin/earn/${row.id}`} className="inline-flex min-h-11 items-center break-words font-medium text-fg-heading hover:text-brand">{row.title}</Link>
                   <p className="text-sm text-fg-muted">Deadline {formatUtc(row.deadline)}</p>
                 </div>
-                <StatusPill tone={row.publishedAt ? 'success' : 'neutral'}>{row.publishedAt ? 'Public' : 'Draft'}</StatusPill>
+                <StatusPill tone={row.publishedAt && !row.cancelledAt ? 'success' : 'neutral'}>{row.cancelledAt ? 'Cancelled' : row.publishedAt ? 'Public' : 'Draft'}</StatusPill>
               </li>
             ))}
           </ul>

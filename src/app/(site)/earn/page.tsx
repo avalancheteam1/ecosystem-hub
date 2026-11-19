@@ -9,6 +9,7 @@ import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
+import { getCurrentUser } from '@/lib/session'
 import { formatShortDate } from '@/lib/dates'
 import { canonical } from '@/lib/metadata'
 import { listPublicBounties } from './_lib/queries'
@@ -23,11 +24,13 @@ export const metadata: Metadata = {
 export default async function EarnPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { page, ...filters } = earnCatalogFilters(await searchParams)
   const now = new Date()
-  const { rows, hasMore } = await listPublicBounties({ ...filters, page }, now)
+  const [{ rows, hasMore }, user] = await Promise.all([listPublicBounties({ ...filters, page }, now), getCurrentUser()])
 
   return (
     <div className="container-page py-10 sm:py-14">
-      <PageHeader title="Earn" description="Find public team1 bounties to contribute to the Avalanche ecosystem." />
+      <PageHeader title="Earn" description="Find public team1 bounties to contribute to the Avalanche ecosystem.">
+        {user && <Button asChild variant="outline"><Link href="/earn/submissions">My submissions</Link></Button>}
+      </PageHeader>
       <p className="mb-6 text-sm text-fg-body">
         Looking for member opportunities?{' '}
         <a href="https://members.team1.network" className="inline-flex min-h-11 items-center gap-2 underline underline-offset-4">
@@ -49,6 +52,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
           <NativeSelect id="earn-status" name="status" defaultValue={filters.status} className="w-full bg-surface-2">
             <option value="open">Open</option>
             <option value="closed">Closed</option>
+            <option value="announced">Results announced</option>
             <option value="all">All statuses</option>
           </NativeSelect>
         </Field>
@@ -62,7 +66,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
           {rows.map((bounty) => (
             <li key={bounty.id} className="flex min-w-0 flex-col rounded-xl border border-line bg-surface-2 p-6">
               <div className="mb-3 flex flex-wrap gap-2">
-                <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.deadline > now ? 'Open' : 'Closed'}</StatusPill>
+                <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Open' : 'Closed'}</StatusPill>
                 {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
               </div>
               <p className="text-sm text-fg-muted">{bounty.category}</p>
