@@ -130,10 +130,34 @@ export function GrantCaseView({
     </dl>
   )
   let content: React.ReactNode
-  if (tab === 'Overview' || tab === 'Application')
+  if (tab === 'Overview' || tab === 'Application') {
+    const nextStep = (
+      <SectionCard title={data.staff ? 'Applicant visibility' : 'What happens next'} className="self-start space-y-4 lg:col-start-2 lg:row-start-1">
+        {s.status === 'draft' && !data.roundOpen && <p>You can keep editing this draft. You can submit when this round reopens.</p>}
+        <p className="text-fg-muted">{statusCopy.detail}</p>
+        {publicStatus.updateRequested && (
+          <Link href={`${base}?tab=Requests`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
+            {data.staff ? 'View outstanding requests' : 'Respond to evidence requests'}
+          </Link>
+        )}
+        {s.status === 'approved' && (
+          <Link href={`${base}?tab=${active ? 'Delivery' : 'Decision'}`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
+            {active ? 'View delivery' : 'Review award terms'}
+          </Link>
+        )}
+        {['deferred', 'not_selected'].includes(s.status) && (
+          <Link href={`${base}?tab=Decision`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">Read decision note</Link>
+        )}
+        {data.writer && s.status === 'submitted' && form(
+          'withdraw_application', 'Withdraw application', { confirm: false },
+          [{ path: 'confirm', label: 'Withdraw this application from consideration.', type: 'checkbox' }], true,
+        )}
+      </SectionCard>
+    )
     content = (
       <div className="grid gap-10 lg:grid-cols-[2fr_1fr]">
-        <section className="space-y-8">
+        {!data.staff && nextStep}
+        <section className="min-w-0 space-y-8 lg:col-start-1 lg:row-start-1">
           <h2 className="text-lg">Your application</h2>
           {data.writer && s.status === 'draft' ? (
             <>
@@ -192,30 +216,10 @@ export function GrantCaseView({
             </>
           )}
         </section>
-        <SectionCard title={data.staff ? 'Applicant visibility' : 'What happens next'} className="self-start space-y-4">
-          {s.status === 'draft' && !data.roundOpen && <p>You can keep editing this draft. You can submit when this round reopens.</p>}
-          <p className="text-fg-muted">{statusCopy.detail}</p>
-          {publicStatus.updateRequested && (
-            <Link href={`${base}?tab=Requests`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
-              {data.staff ? 'View outstanding requests' : 'Respond to evidence requests'}
-            </Link>
-          )}
-          {s.status === 'approved' && (
-            <Link href={`${base}?tab=${active ? 'Delivery' : 'Decision'}`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
-              {active ? 'View delivery' : 'Review award terms'}
-            </Link>
-          )}
-          {['deferred', 'not_selected'].includes(s.status) && (
-            <Link href={`${base}?tab=Decision`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">Read decision note</Link>
-          )}
-          {data.writer && s.status === 'submitted' && form(
-            'withdraw_application', 'Withdraw application', { confirm: false },
-            [{ path: 'confirm', label: 'Withdraw this application from consideration.', type: 'checkbox' }], true,
-          )}
-        </SectionCard>
+        {data.staff && nextStep}
       </div>
     )
-  else if (tab === 'Evidence') content = <ProjectVersionView version={data.projectVersion} />
+  } else if (tab === 'Evidence') content = <ProjectVersionView version={data.projectVersion} />
   else if (tab === 'Evaluation' && internal) {
     const result = score(internal.assessment),
       holds = readiness(internal, internal.answers.terms.route)
