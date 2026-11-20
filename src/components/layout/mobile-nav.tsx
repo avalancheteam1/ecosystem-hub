@@ -15,7 +15,7 @@ export function MobileNav({ signedIn }: { signedIn: boolean }) {
         <DropdownMenuItem asChild><Link href="/events">Events</Link></DropdownMenuItem>
         <DropdownMenuItem asChild><Link href="/education">Education</Link></DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer">Grants</a>
+          <Link href="/grants">Grants</Link>
         </DropdownMenuItem>
         {signedIn && (
           <>

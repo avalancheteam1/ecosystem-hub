@@ -17,6 +17,7 @@ model Project {
   invites     ProjectInvite[]
   submissions Submission[]
   milestones  ProjectMilestone[]
+  grantApplications GrantApplication[]
 
   @@map("projects")
 }
@@ -68,6 +69,7 @@ model ProjectVersion {
 
   currentOf    Project?     @relation("CurrentVersion")
   stageEntries StageEntry[]
+  grantApplications GrantApplication[]
 
   @@unique([projectId, number])
   @@map("project_versions")
