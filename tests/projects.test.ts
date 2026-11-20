@@ -22,7 +22,7 @@ test('links: http(s) only, no duplicates, video hosts restricted, Loom not a dem
   assert.equal(parse({ githubRepos: ['javascript:alert(1)'] }).success, false)
   assert.equal(parse({ githubRepos: ['https://github.com/a/b', 'https://GITHUB.com/a/b'] }).success, false)
   assert.equal(parse({ videoUrl: 'https://evil.io/v' }).success, false)
-  assert.equal(parse({ videoUrl: 'https://youtu.be/abc' }).success, true)
+  assert.equal(parse({ videoUrl: 'https://youtu.be/abcdefghijk' }).success, true)
   assert.equal(parse({ demoLinks: ['https://www.loom.com/share/x'] }).success, false)
 })
 
@@ -35,8 +35,8 @@ test('limits from builders-hub: name 60, short 280, 5 screenshots, other categor
   assert.equal(parse({ categories: ['Memes'] as never }).success, false)
 })
 
-test('project stage is required and limited to the known stages', () => {
-  assert.equal(parse({ maturity: undefined }).success, false)
+test('project stage may be omitted on drafts and is limited to the known stages', () => {
+  assert.equal(parse({ maturity: undefined }).success, true) // incomplete drafts can be saved; event requirements apply on submit
   assert.equal(parse({ maturity: '' as never }).success, false)
   assert.equal(projectFieldsSchema.parse({ ...base, maturity: 'mvp' }).maturity, 'mvp')
   assert.equal(parse({ maturity: 'unicorn' as never }).success, false)
@@ -68,7 +68,7 @@ test('submission readiness lists what is missing (builders-hub required set)', (
   assert.deepEqual(missingForSubmission({ ...rest, demoLinks: [], websiteUrl: null }), ['Website or demo link'])
 })
 
-test('saving: no-op when unchanged, edit the draft in place, or start a new draft after a sealed version', async () => {
+test('[US-12.1] saving: no-op when unchanged, edit the draft in place, or start a new draft after a sealed version', async () => {
   const { planSave } = await import('@/app/(app)/projects/_lib/rules')
   assert.equal(planSave({ sealedAt: null }, false), 'noop')
   assert.equal(planSave({ sealedAt: null }, true), 'update-draft')
@@ -76,7 +76,7 @@ test('saving: no-op when unchanged, edit the draft in place, or start a new draf
   assert.equal(planSave({ sealedAt: new Date() }, false), 'noop')
 })
 
-test('submitting seals the draft, or reuses the last sealed version when nothing changed', async () => {
+test('[US-12.4] submitting seals the draft, or reuses the last sealed version when nothing changed', async () => {
   const { planSeal } = await import('@/app/(app)/projects/_lib/rules')
   assert.equal(planSeal({ sealedAt: null }), 'seal-draft')
   assert.equal(planSeal({ sealedAt: new Date() }), 'reuse-sealed')

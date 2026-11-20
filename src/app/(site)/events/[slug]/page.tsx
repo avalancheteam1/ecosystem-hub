@@ -11,11 +11,12 @@ import { getCurrentUser } from '@/lib/session'
 import { ShareDialog } from '@/components/share-dialog'
 import { EventManageLinks } from '../_components/event-manage-links'
 import { HackathonView } from '../_components/hackathon/hackathon-view'
+import { textParam } from '@/lib/params'
 import { getMySubmissions, getPublicHackathon } from '../_lib/hackathons/queries'
 import { blocksPublish } from '../_lib/portal'
 import { getPublicEvent } from '../_lib/queries'
 
-type Props = { params: Promise<{ slug: string }> }
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ track?: string | string[]; sponsor?: string | string[] }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await getPublicEvent((await params).slug)
@@ -28,7 +29,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function EventPage({ params }: Props) {
+export default async function EventPage({ params, searchParams }: Props) {
+  const sp = await searchParams
+  const filters = { track: textParam(sp.track), sponsor: textParam(sp.sponsor) }
   const found = await getPublicEvent((await params).slug)
   if (!found) notFound()
   // private portal event: never its address, description or (private) Luma link - city + date only
@@ -48,7 +51,7 @@ export default async function EventPage({ params }: Props) {
   if (hackathon) {
     const mine = user && hackathon.joined ? await getMySubmissions(hackathon.id, user.id) : []
     return (
-      <HackathonView event={event} h={hackathon} signedIn={!!user} mine={mine} share={share} manage={<EventManageLinks eventId={event.id} user={user} />} />
+      <HackathonView filters={filters} event={event} h={hackathon} signedIn={!!user} mine={mine} share={share} manage={<EventManageLinks eventId={event.id} user={user} />} />
     )
   }
   const ended = (event.endAt ?? event.startAt) < new Date()

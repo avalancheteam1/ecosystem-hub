@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useFormErrors } from '@/hooks/use-form-errors'
+import { stageSchema } from '@/app/(site)/events/_lib/hackathons/schemas'
 import { windowChangeWarnings } from '@/app/(site)/events/_lib/hackathons/rules'
 import { deleteCriterion, deleteStage, duplicateStage, saveCriterion, saveStage, setSubmissionsOpen } from '@/app/(site)/events/_lib/hackathons/setup-actions'
 import { ConfirmButton } from '@/components/confirm-button'
@@ -10,6 +12,7 @@ import { MarkdownField } from '@/components/markdown-field'
 import { SegmentedControl } from '@/components/segmented-control'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
@@ -17,7 +20,7 @@ import { DateTimeInput, toUtcIso } from '@/components/date-time-input'
 import { utcToZoned } from '@/lib/timezones'
 
 type Stage = {
-  id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; reviewMode: string; judgesPerSubmission: number | null; scaleMax: number; showCriteria: boolean; advancedOnly: boolean; sameTrackOnly: boolean
+  id: string; name: string; descriptionMd: string | null; opensAt: Date; closesAt: Date; judgingClosedAt: Date | null; reviewMode: string; judgesPerSubmission: number | null; scaleMin: number; scaleMax: number; showCriteria: boolean; advancedOnly: boolean; sameTrackOnly: boolean
   /** Entries and submitted reviews - what a window change affects. */
   entries: number; reviews: number
 }
@@ -43,38 +46,47 @@ export function StageDialog({ hackathonId, stage, trigger, timeZone, defaults, f
   const empty = {
     name: stage?.name ?? '', descriptionMd: stage?.descriptionMd ?? '', opensAt: utcToZoned(stage?.opensAt ?? defaults?.opensAt, timeZone), closesAt: utcToZoned(stage?.closesAt ?? defaults?.closesAt, timeZone),
     reviewMode: (stage?.reviewMode ?? 'all') as 'all' | 'random', judgesPerSubmission: stage?.judgesPerSubmission ? String(stage.judgesPerSubmission) : '2',
-    scaleMax: String(stage?.scaleMax ?? 10), showCriteria: stage?.showCriteria ?? true, advancedOnly: stage?.advancedOnly ?? true, sameTrackOnly: stage?.sameTrackOnly ?? true,
+    scaleMin: String(stage?.scaleMin ?? 0), scaleMax: String(stage?.scaleMax ?? 10), showCriteria: stage?.showCriteria ?? true, advancedOnly: stage?.advancedOnly ?? true, sameTrackOnly: stage?.sameTrackOnly ?? true,
   }
   const [v, setV] = useState(empty)
   const { pending, run } = useActionToast()
+  const validation = useFormErrors({ name: 'st-name', opensAt: 'st-open', closesAt: 'st-close', scaleMin: 'st-scale-min', scaleMax: 'st-scale', judgesPerSubmission: 'st-n' })
   return (
-    <FormDialog
+    <FormDialog noValidate
       wide
       trigger={trigger}
       title={stage ? `Edit ${stage.name}` : 'New stage'}
       description="A stage is a round: teams submit during its window, then judges review."
       submitLabel={stage ? 'Save stage' : 'Add stage'}
       pending={pending}
-      onOpenChange={(o) => o && setV(empty)}
-      onSubmit={() =>
-        run(() => saveStage({ hackathonId, stageId: stage?.id, ...v, opensAt: toUtcIso(v.opensAt, timeZone), closesAt: toUtcIso(v.closesAt, timeZone), judgesPerSubmission: v.reviewMode === 'random' ? v.judgesPerSubmission : '' }), stage ? 'Stage saved' : 'Stage added')
-      }
+      onOpenChange={(o) => { if (o) { setV(empty); validation.reset() } }}
+      onSubmit={() => {
+        const input = { hackathonId, stageId: stage?.id, ...v, opensAt: toUtcIso(v.opensAt, timeZone), closesAt: toUtcIso(v.closesAt, timeZone), judgesPerSubmission: v.reviewMode === 'random' ? v.judgesPerSubmission : '' }
+        if (!validation.validate(stageSchema, input)) return false
+        return run(async () => {
+          const result = await saveStage(input)
+          if (!result.ok) validation.fail(`${result.error} Check the latest settings and try again.`)
+          return result
+        }, stage ? 'Stage saved' : 'Stage added')
+      }}
     >
-      <Field id="st-name" label="Name"><Input id="st-name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required maxLength={60} placeholder="Idea, MVP, Finals…" className="h-11" /></Field>
+      {validation.errors.form && <p role="alert" className="text-sm text-destructive">{validation.errors.form}</p>}
+      <Field error={validation.errors.name} id="st-name" label="Name"><Input {...validation.props('name')} id="st-name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} required maxLength={60} placeholder="Idea, MVP, Finals…" className="h-11" /></Field>
       <MarkdownField id="st-desc" label="What teams submit" hint="Shown on the stage in the timeline and on the submit page." value={v.descriptionMd} onChange={(t) => setV({ ...v, descriptionMd: t })} rows={6} maxLength={10_000} placeholder={'Submit your project with:\n- a public repository\n- a 2-minute demo video'} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="st-open" label="Submissions open"><DateTimeInput id="st-open" required value={v.opensAt} onChange={(w) => setV({ ...v, opensAt: w })} timeZone={timeZone} /></Field>
-        <Field id="st-close" label="Submissions close"><DateTimeInput id="st-close" required value={v.closesAt} onChange={(w) => setV({ ...v, closesAt: w })} timeZone={timeZone} /></Field>
+        <Field error={validation.errors.opensAt} id="st-open" label="Submissions open"><DateTimeInput {...validation.props('opensAt')} id="st-open" required value={v.opensAt} onChange={(w) => setV({ ...v, opensAt: w })} timeZone={timeZone} /></Field>
+        <Field error={validation.errors.closesAt} id="st-close" label="Submissions close"><DateTimeInput {...validation.props('closesAt')} id="st-close" required value={v.closesAt} onChange={(w) => setV({ ...v, closesAt: w })} timeZone={timeZone} /></Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="st-mode" label="Who reviews" hint={v.reviewMode === 'all' ? 'Every eligible judge reviews every submission - they see them automatically once submissions close.' : 'Random judges per submission - you draw them on the Judging tab.'}>
           <SegmentedControl label="Who reviews" value={v.reviewMode} onChange={(m) => setV({ ...v, reviewMode: m })} options={[{ value: 'all', label: 'All judges' }, { value: 'random', label: 'Random judges' }]} />
         </Field>
-        <Field id="st-scale" label="Score scale" hint="Each criterion is scored 0 to this."><Input id="st-scale" type="number" min={1} max={100} value={v.scaleMax} onChange={(e) => setV({ ...v, scaleMax: e.target.value })} className="h-11" /></Field>
+        <Field error={validation.errors.scaleMin} id="st-scale-min" label="Score minimum" hint={stage?.reviews ? 'Locked because judges have scored this stage.' : 'Choose whether the scale starts at 0 or 1.'}><NativeSelect {...validation.props('scaleMin')} id="st-scale-min" value={v.scaleMin} disabled={!!stage?.reviews} onChange={(e) => setV({ ...v, scaleMin: e.target.value })}><option value="0">0</option><option value="1">1</option></NativeSelect></Field>
+        <Field error={validation.errors.scaleMax} id="st-scale" label="Score maximum" hint={`Each criterion is scored ${v.scaleMin} to ${v.scaleMax}. Totals are normalized to 0-100.`}><Input {...validation.props('scaleMax')} id="st-scale" disabled={!!stage?.reviews} type="number" min={Number(v.scaleMin) + 1} max={100} value={v.scaleMax} onChange={(e) => setV({ ...v, scaleMax: e.target.value })} className="h-11" /></Field>
       </div>
       {v.reviewMode === 'random' && (
         <div className="rounded-lg border border-line p-4">
-          <Field id="st-n" label="Judges per submission" hint="Judges are drawn at random, balanced so everyone gets a similar load. Judges limited to certain tracks only get those."><Input id="st-n" type="number" min={1} max={20} value={v.judgesPerSubmission} onChange={(e) => setV({ ...v, judgesPerSubmission: e.target.value })} className="h-11" /></Field>
+          <Field error={validation.errors.judgesPerSubmission} id="st-n" label="Judges per submission" hint="Judges are drawn at random, balanced so everyone gets a similar load. Judges limited to certain tracks only get those."><Input {...validation.props('judgesPerSubmission')} id="st-n" type="number" min={1} max={20} value={v.judgesPerSubmission} onChange={(e) => setV({ ...v, judgesPerSubmission: e.target.value })} className="h-11" /></Field>
         </div>
       )}
       {!first && <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.advancedOnly} onCheckedChange={(c) => setV({ ...v, advancedOnly: c === true })} /> Only teams advanced from the previous stage can submit</label>}

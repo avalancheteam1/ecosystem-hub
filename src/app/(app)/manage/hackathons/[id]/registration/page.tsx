@@ -1,3 +1,4 @@
+import { RegistrationWindow } from '@/app/(site)/events/_components/hackathon/registration-window'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Settings2 } from 'lucide-react'
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/guards'
 import { pageParam, sortParams, textParam } from '@/lib/params'
 import { cn } from '@/lib/utils'
+import { ProjectRequirements } from '../_components/project-requirements'
 import { FieldList } from '../_components/field-editor'
 import { ApprovalSettings, BulkApprove, RegistrationDetails, ReviewButtons, SelectRow } from '../_components/registration-controls'
 
@@ -95,6 +97,7 @@ export default async function RegistrationPage({ params, searchParams }: {
 
   return (
     <div className="grid gap-4">
+      <SectionCard title="Registration window"><RegistrationWindow hackathon={h} now={new Date()} /></SectionCard>
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Same look as SegmentedControl, but links - the status lives in the URL. */}
         <nav aria-label="Registrations by status" className="no-scrollbar flex max-w-full overflow-x-auto rounded-lg border border-input p-1">
@@ -126,6 +129,7 @@ export default async function RegistrationPage({ params, searchParams }: {
           <SectionCard title="Approval" description="Decide who gets in.">
             <ApprovalSettings hackathonId={h.id} requireApproval={h.requireApproval} inviteUrl={inviteUrl} />
           </SectionCard>
+          <SectionCard title="Built-in project questions" description="Required at submission unless switched off."><ProjectRequirements hackathonId={h.id} optional={h.optionalProjectFields} /></SectionCard>
           <SectionCard title="Registration questions" description="Asked when a builder registers. Their name and email come from their account - don't ask again.">
             <FieldList hackathonId={h.id} stageId={null} fields={h.fields} emptyText="No questions - registering is one click." />
           </SectionCard>

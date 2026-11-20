@@ -15,3 +15,9 @@ export async function assertManage(hackathonId: string, user: CurrentUser) {
   return h
 }
 
+
+/** Called inside the authorized result mutation transaction. */
+export async function refreshResultsPublication(tx: import('@prisma/client').Prisma.TransactionClient, hackathonId: string) {
+  const latest = await tx.hackathonPrize.aggregate({ where: { hackathonId }, _max: { publishedAt: true } })
+  await tx.hackathon.update({ where: { id: hackathonId }, data: { resultsPublishedAt: latest._max.publishedAt } })
+}

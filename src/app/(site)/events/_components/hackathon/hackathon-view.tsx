@@ -1,3 +1,10 @@
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { RegistrationWindow } from './registration-window'
+import { registrationWindowState, submissionWindowText, judgingWindowText, publicationText } from '../../_lib/hackathons/presentation'
+import { SubmissionFilters } from './submission-filters'
+import { visiblePrizeAwards, prizeWinnerState, type SubmissionFilters as Filters } from '../../_lib/hackathons/feedback-rules'
+import type { SubmittedMember } from '@/lib/submission-team'
+import { submissionBanner } from '@/lib/submission-status'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { Event as DbEvent } from '@prisma/client'
@@ -12,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { BUILDER_HUB_LINKS } from '@/lib/builder-hub'
 import { formatEventRange, formatShortDate } from '@/lib/dates'
 import { readLinks } from '@/lib/link-schemas'
-import { cn } from '@/lib/utils'
+import { cn, initials } from '@/lib/utils'
 import { LeaveHackathonButton, WithdrawSubmissionButton } from './participant-buttons'
 
 type Mine = Awaited<ReturnType<typeof getMySubmissions>>
@@ -24,7 +31,6 @@ type Event = Omit<DbEvent, 'lumaUrl'> & { lumaUrl: string | null }
 /** The single next step for this viewer, as a button (or a sentence when there's none). */
 function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Mine, now: Date): { href?: string; label: string } {
   const open = h.stages[pickOpenStage(h.stages, now, advancedStageIds(mine))]
-  if (!signedIn) return { href: `/sign-in?next=/events/${event.slug}/join`, label: 'Register for Hackathon' }
   if (h.joined) {
     if (open) {
       const done = mine.some((m) => m.entries.some((e) => e.stageId === open.id))
@@ -36,25 +42,29 @@ function nextStep(event: Event, h: PublicHackathon, signedIn: boolean, mine: Min
   }
   if (h.registration === 'pending') return { label: 'Registration received - the organisers will review it. We’ll email you once you’re in.' }
   if (h.registration === 'rejected') return { label: 'Your registration wasn’t accepted.' }
-  if (h.registrationClosesAt && now >= h.registrationClosesAt) return { label: 'Registration is closed.' }
+  const registrationState = registrationWindowState(h, now)
+  if (registrationState === 'upcoming') return { label: 'Registration has not opened yet.' }
+  if (registrationState === 'closed') return { label: 'Registration is closed.' }
   if (h.maxParticipants != null && h._count.participants >= h.maxParticipants) return { label: 'This hackathon is full.' }
-  return { href: `/events/${event.slug}/join`, label: 'Register for Hackathon' }
+  return { href: signedIn ? `/events/${event.slug}/join` : `/sign-in?next=/events/${event.slug}/join`, label: 'Register for Hackathon' }
 }
 
-export function HackathonView({ event, h, signedIn, mine, share, manage }: { event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine; share: ReactNode; manage?: ReactNode }) {
+export function HackathonView({ event, h, signedIn, mine, share, manage, filters = {} }: { filters?: Filters; event: Event; h: PublicHackathon; signedIn: boolean; mine: Mine; share: ReactNode; manage?: ReactNode }) {
   const now = new Date()
   const step = nextStep(event, h, signedIn, mine, now)
-  const results = h.resultsPublishedAt ? h.prizes.flatMap((p) => p.awards.filter((a) => a.submission.status === 'active' && a.submission.entries[0]).map((a) => ({ p, a }))) : []
+  const resultPrizes = h.prizes
+  const results = resultPrizes.flatMap((p) => visiblePrizeAwards(p, filters).map((a) => ({ p, a })))
   // ponytail: a place without an amount is just a ranking slot for awards - not advertised as a prize
-  const listed = h.prizes.filter((p) => p.amount)
+  const listed = h.prizes.filter((p) => p.amount && !p.sponsorPrizeId)
   const overall = listed.filter((p) => !p.trackId)
   const sections = [
     ['about', 'About', true],
     ['tracks', 'Tracks', h.tracks.length > 0],
+    ['sponsor-prizes', 'Sponsor prizes', h.sponsorPrizes.length > 0],
     ['prizes', 'Prizes', overall.length > 0 || !!h.prizePool],
     ['timeline', 'Timeline', h.stages.length > 0],
     ['rules', 'Rules', !!h.rulesMd],
-    ['results', 'Winners', results.length > 0],
+    ['results', 'Winners', h.prizes.length > 0],
   ].filter(([, , show]) => show) as [string, string][]
   // Upcoming deadline = close of the open stage, else of the next one.
   const deadline = h.stages.find((s) => stageState(s, now) === 'open') ?? h.stages.find((s) => stageState(s, now) === 'upcoming')
@@ -134,7 +144,8 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
                 return (
                   <li key={s.id} className="bg-background p-4">
                     <p className="meta">{s.name}</p>
-                    <p className="mt-1 text-fg-heading">{e ? `Submitted version ${e.projectVersion.number}` : 'Not submitted'}</p>
+                    <p className="mt-1 text-fg-heading">{submissionBanner(mine.status, e?.submittedAt ?? null, h.timezone)}</p>
+                    {e && <p className="mt-2 text-sm text-fg-muted">Submitted team: {(e.teamSnapshot as SubmittedMember[]).map((m) => m.name).join(', ')}</p>}
                     {e?.advancedAt && <p className="mt-1 text-sm text-success">Advanced to the next stage</p>}
                   </li>
                 )
@@ -143,14 +154,18 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
           </section>
         ))}
 
-        {results.length > 0 && (
+        {h.prizes.length > 0 && (
           <section id="results">
-            <SectionHeading title={<>Winners<Dot /></>}>Picked by the judges across {h.stages.length} {h.stages.length === 1 ? 'round' : 'rounds'}.</SectionHeading>
+            <SectionHeading title={<>Winners<Dot /></>}>Overall, track and sponsor winners are announced independently.</SectionHeading>
+            <SubmissionFilters tracks={h.tracks} sponsorPrizes={h.sponsorPrizes} value={filters} />
+            {(filters.track || filters.sponsor) && results.length === 0 && <p className="mb-4 text-sm text-fg-muted">No published winners match these filters. Pending prizes are listed below.</p>}
             <ul className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
+              {resultPrizes.filter((p) => prizeWinnerState(p.publishedAt, p.awards.length) !== 'published').map((p) => <li key={p.id} className="border-b border-line px-6 py-8"><p className="meta">{p.sponsorPrizeId ? h.sponsorPrizes.find((sp) => sp.id === p.sponsorPrizeId)?.sponsor : p.trackId ? h.tracks.find((t) => t.id === p.trackId)?.name : 'Overall'} · {p.title}</p><p className="mt-3 text-xl text-fg-muted">Winner to be announced</p><p className="mt-2 text-sm text-fg-muted">{publicationText(null, h.timezone)}</p></li>)}
               {results.map(({ p, a }, i) => (
                 <li key={a.id} className={cn('wash border-b border-line px-6 py-8 sm:px-8', i % 2 === 1 && 'sm:border-l', i % 2 === 1 && i % 3 === 0 && 'lg:border-l-0', i % 3 !== 0 && 'lg:border-l')}>
-                  <p className="meta text-brand">{p.title}{p.placementTo ? ` - ${placeTitle(a.placement)}` : ''}{p.trackId ? ` - ${h.tracks.find((t) => t.id === p.trackId)?.name}` : ''}</p>
-                  <p className="mt-3 font-heading text-3xl tracking-[-0.02em] text-fg-heading">{a.submission.entries[0]!.projectVersion.name}</p>
+                  <p className="meta text-brand">{p.sponsorPrizeId ? `${h.sponsorPrizes.find((sp) => sp.id === p.sponsorPrizeId)?.sponsor}: ` : ''}{p.title}{p.placementTo ? ` - ${placeTitle(a.placement)}` : ''}{p.trackId ? ` - ${h.tracks.find((t) => t.id === p.trackId)?.name}` : ''}</p>
+                  <div className="mt-3 flex items-center gap-3"><Avatar className="size-12 rounded-lg"><AvatarImage className="object-cover" src={a.submission.entries[0]!.projectVersion.logoUrl ?? a.submission.entries[0]!.projectVersion.coverUrl ?? undefined} alt="" /><AvatarFallback className="rounded-lg">{initials(a.submission.entries[0]!.projectVersion.name)}</AvatarFallback></Avatar><p className="min-w-0 break-words font-heading text-3xl tracking-[-0.02em] text-fg-heading">{a.submission.entries[0]!.projectVersion.name}</p></div>
+                  <p className="mt-2 text-sm text-fg-muted">{publicationText(p.publishedAt, h.timezone)}</p>
                   <p className="mt-2 text-fg-muted">{a.submission.entries[0]!.projectVersion.shortDescription}</p>
                   {p.amount && <p className="meta mt-5">{p.amount}</p>}
                 </li>
@@ -159,6 +174,7 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
           </section>
         )}
 
+        <section aria-label="Registration checklist" className="rounded-xl border border-line bg-surface-2 p-6"><h2 className="text-xl">Register and submit as a team</h2><ol className="mt-4 list-decimal space-y-3 pl-5 text-fg-body"><li>Every team member registers.</li><li>One member creates the team and invites the others. <Link href={`/events/${event.slug}/submit#team-invitations`} className="inline-flex min-h-11 items-center underline">Invite teammates by email</Link></li><li>That member submits for the team.</li></ol><p className="mt-4 text-sm text-fg-muted">Creating a project does not submit it. Accept team invitations and check that every joined teammate is registered for this hackathon.</p></section>
         <section id="about" className="grid gap-12 lg:grid-cols-[1fr_300px] lg:gap-20">
           <div>
             <h2 className="mb-8 text-[clamp(2rem,4vw,3.5rem)] leading-[1.05]">About<Dot /></h2>
@@ -168,7 +184,7 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
             <dl className="divide-y divide-line text-sm">
               {location && <div className="flex justify-between gap-4 py-3"><dt className="meta">Location</dt><dd className="text-right text-fg-heading">{location}</dd></div>}
               <div className="flex justify-between gap-4 py-3"><dt className="meta">Teams</dt><dd className="text-fg-heading">{teamSize(h)} people</dd></div>
-              {h.registrationClosesAt && <div className="flex justify-between gap-4 py-3"><dt className="meta">Register until</dt><dd className="text-right text-fg-heading">{formatEventRange(h.registrationClosesAt, null, h.timezone)}</dd></div>}
+              <div className="py-3"><dt className="sr-only">Registration window</dt><dd><RegistrationWindow hackathon={h} now={now} /></dd></div>
               {h.maxParticipants && <div className="flex justify-between gap-4 py-3"><dt className="meta">Spots</dt><dd className="text-fg-heading">{Math.max(h.maxParticipants - h._count.participants, 0)} of {h.maxParticipants} left</dd></div>}
               {h.termsUrl && <div className="py-3"><a href={h.termsUrl} target="_blank" rel="noreferrer" className="group inline-flex items-center gap-1.5 text-fg-body hover:text-fg-heading">Terms <ExternalLink className="size-3.5" aria-hidden /></a></div>}
             </dl>
@@ -185,9 +201,11 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
           </aside>
         </section>
 
+        <p className="text-fg-muted">{h.tracks.length} tracks · {h.sponsorPrizes.length} sponsor prizes</p>
+        {h.sponsorPrizes.length > 0 && <section id="sponsor-prizes"><SectionHeading title="Sponsor prizes / technologies">Pick the prizes you compete for separately from tracks.</SectionHeading><ul className="grid gap-4 sm:grid-cols-2">{h.sponsorPrizes.map((p) => <li key={p.id} className="rounded-xl border border-line p-6"><h3 className="text-xl">{p.name}</h3><p className="text-sm text-fg-muted">{p.sponsor}</p>{p.description && <p className="mt-3 text-fg-body">{p.description}</p>}{p.eligibilityHint && <p className="mt-3 text-sm text-fg-muted">Eligibility: {p.eligibilityHint}</p>}</li>)}</ul></section>}
         {h.tracks.length > 0 && (
           <section id="tracks">
-            <SectionHeading title={<>Tracks<Dot /></>}>Enter one or more. Each track is judged on its own and can carry its own prizes.</SectionHeading>
+            <SectionHeading title={<>Tracks<Dot /></>}>Enter any number, or choose no track / free project. Each track is judged on its own and can carry its own prizes.</SectionHeading>
             <ul className="grid border-t border-line md:grid-cols-2">
               {h.tracks.map((t, i) => {
                 const prizes = listed.filter((p) => p.trackId === t.id)
@@ -248,8 +266,9 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
                     <p className={cn('font-heading text-5xl leading-none tabular-nums', state === 'open' ? 'text-brand' : 'text-fg-faint')}>{String(i + 1).padStart(2, '0')}</p>
                     <div>
                       <h3 className="text-xl">{s.name}</h3>
-                      <p className="meta mt-2">{formatEventRange(s.opensAt, s.closesAt, h.timezone)}</p>
+                      <p className="meta mt-2">{submissionWindowText(s, h.timezone)}</p>
                       <div className="mt-3"><StageStateBadge state={state} /></div>
+                      <p className="mt-3 text-sm text-fg-muted">{judgingWindowText(s, h.timezone)}</p>
                     </div>
                     <div className="min-w-0 space-y-5">
                       {s.descriptionMd && <Markdown>{s.descriptionMd}</Markdown>}

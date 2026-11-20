@@ -73,25 +73,25 @@ function fieldSchema(f: FieldDef): z.ZodType {
     case 'short_text':
     case 'long_text': {
       const max = f.maxLength ?? DEFAULT_MAX[f.type]!
-      const s = z.string().trim().max(max, `${f.label}: at most ${max} characters`)
+      const s = z.string({ error: req }).trim().max(max, `${f.label}: at most ${max} characters`)
       return f.required ? s.min(1, req) : z.preprocess(blankToNull, s.nullable().optional()).transform((v) => v ?? null)
     }
     case 'url': {
-      const s = z.string().trim().max(500, `${f.label}: max 500 characters`).url(`${f.label}: enter a full link`).refine((u) => /^https?:\/\//i.test(u), `${f.label}: link must start with https://`)
+      const s = z.string({ error: `${f.label}: enter a full link` }).trim().max(500, `${f.label}: max 500 characters`).url(`${f.label}: enter a full link`).refine((u) => /^https?:\/\//i.test(u), `${f.label}: link must start with https://`)
       return f.required ? s : z.preprocess(blankToNull, s.nullable().optional()).transform((v) => v ?? null)
     }
     case 'select': {
-      const s = z.string().refine((v) => f.options.includes(v), `${f.label}: pick one of the options`)
+      const s = z.string({ error: `${f.label}: pick one of the options` }).refine((v) => f.options.includes(v), `${f.label}: pick one of the options`)
       return f.required ? s : z.preprocess(blankToNull, s.nullable().optional()).transform((v) => v ?? null)
     }
     case 'multi_select': {
-      const s = z.array(z.string().refine((v) => f.options.includes(v), `${f.label}: unknown option`)).transform((a) => [...new Set(a)])
+      const s = z.array(z.string().refine((v) => f.options.includes(v), `${f.label}: pick one of the options`), { error: req }).transform((a) => [...new Set(a)])
       return f.required ? s.refine((a) => a.length > 0, req) : s.optional().transform((v) => v ?? [])
     }
     case 'checkbox':
       return f.required ? z.literal(true, { error: req }) : z.boolean().optional().transform((v) => v ?? false)
     case 'number': {
-      const s = z.coerce.number({ error: `${f.label}: enter a number` }).finite()
+      const s = z.preprocess((v) => (typeof v === 'number' || (typeof v === 'string' && v.trim())) ? v : undefined, z.coerce.number({ error: `${f.label}: enter a number` }).finite())
       return f.required ? s : z.preprocess(blankToNull, s.nullable().optional()).transform((v) => v ?? null)
     }
     default:

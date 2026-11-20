@@ -1,5 +1,9 @@
+import { judgingWindowText } from '@/app/(site)/events/_lib/hackathons/presentation'
+import { SubmissionFilters } from '@/app/(site)/events/_components/hackathon/submission-filters'
+import { matchesSubmissionFilters, needsResultsReminder } from '@/app/(site)/events/_lib/hackathons/feedback-rules'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getManagedHackathon, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
+import { getManagedHackathon, countPublishedWinners, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
 import { criterionMeans, entryTracks, judgeEligibility, rankEntries, type Pair } from '@/app/(site)/events/_lib/hackathons/judging'
 import { judgingOpen, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
@@ -9,18 +13,22 @@ import { AssignmentMatrix, AssignPanel, CloseJudgingButton, RankingTable, type M
 
 export const metadata = { title: 'Judging' }
 
-export default async function JudgingPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function JudgingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ track?: string; sponsor?: string }> }) {
+  const filters = await searchParams
   const user = await requireUser()
   const h = await getManagedHackathon((await params).id, user)
   if (!h) notFound()
+  const publishedWinners = await countPublishedWinners(h.id)
   const now = new Date()
   const stages = await Promise.all(h.stages.map(async (s) => ({ s, entries: await getStageJudging(s.id) })))
   return (
     <div className="space-y-8">
+      <SubmissionFilters tracks={h.tracks} sponsorPrizes={h.sponsorPrizes} value={filters} />
+      {needsResultsReminder(h.stages, publishedWinners) && <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 p-4">Judging is closed, but no results are published. <Link href={`/manage/hackathons/${h.id}/results`} className="underline">Set and publish winners</Link>.</p>}
       {h.judges.length === 0 && <p className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">No judges yet - invite them under People.</p>}
       {stages.map(({ s, entries }, i) => {
         const state = stageState(s, now)
-        const active = entries.filter((e) => e.submission.status === 'active')
+        const active = entries.filter((e) => e.submission.status === 'active' && matchesSubmissionFilters(e.submission, filters))
         const assigned = active.reduce((a, e) => a + e.assignments.length, 0)
         const done = active.reduce((a, e) => a + e.assignments.filter((x) => x.review?.submittedAt && !x.review.conflictDeclared).length, 0)
         const conflicts = active.reduce((a, e) => a + e.assignments.filter((x) => x.review?.conflictDeclared).length, 0)
@@ -53,6 +61,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
               </>
             }
           >
+            <p className="mb-5 text-sm text-fg-muted">{judgingWindowText(s, h.timezone)}</p>
             {assigned > 0 && (
               <div className="mb-6 h-2 overflow-hidden rounded-full bg-surface-hover" role="progressbar" aria-valuenow={done} aria-valuemax={assigned - conflicts} aria-label="Review progress">
                 <div className="h-2 rounded-full bg-brand transition-all" style={{ width: `${assigned - conflicts ? (done / (assigned - conflicts)) * 100 : 0}%` }} />
@@ -64,6 +73,7 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
                 stageId={s.id}
                 canAdvance={i < h.stages.length - 1}
                 criteria={s.criteria.map((c) => ({ id: c.id, name: c.name }))}
+                scaleMin={s.scaleMin}
                 scaleMax={s.scaleMax}
                 rows={ranked.map((r) => {
                   const e = byId.get(r.entryId)!

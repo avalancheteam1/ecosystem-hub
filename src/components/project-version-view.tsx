@@ -1,3 +1,4 @@
+import { DemoVideoPreview } from '@/components/demo-video-preview'
 import { Code2, Globe, PlayCircle } from 'lucide-react'
 import type { ProjectVersion } from '@prisma/client'
 import { CopyButton } from '@/components/copy-button'
@@ -75,6 +76,7 @@ export function ProjectVersionView({ version: v }: { version: ProjectVersion }) 
         </div>
       )}
 
+      <DemoVideoPreview url={v.videoUrl} />
       {v.techStack.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label="Tech stack">
           {v.techStack.map((t) => <li key={t}><Badge variant="secondary" className="rounded-md">{t}</Badge></li>)}

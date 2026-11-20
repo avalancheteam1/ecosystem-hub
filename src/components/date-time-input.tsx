@@ -10,11 +10,11 @@ import { zonedToUtc } from '@/lib/timezones'
  * saving - the database always stores UTC. Initialise with `utcToZoned`.
  * Typed by hand or picked via the calendar button (the browser's native picker).
  */
-export function DateTimeInput({ id, value, onChange, timeZone, required }: { id: string; value: string; onChange: (wall: string) => void; timeZone: string; required?: boolean }) {
+export function DateTimeInput({ id, value, onChange, timeZone, required, ...aria }: { id: string; value: string; onChange: (wall: string) => void; timeZone: string; required?: boolean; 'aria-invalid'?: boolean; 'aria-describedby'?: string }) {
   const ref = useRef<HTMLInputElement>(null)
   return (
     <div className="flex h-11 items-center overflow-hidden rounded-lg border border-input focus-within:border-ring">
-      <input ref={ref} id={id} type="datetime-local" required={required} value={value} onChange={(e) => onChange(e.target.value)} className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none [color-scheme:inherit] [&::-webkit-calendar-picker-indicator]:hidden" />
+      <input {...aria} ref={ref} id={id} type="datetime-local" required={required} value={value} onChange={(e) => onChange(e.target.value)} className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none [color-scheme:inherit] [&::-webkit-calendar-picker-indicator]:hidden" />
       <button type="button" aria-label="Pick date and time" onClick={() => ref.current?.showPicker()} className="flex h-full w-11 shrink-0 items-center justify-center border-l border-line text-fg-muted hover:text-fg-heading">
         <CalendarClock className="size-4" aria-hidden />
       </button>

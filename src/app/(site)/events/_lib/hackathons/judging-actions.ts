@@ -10,7 +10,8 @@ import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
 import { sendMail } from '@/lib/mailer'
 import { assignRandom, entryTracks, isConflicted, judgeEligibility, weightedTotal, type Pair } from './judging'
-import { assertManage } from './manage'
+import { isEligibleForPrize } from './feedback-rules'
+import { assertManage, refreshResultsPublication } from './manage'
 import { judgingOpen, prizePlaces } from './rules'
 
 const id = z.string().min(1)
@@ -206,19 +207,26 @@ export const setSubmissionStatus = action({ schema: z.object({ hackathonId: id, 
 
 export const setAward = action({ schema: z.object({ hackathonId: id, prizeId: id, placement: z.number().int().min(1).max(100), submissionId: z.string().optional().transform((v) => v || null) }), permission: 'user' }, async ({ hackathonId, prizeId, placement, submissionId }, user) => {
   const h = await assertManage(hackathonId, user)
-  const prize = await prisma.hackathonPrize.findFirst({ where: { id: prizeId, hackathonId } })
-  if (!prize) throw new ActionError('Prize not found')
-  if (!prizePlaces(prize).includes(placement)) throw new ActionError('That place isn’t part of this prize')
-  if (submissionId) {
-    const sub = await prisma.submission.findFirst({ where: { id: submissionId, hackathonId, status: 'active' } })
-    if (!sub) throw new ActionError('Submission not found')
-    if (prize.trackId && !sub.trackIds.includes(prize.trackId)) throw new ActionError('That team didn’t enter this prize’s track')
-    if (await prisma.award.count({ where: { prizeId, submissionId, placement: { not: placement } } })) throw new ActionError('That team already has another place of this prize')
-    await prisma.award.upsert({ where: { prizeId_placement: { prizeId, placement } }, create: { prizeId, placement, submissionId }, update: { submissionId } })
-  } else {
-    await prisma.award.deleteMany({ where: { prizeId, placement } })
-  }
-  await recordAudit({ actorId: user.id, action: 'hackathon.award.set', entityType: 'HackathonPrize', entityId: prizeId, after: { placement, submissionId } })
+  const before = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${hackathonId}))`
+    const prize = await tx.hackathonPrize.findFirst({ where: { id: prizeId, hackathonId }, include: { awards: { where: { placement } } } })
+    if (!prize) throw new ForbiddenError('Unknown prize')
+    if (!prizePlaces(prize).includes(placement)) throw new ActionError('That place is not part of this prize')
+    if (submissionId) {
+      const sub = await tx.submission.findFirst({ where: { id: submissionId, hackathonId, status: 'active', entries: { some: {} } } })
+      if (!sub) throw new ActionError('Submission not found')
+      if (!isEligibleForPrize(sub, prize)) throw new ActionError('That team did not enter this track or opt in to this sponsor prize')
+      if (await tx.award.count({ where: { prizeId, submissionId, placement: { not: placement } } })) throw new ActionError('That team already has another place of this prize')
+      await tx.award.upsert({ where: { prizeId_placement: { prizeId, placement } }, create: { prizeId, placement, submissionId }, update: { submissionId } })
+    } else {
+      await tx.award.deleteMany({ where: { prizeId, placement } })
+    }
+    // Winner changes and hiding that prize are atomic; other published prizes stay public.
+    await tx.hackathonPrize.update({ where: { id: prizeId }, data: { publishedAt: null } })
+    await refreshResultsPublication(tx, hackathonId)
+    return { placement, submissionId: prize.awards[0]?.submissionId ?? null, publishedAt: prize.publishedAt }
+  })
+  await recordAudit({ actorId: user.id, action: 'hackathon.award.set', entityType: 'HackathonPrize', entityId: prizeId, before, after: { placement, submissionId, publishedAt: null } })
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   revalidatePath(`/events/${h.event.slug}`, 'layout')
   return null
@@ -226,9 +234,15 @@ export const setAward = action({ schema: z.object({ hackathonId: id, prizeId: id
 
 export const setResultsPublished = action({ schema: z.object({ hackathonId: id, published: z.boolean() }), permission: 'user' }, async ({ hackathonId, published }, user) => {
   const h = await assertManage(hackathonId, user)
-  if (published && !(await prisma.award.count({ where: { prize: { hackathonId } } }))) throw new ActionError('Award at least one prize first')
-  await prisma.hackathon.update({ where: { id: hackathonId }, data: { resultsPublishedAt: published ? new Date() : null } })
-  await recordAudit({ actorId: user.id, action: published ? 'hackathon.results.publish' : 'hackathon.results.unpublish', entityType: 'Hackathon', entityId: hackathonId })
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${hackathonId}))`
+    const prizes = await tx.hackathonPrize.findMany({ where: { hackathonId }, include: { awards: { where: { submission: { status: 'active', entries: { some: {} } } }, include: { submission: { select: { trackIds: true, sponsorPrizeIds: true } } } } } })
+    const awarded = prizes.filter((p) => p.awards.some((a) => isEligibleForPrize(a.submission, p)))
+    if (published && !awarded.length) throw new ActionError('Award at least one prize first')
+    await tx.hackathonPrize.updateMany({ where: { hackathonId, ...(published && { id: { in: awarded.map((p) => p.id) } }) }, data: { publishedAt: published ? new Date() : null } })
+    await refreshResultsPublication(tx, hackathonId)
+  })
+  await recordAudit({ actorId: user.id, action: published ? 'hackathon.results.publish' : 'hackathon.results.unpublish', entityType: 'Hackathon', entityId: hackathonId, before: { resultsPublishedAt: h.resultsPublishedAt }, after: { published } })
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   revalidatePath(`/events/${h.event.slug}`, 'layout')
   return null
@@ -265,8 +279,8 @@ export const saveReview = action(
       throw new ActionError('You are on this team and can’t review it')
     }
     const clean = Object.fromEntries(stage.criteria.filter((c) => c.id in scores).map((c) => [c.id, scores[c.id]!]))
-    if (Object.values(clean).some((v) => v > stage.scaleMax)) throw new ActionError(`Scores go from 0 to ${stage.scaleMax}`)
-    const total = conflictDeclared ? null : weightedTotal(clean, stage.criteria, stage.scaleMax)
+    if (Object.values(clean).some((v) => v < stage.scaleMin || v > stage.scaleMax)) throw new ActionError(`Scores go from ${stage.scaleMin} to ${stage.scaleMax}`)
+    const total = conflictDeclared ? null : weightedTotal(clean, stage.criteria, stage.scaleMax, stage.scaleMin)
     if (submit && !conflictDeclared && total == null) throw new ActionError('Score every criterion before submitting')
     const existing = await prisma.review.findUnique({ where: { assignmentId }, select: { submittedAt: true } })
     if (existing?.submittedAt && !submit && !conflictDeclared) throw new ActionError('This review is submitted - update it instead of saving a draft')
@@ -277,3 +291,20 @@ export const saveReview = action(
     return null
   },
 )
+
+export const setPrizePublished = action({ schema: z.object({ hackathonId: id, prizeId: id, published: z.boolean() }), permission: 'user' }, async ({ hackathonId, prizeId, published }, user) => {
+  const h = await assertManage(hackathonId, user)
+  const before = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${hackathonId}))`
+    const prize = await tx.hackathonPrize.findFirst({ where: { id: prizeId, hackathonId }, include: { awards: { where: { submission: { status: 'active', entries: { some: {} } } }, include: { submission: { select: { trackIds: true, sponsorPrizeIds: true } } } } } })
+    if (!prize) throw new ForbiddenError('Unknown prize')
+    if (published && !prize.awards.some((a) => isEligibleForPrize(a.submission, prize))) throw new ActionError('Set an eligible winner for this prize first')
+    await tx.hackathonPrize.update({ where: { id: prizeId }, data: { publishedAt: published ? new Date() : null } })
+    await refreshResultsPublication(tx, hackathonId)
+    return { publishedAt: prize.publishedAt }
+  })
+  await recordAudit({ actorId: user.id, action: 'hackathon.prize.publish', entityType: 'HackathonPrize', entityId: prizeId, before, after: { published } })
+  revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
+  revalidatePath(`/events/${h.event.slug}`, 'layout')
+  return null
+})

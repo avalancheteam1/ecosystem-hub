@@ -1,3 +1,6 @@
+import { judgingWindowText } from '@/app/(site)/events/_lib/hackathons/presentation'
+import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
+import { StageStateBadge } from '@/components/stage-state-badge'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { BackLink } from '@/components/back-link'
@@ -16,7 +19,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ hackath
   const a = await prisma.judgeAssignment.findUnique({
     where: { id: assignmentId },
     include: {
-      judge: true,
+      judge: { include: { hackathon: { select: { timezone: true } } } },
       review: true,
       entry: { include: { projectVersion: true, stage: { include: { criteria: { orderBy: { order: 'asc' } }, fields: { orderBy: { order: 'asc' } } } }, submission: { select: { trackIds: true, status: true } } } },
     },
@@ -46,10 +49,12 @@ export default async function ReviewPage({ params }: { params: Promise<{ hackath
         </section>
         <section className="self-start rounded-xl border border-line bg-surface-2 p-6 sm:p-8 xl:sticky xl:top-24">
           <h2 className="mb-6 text-lg">Your scores</h2>
+          <div className="mb-4 space-y-2 text-sm text-fg-muted"><StageStateBadge state={stageState(stage, new Date())} /><p>{judgingWindowText(stage, a.judge.hackathon.timezone)}</p></div>
           {new Date() < stage.closesAt && <p className="mb-6 rounded-lg border border-line bg-surface-1 p-3 text-sm text-fg-muted">Teams can still update this submission until the stage closes - scoring opens then.</p>}
           <ReviewForm
             assignmentId={a.id}
             criteria={stage.criteria}
+            scaleMin={stage.scaleMin}
             scaleMax={stage.scaleMax}
             initialScores={(a.review?.scores as Record<string, number>) ?? {}}
             initialComment={a.review?.comment ?? ''}

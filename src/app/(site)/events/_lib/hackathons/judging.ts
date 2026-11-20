@@ -7,18 +7,22 @@ export function isConflicted(judgeUserId: string | null, teamSnapshotUserIds: st
   return teamSnapshotUserIds.includes(judgeUserId) || currentMemberIds.includes(judgeUserId)
 }
 
+export function isValidScoreScale({ scaleMin, scaleMax }: { scaleMin: number; scaleMax: number }): boolean {
+  return (scaleMin === 0 || scaleMin === 1) && Number.isInteger(scaleMax) && scaleMax > scaleMin && scaleMax <= 100
+}
+
 /** Weighted score on 0–100 (2 decimals); null unless every criterion has a valid score. */
-export function weightedTotal(scores: Record<string, unknown>, criteria: { id: string; weight: number }[], scaleMax: number): number | null {
-  if (!criteria.length) return null
+export function weightedTotal(scores: Record<string, unknown>, criteria: { id: string; weight: number }[], scaleMax: number, scaleMin = 0): number | null {
+  if (!isValidScoreScale({ scaleMin, scaleMax }) || !criteria.length) return null
   let sum = 0
   let weights = 0
   for (const c of criteria) {
     const v = scores[c.id]
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > scaleMax) return null
-    sum += v * c.weight
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < scaleMin || v > scaleMax) return null
+    sum += (v - scaleMin) * c.weight
     weights += c.weight
   }
-  return Math.round((sum / weights / scaleMax) * 100 * 100) / 100
+  return Math.round((sum / weights / (scaleMax - scaleMin)) * 100 * 100) / 100
 }
 
 const median = (xs: number[]) => {

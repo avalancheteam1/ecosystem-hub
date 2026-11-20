@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
+import { ProjectInviteForm } from '@/components/project-invite-form'
+import { canInviteTeammates } from '@/lib/project-team'
 import { initials } from '@/lib/utils'
-import { inviteMember, removeMember, revokeInvite, setMemberRole, transferOwnership } from '../_lib/actions'
+import { inviteMember } from '@/lib/project-invite-actions'
+import { removeMember, revokeInvite, setMemberRole, transferOwnership } from '../_lib/actions'
 import { ASSIGNABLE_ROLES, PROJECT_ROLES, type ProjectRole } from '../_lib/rules'
 
 type Member = { userId: string; role: string; user: { name: string; email: string; image: string | null } }
@@ -28,10 +30,8 @@ function RoleSelect({ value, onChange, disabled, label }: { value: string; onCha
 
 export function TeamPanel({ projectId, members, invites, meId }: { projectId: string; members: Member[]; invites: Invite[]; meId: string }) {
   const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Assignable>('writer')
   const [pending, start] = useTransition()
-  const iAmOwner = members.some((m) => m.userId === meId && m.role === 'owner')
+  const iAmOwner = canInviteTeammates(members, meId)
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, msg: string, after?: () => void) =>
     start(async () => {
       const res = await fn()
@@ -82,13 +82,7 @@ export function TeamPanel({ projectId, members, invites, meId }: { projectId: st
           ))}
         </ul>
       )}
-      {iAmOwner && (
-        <form className="flex flex-wrap gap-2 border-t border-line pt-4" onSubmit={(e) => { e.preventDefault(); run(() => inviteMember({ projectId, email, role }), `Invite sent to ${email}`, () => setEmail('')) }}>
-          <Input type="email" required placeholder="teammate@email.com" aria-label="Teammate email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 basis-full" />
-          <RoleSelect label="Role" value={role} onChange={setRole} />
-          <Button type="submit" disabled={pending} className="h-11 flex-1">Invite</Button>
-        </form>
-      )}
+      {iAmOwner && <div className="border-t border-line pt-4"><ProjectInviteForm projectId={projectId} inviteAction={inviteMember} allowReaders /></div>}
       <p className="text-xs text-fg-faint">Readers can view the project. Writers can also edit it and submit it to hackathons. The owner also manages the team.</p>
     </div>
   )

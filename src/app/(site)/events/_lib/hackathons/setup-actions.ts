@@ -5,7 +5,8 @@ import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { action, ActionError } from '@/lib/action'
+import { PROJECT_REQUIREMENTS, type ProjectRequirement } from '@/lib/project-requirements'
+import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
@@ -18,7 +19,8 @@ import { isReachable } from '../status'
 import { verifiedUserIdByEmail } from './bind'
 import { ineligibleAssignments, judgesWithoutTrack } from './judging'
 import { assertManage } from './manage'
-import { FIELD_TYPES, publishChecklist, reopensJudging, validateStages } from './rules'
+import { stageSchema, fieldSchema, sponsorPrizeSchema } from './schemas'
+import { publishChecklist, reopensJudging, validateStages } from './rules'
 
 // Organiser console actions (/manage/hackathons/[id]). Every action re-checks
 // canManageHackathon - organisers are per-hackathon data, not a permission.
@@ -185,6 +187,9 @@ export const savePrize = action(
     const h = await assertManage(hackathonId, user)
     if (data.trackId && !(await prisma.hackathonTrack.count({ where: { id: data.trackId, hackathonId } }))) throw new ActionError('Unknown track')
     if (prizeId) {
+      const prize = await prisma.hackathonPrize.findFirst({ where: { id: prizeId, hackathonId }, select: { sponsorPrizeId: true } })
+      if (!prize) throw new ForbiddenError('Unknown prize')
+      if (prize.sponsorPrizeId) throw new ActionError('Edit this prize in Sponsor prizes / technologies')
       const r = await prisma.hackathonPrize.updateMany({ where: { id: prizeId, hackathonId }, data })
       if (!r.count) throw new ActionError('Prize not found')
       // places that left the range lose their winner
@@ -209,6 +214,9 @@ export const setPrizePool = action({ schema: z.object({ hackathonId: id, prizePo
 
 export const deletePrize = action({ schema: z.object({ hackathonId: id, prizeId: id }), permission: 'user' }, async ({ hackathonId, prizeId }, user) => {
   const h = await assertManage(hackathonId, user)
+  const prize = await prisma.hackathonPrize.findFirst({ where: { id: prizeId, hackathonId }, select: { sponsorPrizeId: true } })
+  if (!prize) throw new ForbiddenError('Unknown prize')
+  if (prize.sponsorPrizeId) throw new ActionError('Delete this prize in Sponsor prizes / technologies')
   const r = await prisma.hackathonPrize.deleteMany({ where: { id: prizeId, hackathonId } })
   if (!r.count) throw new ActionError('Prize not found')
   await recordAudit({ actorId: user.id, action: 'hackathon.prize.delete', entityType: 'Hackathon', entityId: hackathonId, before: { prizeId } })
@@ -218,22 +226,6 @@ export const deletePrize = action({ schema: z.object({ hackathonId: id, prizeId:
 
 // ── stages & criteria ──────────────────────────────────────────────────────
 
-const stageSchema = z
-  .object({
-    hackathonId: id,
-    stageId: id.optional(),
-    name: z.string().trim().min(1, 'Name the stage').max(60),
-    descriptionMd: optText(10_000, 'What teams submit'),
-    opensAt: date,
-    closesAt: date,
-    reviewMode: z.enum(['all', 'random']),
-    judgesPerSubmission: z.union([z.coerce.number().int().min(1).max(20), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
-    scaleMax: z.coerce.number().int().min(1).max(100),
-    showCriteria: z.boolean(),
-    advancedOnly: z.boolean(),
-    sameTrackOnly: z.boolean(),
-  })
-  .refine((s) => s.reviewMode !== 'random' || s.judgesPerSubmission, { message: 'Set how many judges review each submission', path: ['judgesPerSubmission'] })
 
 export const saveStage = action({ schema: stageSchema, permission: 'user' }, async ({ hackathonId, stageId, ...data }, user) => {
   const h = await assertManage(hackathonId, user)
@@ -242,7 +234,7 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   if (stageId && !existing) throw new ActionError('Stage not found')
   if (existing && (await stageHasReviews(existing.id))) {
     // Judged scores must stay comparable: no new scale. The window may move (the dialog warns: windowChangeWarnings).
-    if (existing.scaleMax !== data.scaleMax) throw new ActionError('Judges already scored this stage - the scale can’t change now')
+    if (existing.scaleMin !== data.scaleMin || existing.scaleMax !== data.scaleMax) throw new ActionError('Judges already scored this stage - the scale can’t change now')
   }
   const next = existing
     ? stages.map((s) => (s.id === stageId ? { ...s, ...data } : s))
@@ -251,7 +243,7 @@ export const saveStage = action({ schema: stageSchema, permission: 'user' }, asy
   if (errors.length) throw new ActionError(errors[0]!)
   if (existing) await prisma.hackathonStage.update({ where: { id: existing.id }, data: { ...data, ...(reopensJudging(existing, data, new Date()) && { judgingClosedAt: null }) } })
   else await prisma.hackathonStage.create({ data: { hackathonId, order: stages.length, ...data } })
-  await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission, advancedOnly: existing.advancedOnly, sameTrackOnly: existing.sameTrackOnly } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission, advancedOnly: data.advancedOnly, sameTrackOnly: data.sameTrackOnly } })
+  await recordAudit({ actorId: user.id, action: existing ? 'hackathon.stage.update' : 'hackathon.stage.create', entityType: 'Hackathon', entityId: hackathonId, before: existing ? { name: existing.name, opensAt: existing.opensAt, closesAt: existing.closesAt, reviewMode: existing.reviewMode, judgesPerSubmission: existing.judgesPerSubmission, advancedOnly: existing.advancedOnly, sameTrackOnly: existing.sameTrackOnly, scaleMin: existing.scaleMin, scaleMax: existing.scaleMax } : undefined, after: { name: data.name, opensAt: data.opensAt, closesAt: data.closesAt, reviewMode: data.reviewMode, judgesPerSubmission: data.judgesPerSubmission, advancedOnly: data.advancedOnly, sameTrackOnly: data.sameTrackOnly, scaleMin: data.scaleMin, scaleMax: data.scaleMax } })
   revalidate(h)
   return null
 })
@@ -290,6 +282,7 @@ export const duplicateStage = action({ schema: z.object({ hackathonId: id, stage
       reviewMode: src.reviewMode,
       judgesPerSubmission: src.judgesPerSubmission,
       sameTrackOnly: src.sameTrackOnly,
+      scaleMin: src.scaleMin,
       scaleMax: src.scaleMax,
       showCriteria: src.showCriteria,
       advancedOnly: src.advancedOnly,
@@ -349,19 +342,7 @@ export const deleteCriterion = action({ schema: z.object({ hackathonId: id, stag
 
 export const saveField = action(
   {
-    schema: z
-      .object({
-        hackathonId: id,
-        fieldId: id.optional(),
-        stageId: z.string().optional().transform((v) => v || null),
-        label: z.string().trim().min(1, 'Write the question').max(200),
-        help: optText(500),
-        type: z.enum(FIELD_TYPES),
-        required: z.boolean(),
-        options: z.array(z.string().trim().min(1).max(80)).max(30).transform((o) => [...new Set(o)]),
-        maxLength: z.union([z.coerce.number().int().min(1).max(20_000), z.literal(''), z.null()]).optional().transform((v) => (v === '' || v == null ? null : v)),
-      })
-      .refine((f) => !['select', 'multi_select'].includes(f.type) || f.options.length >= 2, { message: 'Add at least two options', path: ['options'] }),
+    schema: fieldSchema,
     permission: 'user',
   },
   async ({ hackathonId, fieldId, ...data }, user) => {
@@ -541,5 +522,44 @@ export const setHackathonStatus = action({ schema: z.object({ hackathonId: id, s
   await prisma.hackathon.update({ where: { id: hackathonId }, data: { status } })
   await recordAudit({ actorId: user.id, action: 'hackathon.status.set', entityType: 'Hackathon', entityId: hackathonId, before: { status: h.status }, after: { status } })
   revalidate(h)
+  return null
+})
+
+export const setProjectRequirements = action({ schema: z.object({ hackathonId: id, optionalProjectFields: z.array(z.enum(Object.keys(PROJECT_REQUIREMENTS) as [ProjectRequirement, ...ProjectRequirement[]])).max(Object.keys(PROJECT_REQUIREMENTS).length).transform((v) => [...new Set(v)]) }), permission: 'user' }, async ({ hackathonId, optionalProjectFields }, user) => {
+  const h = await assertManage(hackathonId, user)
+  await prisma.hackathon.update({ where: { id: hackathonId }, data: { optionalProjectFields } })
+  await recordAudit({ actorId: user.id, action: 'hackathon.requirements.set', entityType: 'Hackathon', entityId: hackathonId, before: { optionalProjectFields: h.optionalProjectFields }, after: { optionalProjectFields } })
+  revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
+  revalidatePath(`/events/${h.event.slug}`, 'layout')
+  return null
+})
+
+export const saveSponsorPrize = action({ schema: sponsorPrizeSchema, permission: 'user' }, async ({ hackathonId, sponsorPrizeId, ...data }, user) => {
+  const h = await assertManage(hackathonId, user)
+  const before = sponsorPrizeId ? await prisma.hackathonSponsorPrize.findFirst({ where: { id: sponsorPrizeId, hackathonId } }) : null
+  if (sponsorPrizeId && !before) throw new ForbiddenError('Unknown sponsor prize')
+  if (sponsorPrizeId) {
+    await prisma.$transaction([
+      prisma.hackathonSponsorPrize.update({ where: { id: sponsorPrizeId }, data }),
+      prisma.hackathonPrize.update({ where: { sponsorPrizeId }, data: { title: data.name } }),
+    ])
+  } else {
+    await prisma.hackathonSponsorPrize.create({ data: { ...data, hackathonId, order: await prisma.hackathonSponsorPrize.count({ where: { hackathonId } }), prize: { create: { hackathonId, title: data.name } } } })
+  }
+  await recordAudit({ actorId: user.id, action: 'hackathon.sponsorPrize.save', entityType: 'Hackathon', entityId: hackathonId, before, after: data })
+  revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
+  revalidatePath(`/events/${h.event.slug}`, 'layout')
+  return null
+})
+
+export const deleteSponsorPrize = action({ schema: z.object({ hackathonId: id, sponsorPrizeId: id }), permission: 'user' }, async ({ hackathonId, sponsorPrizeId }, user) => {
+  const h = await assertManage(hackathonId, user)
+  const before = await prisma.hackathonSponsorPrize.findFirst({ where: { id: sponsorPrizeId, hackathonId } })
+  if (!before) throw new ForbiddenError('Unknown sponsor prize')
+  if (await prisma.submission.count({ where: { hackathonId, sponsorPrizeIds: { has: sponsorPrizeId } } })) throw new ActionError('Teams entered this sponsor prize - it cannot be deleted')
+  await prisma.hackathonSponsorPrize.delete({ where: { id: sponsorPrizeId } })
+  await recordAudit({ actorId: user.id, action: 'hackathon.sponsorPrize.delete', entityType: 'Hackathon', entityId: hackathonId, before })
+  revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
+  revalidatePath(`/events/${h.event.slug}`, 'layout')
   return null
 })

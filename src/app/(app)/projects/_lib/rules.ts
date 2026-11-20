@@ -16,16 +16,7 @@ export function versionChanged(prev: ProjectFields | null, next: ProjectFields):
 }
 
 /** builders-hub's "complete submission" set (minus tracks, chosen at submit time) + project stage; a website stands in for a demo link. */
-export function missingForSubmission(v: { maturity: string | null; fullDescription: string; techDescription: string; techStack: string[]; githubRepos: string[]; demoLinks: string[]; websiteUrl: string | null }): string[] {
-  const missing: string[] = []
-  if (!v.maturity) missing.push('Project stage')
-  if (!v.fullDescription.trim()) missing.push('Full description')
-  if (!v.techDescription.trim()) missing.push('How it’s made')
-  if (!v.techStack.length) missing.push('Tech stack')
-  if (!v.githubRepos.length) missing.push('Code repository')
-  if (!v.demoLinks.length && !v.websiteUrl) missing.push('Website or demo link') // either gives judges something to open
-  return missing
-}
+export { missingProjectRequirements as missingForSubmission } from '@/lib/project-requirements'
 
 /** Field set of a stored version (for diffing / prefilling the form). */
 export function fieldsOf(v: Record<string, unknown>): ProjectFields {
@@ -71,12 +62,11 @@ export const PROJECT_ROLES = {
 } as const
 export type ProjectRole = keyof typeof PROJECT_ROLES
 /** Roles an owner can give by invite or change to (ownership moves only via transfer). */
-export const ASSIGNABLE_ROLES = ['writer', 'reader'] as const
+export { ASSIGNABLE_ROLES, canManageTeam } from '@/lib/project-team'
 /** Roles that make up the hackathon team - use in Prisma filters: `{ role: { in: TEAM_ROLES } }`. */
 export const TEAM_ROLES: string[] = ['owner', 'writer']
 
 export const canEditProject = (role: string) => TEAM_ROLES.includes(role)
-export const canManageTeam = (role: string) => role === 'owner'
 
 // ── Milestones ─────────────────────────────────────────────────────────────
 // A live roadmap (own table, not versioned): edited in place by the team.

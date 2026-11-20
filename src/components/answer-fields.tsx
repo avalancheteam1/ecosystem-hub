@@ -13,16 +13,19 @@ import { Textarea } from '@/components/ui/textarea'
 export type AnswerField = { id: string; label: string; help: string | null; type: string; required: boolean; options: string[]; maxLength: number | null }
 export type Answers = Record<string, unknown>
 
-export function AnswerFields({ fields, value, onChange }: { fields: AnswerField[]; value: Answers; onChange: (v: Answers) => void }) {
+export function AnswerFields({ fields, value, onChange, errors = {} }: { errors?: Record<string, string | undefined>; fields: AnswerField[]; value: Answers; onChange: (v: Answers) => void }) {
   const set = (id: string, v: unknown) => onChange({ ...value, [id]: v })
   return (
     <div className="grid gap-6">
       {fields.map((f) => {
         const id = `ans-${f.id}`
+        const error = errors[f.id]
+        const aria = { 'aria-invalid': !!error, 'aria-describedby': error ? `${id}-error` : undefined }
+        const feedback = error && <p id={`${id}-error`} role="alert" className="text-xs text-destructive">{error}</p>
         const label = (
           <>
             {f.label}
-            {f.required && <span className="text-brand"> *</span>}
+            {f.required ? <span className="text-destructive"> *</span> : <span className="text-fg-muted"> (Optional)</span>}
           </>
         )
         const help = f.help && <p className="text-xs text-fg-faint">{f.help}</p>
@@ -30,20 +33,22 @@ export function AnswerFields({ fields, value, onChange }: { fields: AnswerField[
           return (
             <div key={f.id} className="space-y-1">
               <label className="flex items-start gap-3 text-sm">
-                <Checkbox id={id} className="mt-0.5" checked={value[f.id] === true} onCheckedChange={(c) => set(f.id, c === true)} />
+                <Checkbox {...aria} id={id} className="mt-0.5" checked={value[f.id] === true} onCheckedChange={(c) => set(f.id, c === true)} />
                 <span>{label}</span>
               </label>
               {help}
+              {feedback}
             </div>
           )
         }
         if (f.type === 'multi_select') {
           const cur = (value[f.id] as string[] | undefined) ?? []
           return (
-            <fieldset key={f.id} className="space-y-2">
+            <fieldset {...aria} id={id} key={f.id} className="space-y-2">
               <legend className="text-sm">{label}</legend>
               {help}
               <ChipToggle label={f.label} options={f.options.map((o) => ({ value: o, label: o }))} value={cur} onChange={(v) => set(f.id, v)} />
+              {feedback}
             </fieldset>
           )
         }
@@ -52,14 +57,15 @@ export function AnswerFields({ fields, value, onChange }: { fields: AnswerField[
             <Label htmlFor={id}>{label}</Label>
             {help}
             {f.type === 'long_text' ? (
-              <Textarea id={id} required={f.required} maxLength={f.maxLength ?? 5000} rows={5} value={(value[f.id] as string) ?? ''} onChange={(e) => set(f.id, e.target.value)} />
+              <Textarea {...aria} id={id} required={f.required} maxLength={f.maxLength ?? 5000} rows={5} value={(value[f.id] as string) ?? ''} onChange={(e) => set(f.id, e.target.value)} />
             ) : f.type === 'select' ? (
-              <NativeSelect id={id} required={f.required} value={(value[f.id] as string) ?? ''} onChange={(e) => set(f.id, e.target.value)}>
+              <NativeSelect {...aria} id={id} required={f.required} value={(value[f.id] as string) ?? ''} onChange={(e) => set(f.id, e.target.value)}>
                 <option value="">Choose…</option>
                 {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
               </NativeSelect>
             ) : (
               <Input
+                {...aria}
                 id={id}
                 required={f.required}
                 type={f.type === 'url' ? 'url' : f.type === 'number' ? 'number' : 'text'}
@@ -70,6 +76,7 @@ export function AnswerFields({ fields, value, onChange }: { fields: AnswerField[
                 className="h-11"
               />
             )}
+            {feedback}
           </div>
         )
       })}

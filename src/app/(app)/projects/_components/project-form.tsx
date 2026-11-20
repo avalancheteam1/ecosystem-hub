@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { DemoVideoPreview } from '@/components/demo-video-preview'
+import { videoPreview, DEMO_VIDEO_HINT } from '@/lib/demo-video'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChipToggle } from '@/components/chip-toggle'
@@ -20,12 +22,13 @@ import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { DEFAULT_NETWORK, PROJECT_NETWORKS, type ProjectNetwork } from '@/lib/project-networks'
 import { MilestoneList, type Milestone } from './milestones'
 import { missingForSubmission, PROJECT_CATEGORIES, TECH_STACK_DEFAULTS } from '../_lib/rules'
-import type { ProjectFields } from '../_lib/schemas'
+import { PROJECT_REQUIREMENTS, projectRequirementLabel } from '@/lib/project-requirements'
+import { projectLinkError, type ProjectFields } from '../_lib/schemas'
 
 // Field set and copy from builders-hub's project submission (battle-tested).
 
 const EMPTY: ProjectFields = {
-  name: '', shortDescription: '', fullDescription: '', techDescription: '', techStack: [], categories: [], otherCategory: null, maturity: null as unknown as ProjectFields['maturity'], // must be picked
+  name: '', shortDescription: '', fullDescription: '', techDescription: '', techStack: [], categories: [], otherCategory: null, maturity: null,
   launchDate: null,
   country: null,
   githubRepos: [], demoLinks: [], videoUrl: null, logoUrl: null, coverUrl: null, screenshots: [], deployedAddresses: [], websiteUrl: null, websites: [], socials: [],
@@ -35,11 +38,11 @@ function Counter({ value, max }: { value: string; max: number }) {
   return <span className={`text-xs tabular-nums ${value.length > max ? 'text-destructive' : 'text-fg-faint'}`}>{value.length}/{max}</span>
 }
 
-const BASICS = ['Project name', 'Short description', 'Project stage'] as const
-// Stage is also in missingForSubmission (old versions lack it); here it's a basic, required to save.
-const FOR_SUBMISSION = ['Full description', 'How it’s made', 'Tech stack', 'Code repository', 'Website or demo link'] as const
+const BASICS = ['Project name', 'Short description'] as const
+// Incomplete drafts may be saved. Each hackathon enforces its own requirements at submission.
+const FOR_SUBMISSION = Object.values(PROJECT_REQUIREMENTS)
 
-function Checklist({ title, items, missing }: { title: string; items: readonly string[]; missing: string[] }) {
+function Checklist({ title, items, missing, optional = [] }: { title: string; items: readonly string[]; missing: string[]; optional?: string[] }) {
   return (
     <div>
       <p className="text-sm text-fg-heading">{title}</p>
@@ -48,8 +51,8 @@ function Checklist({ title, items, missing }: { title: string; items: readonly s
           const done = !missing.includes(n)
           return (
             <li key={n} className={`flex items-center gap-1.5 ${done ? 'text-success' : 'text-fg-muted'}`}>
-              {done ? <CircleCheck className="size-4 shrink-0" aria-hidden /> : <CircleDashed className="size-4 shrink-0" aria-hidden />} {n}
-              <span className="sr-only">{done ? '(done)' : '(missing)'}</span>
+              {done ? <CircleCheck className="size-4 shrink-0" aria-hidden /> : <CircleDashed className="size-4 shrink-0" aria-hidden />} {n}{optional.includes(n) ? ' (Optional)' : ''}
+              <span className="sr-only">{done ? '(done)' : optional.includes(n) ? '(optional, missing)' : '(missing)'}</span>
             </li>
           )
         })}
@@ -59,13 +62,13 @@ function Checklist({ title, items, missing }: { title: string; items: readonly s
 }
 
 /** Live checklist: basics (required to save) + what hackathon / grant submissions require (builders-hub's "complete" set). */
-function SubmissionReadiness({ f }: { f: ProjectFields }) {
-  const missing = [...(f.name.trim() ? [] : ['Project name']), ...(f.shortDescription.trim() ? [] : ['Short description']), ...missingForSubmission(f)]
+function SubmissionReadiness({ f, optional }: { f: ProjectFields; optional: string[] }) {
+  const missing = [...(f.name.trim() ? [] : ['Project name']), ...(f.shortDescription.trim() ? [] : ['Short description']), ...missingForSubmission(f, [])]
   return (
     <section aria-label="What this project needs" className="grid gap-5 rounded-xl border border-line p-5">
       <Checklist title="Basic data - required to save" items={BASICS} missing={missing} />
-      <Checklist title="For hackathon or grant submissions" items={FOR_SUBMISSION} missing={missing} />
-      <p className="text-xs text-fg-faint"><span aria-hidden className="text-destructive">*</span> required to save · “for submissions” needed to submit · the rest is optional.</p>
+      <Checklist title="For hackathon or grant submissions" items={FOR_SUBMISSION} missing={missing} optional={Object.entries(PROJECT_REQUIREMENTS).filter(([key]) => optional.includes(key)).map(([, label]) => label)} />
+      <p className="text-xs text-fg-faint"><span aria-hidden className="text-destructive">*</span> required to save · event requirements are checked before submission · the rest is optional.</p>
     </section>
   )
 }
@@ -75,17 +78,22 @@ function SubmissionReadiness({ f }: { f: ProjectFields }) {
  * `onSaved`: embedded use (dialog) - called instead of navigating.
  * `countries` comes from the server (Intl names differ between Node and browsers); `defaultCountry` prefills a new project (the creator's profile country).
  */
-export function ProjectForm({ projectId, initial, next, onSaved, onCancel, countries, defaultCountry }: { projectId?: string; initial?: ProjectFields; next?: string | null; onSaved?: (p: { id: string; slug: string }) => void; onCancel?: () => void; countries: { code: string; name: string }[]; defaultCountry?: string | null }) {
+export function ProjectForm({ projectId, initial, next, onSaved, onCancel, countries, defaultCountry, optionalProjectFields = ['videoUrl'] }: { optionalProjectFields?: string[]; projectId?: string; initial?: ProjectFields; next?: string | null; onSaved?: (p: { id: string; slug: string }) => void; onCancel?: () => void; countries: { code: string; name: string }[]; defaultCountry?: string | null }) {
   const router = useRouter()
   const [f, setF] = useState<ProjectFields>(initial ?? { ...EMPTY, country: defaultCountry ?? null })
   const [pending, start] = useTransition()
   const set = <K extends keyof ProjectFields>(k: K, v: ProjectFields[K]) => setF((p) => ({ ...p, [k]: v }))
+  const form = useRef<HTMLFormElement>(null)
   const owner = projectId ?? 'new'
   // New projects only: milestones are created with the project; afterwards they're edited live on the project page.
   const [milestones, setMilestones] = useState<Milestone[]>([])
 
+  const videoError = f.videoUrl?.trim() && !videoPreview(f.videoUrl) ? DEMO_VIDEO_HINT : null
   const submit = () =>
     start(async () => {
+      const invalidLink = form.current?.querySelector<HTMLElement>('#repos[aria-invalid="true"], #demo[aria-invalid="true"]')
+      if (invalidLink) { invalidLink.focus(); return }
+      if (videoError) { document.getElementById('video')?.focus(); return }
       const res = projectId ? await saveProject({ projectId, fields: f }) : await createProject({ fields: f, milestones: milestones.map(({ id: _id, ...m }) => ({ ...m, description: m.description ?? '' })) })
       if (!res.ok) return void toast.error(res.error)
       if ('changed' in res.data && !res.data.changed) toast.info('No changes')
@@ -99,7 +107,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
       {/* First in the DOM so it leads on mobile; right-hand sticky column from lg. Outside the <form>: the milestone dialogs have their own forms. */}
       <aside className="grid gap-6 lg:sticky lg:top-24 lg:order-last lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
-        <SubmissionReadiness f={f} />
+        <SubmissionReadiness f={f} optional={optionalProjectFields} />
         {!projectId && (
           <section aria-labelledby="ms-heading" className="rounded-xl border border-line p-5">
             <h2 id="ms-heading" className="mb-3 text-sm text-fg-heading">Milestones</h2>
@@ -114,7 +122,7 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
           </section>
         )}
       </aside>
-      <form className="grid min-w-0 gap-6" onSubmit={(e) => { e.preventDefault(); submit() }}>
+      <form ref={form} className="grid min-w-0 gap-6" onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); submit() }}>
         <SectionCard title="Basics">
           <div className="grid gap-6">
             <div className="flex flex-wrap gap-6">
@@ -123,18 +131,18 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
             <Field id="name" label="Project name" required>
               <Input id="name" value={f.name} onChange={(e) => set('name', e.target.value)} required maxLength={60} placeholder="Enter your project name" className="h-11" />
             </Field>
-            <Field id="website" label="Website" hint="The project's main website - shown at the top of the project page.">
+            <Field id="website" label="Live app URL (Optional)" hint="The running app or main project website. Separate from your repository and demo video.">
               <Input id="website" type="url" value={f.websiteUrl ?? ''} onChange={(e) => set('websiteUrl', e.target.value)} placeholder="https://yourproject.xyz" maxLength={500} className="h-11" />
             </Field>
             <Field id="short" label="Short description" required hint="A short and engaging overview - shown on cards and to judges first.">
               <Textarea id="short" value={f.shortDescription} onChange={(e) => set('shortDescription', e.target.value)} required maxLength={280} rows={2} />
               <div className="flex justify-end"><Counter value={f.shortDescription} max={280} /></div>
             </Field>
-            <MarkdownField id="full" label="Full description (for submissions)" hint="The problem, how it works, what's built on Avalanche." value={f.fullDescription} onChange={(t) => set('fullDescription', t)} rows={10} maxLength={20_000} />
+            <MarkdownField id="full" label={projectRequirementLabel('fullDescription', optionalProjectFields)} hint="The problem, how it works, what's built on Avalanche." value={f.fullDescription} onChange={(t) => set('fullDescription', t)} rows={10} maxLength={20_000} />
             <div className="grid gap-6 sm:grid-cols-2">
-              <Field id="maturity" label="Project stage" required hint={f.maturity ? PROJECT_MATURITY[f.maturity].hint : 'How far the project is - from idea to established with users.'}>
-                <NativeSelect id="maturity" required value={f.maturity ?? ''} onChange={(e) => set('maturity', e.target.value as ProjectMaturity)}>
-                  <option value="" disabled>Pick a stage</option>
+              <Field id="maturity" label={projectRequirementLabel('maturity', optionalProjectFields)} hint={f.maturity ? PROJECT_MATURITY[f.maturity].hint : 'How far the project is - from idea to established with users.'}>
+                <NativeSelect id="maturity" value={f.maturity ?? ''} onChange={(e) => set('maturity', (e.target.value || null) as ProjectMaturity | null)}>
+                  <option value="">Not set</option>
                   {Object.entries(PROJECT_MATURITY).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
                 </NativeSelect>
               </Field>
@@ -157,12 +165,12 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
 
         <SectionCard title="How it's made">
           <div className="grid gap-6">
-            <Field id="tech" label="Tech stack (for submissions)" hint="Pick the main languages, frameworks and tools.">
+            <Field id="tech" label={projectRequirementLabel('techStack', optionalProjectFields)} hint="Pick the main languages, frameworks and tools.">
               <TagInput id="tech" value={f.techStack} onChange={(v) => set('techStack', v)} suggestions={TECH_STACK_DEFAULTS} placeholder="Add technology" maxLength={30} />
             </Field>
-            <MarkdownField id="how" label="How it's made (for submissions)" hint='Describe the stack, APIs and integrations. Mention any innovative or "hacky" parts worth highlighting.' value={f.techDescription} onChange={(t) => set('techDescription', t)} rows={6} maxLength={10_000} />
-            <Field id="repos" label="Code repositories (for submissions)" hint="Must be public. If design-only, link a Figma file.">
-              <ValueListInput id="repos" value={f.githubRepos} onChange={(v) => set('githubRepos', v)} placeholder="https://github.com/user/repo" />
+            <MarkdownField id="how" label={projectRequirementLabel('techDescription', optionalProjectFields)} hint='Describe the stack, APIs and integrations. Mention any innovative or "hacky" parts worth highlighting.' value={f.techDescription} onChange={(t) => set('techDescription', t)} rows={6} maxLength={10_000} />
+            <Field id="repos" label={`${projectRequirementLabel('githubRepos', optionalProjectFields)}${optionalProjectFields.includes('githubRepos') ? '' : ' (for submissions)'}`} hint="Must be public. If design-only, link a Figma file.">
+              <ValueListInput validate={(value) => projectLinkError('githubRepos', value)} id="repos" value={f.githubRepos} onChange={(v) => set('githubRepos', v)} placeholder="https://github.com/user/repo" />
             </Field>
             <Field id="addr" label="Deployed contract addresses">
               <div className="space-y-2">
@@ -184,11 +192,13 @@ export function ProjectForm({ projectId, initial, next, onSaved, onCancel, count
 
         <SectionCard title="Demo & media">
           <div className="grid gap-6">
-            <Field id="demo" label="Demo and other links" hint="Live demo, deck, Google Drive folder… Submissions need a demo link or the website above. YouTube and Loom go in the video field.">
-              <ValueListInput id="demo" value={f.demoLinks} onChange={(v) => set('demoLinks', v)} placeholder="https://yoursite.com" />
+            <Field id="demo" label="Additional demo links (Optional)" hint="Live demo, deck, Google Drive folder… Submissions need a demo link or the website above. YouTube and Loom go in the video field.">
+              <ValueListInput validate={(value) => projectLinkError('demoLinks', value)} id="demo" value={f.demoLinks} onChange={(v) => set('demoLinks', v)} placeholder="https://yoursite.com" />
             </Field>
-            <Field id="video" label="Demo video" hint="YouTube, Loom or Vimeo. At least 720p, clear audio, no background music.">
-              <Input id="video" type="url" value={f.videoUrl ?? ''} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://youtube.com/…" className="h-11" />
+            <Field id="video" label={projectRequirementLabel('videoUrl', optionalProjectFields)} hint={DEMO_VIDEO_HINT}>
+              <Input id="video" aria-invalid={!!videoError} aria-describedby={videoError ? "video-error" : undefined} type="url" value={f.videoUrl ?? ''} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://youtube.com/watch?v=…" maxLength={500} className="h-11" />
+              {videoError && <p id="video-error" role="alert" className="text-sm text-destructive">{videoError}</p>}
+              <DemoVideoPreview url={f.videoUrl} />
             </Field>
             <ImageUploadField kind="project-cover" ownerId={owner} value={f.coverUrl} onChange={(v) => set('coverUrl', v)} label="Cover image" />
             <fieldset className="space-y-3">

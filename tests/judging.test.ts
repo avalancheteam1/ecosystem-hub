@@ -1,10 +1,10 @@
 import { test } from 'vitest'
 import assert from 'node:assert/strict'
-import { assignAll, assignRandom, criterionMeans, isConflicted, rankEntries, weightedTotal } from '@/app/(site)/events/_lib/hackathons/judging'
+import { assignAll, assignRandom, criterionMeans, isConflicted, rankEntries, weightedTotal, isValidScoreScale } from '@/app/(site)/events/_lib/hackathons/judging'
 
 const criteria = [{ id: 'tech', weight: 2 }, { id: 'ux', weight: 1 }, { id: 'impact', weight: 1 }]
 
-test('weighted total scales to 0–100 and needs every criterion', () => {
+test('[US-14.2 US-15.3] weighted total scales to 0–100 and needs every criterion', () => {
   assert.equal(weightedTotal({ tech: 10, ux: 10, impact: 10 }, criteria, 10), 100)
   assert.equal(weightedTotal({ tech: 8, ux: 4, impact: 6 }, criteria, 10), 65) // (16+4+6)/4 = 6.5 → 65
   assert.equal(weightedTotal({ tech: 8, ux: 4 }, criteria, 10), null)
@@ -17,7 +17,7 @@ test('criterion means average each criterion over the reviews that scored it', (
   assert.deepEqual(criterionMeans([{ tech: 1 }, { tech: 2 }, { tech: 2 }], [{ id: 'tech' }]), { tech: 1.67 })
 })
 
-test('conflict of interest: on the submitted team or the current team', () => {
+test('[US-14.4] conflict of interest: on the submitted team or the current team', () => {
   assert.equal(isConflicted('u1', ['u1', 'u2'], []), true)
   assert.equal(isConflicted('u3', ['u1'], ['u3']), true)
   assert.equal(isConflicted('u9', ['u1'], ['u2']), false)
@@ -60,7 +60,7 @@ test('random assignment: exactly n distinct judges per entry, balanced load, det
   assert.notDeepEqual(assignRandom(entries, judges, 2, { seed: 'xyz' }), r)
 })
 
-test('random assignment never assigns a conflicted judge and honours judge tracks', () => {
+test('[US-14.4] random assignment never assigns a conflicted judge and honours judge tracks', () => {
   const es = [
     { id: 'mine', trackIds: ['t1'], teamUserIds: ['u-j1'] },
     { id: 'other', trackIds: ['t2'], teamUserIds: [] },
@@ -94,7 +94,7 @@ test('assignAll pairs every eligible judge with every entry', () => {
   assert.deepEqual(pairs.sort(), [['j1', 'b'], ['j2', 'a'], ['j2', 'b']])
 })
 
-test('declared conflicts are excluded and do not count toward n', () => {
+test('[US-14.4] declared conflicts are excluded and do not count toward n', () => {
   const r = assignRandom(entries.slice(0, 1), judges, 2, { seed: 's', exclude: [['j1', 'e0'], ['j2', 'e0']] })
   assert.ok(r.ok)
   if (!r.ok) return
@@ -112,7 +112,7 @@ test('own-upload keys must be a uuid file directly under the owner prefix', asyn
   assert.equal(isOwnUploadKey(`project-logos/p1/${id}.svg`, 'project-logos', 'p1'), false)
 })
 
-test('eligibility explains why a judge cannot review an entry', async () => {
+test('[US-14.4] eligibility explains why a judge cannot review an entry', async () => {
   const { judgeEligibility } = await import('@/app/(site)/events/_lib/hackathons/judging')
   const entry = { id: 'e', trackIds: ['t1'], teamUserIds: ['u-on-team'] }
   assert.deepEqual(judgeEligibility({ id: 'j', userId: 'u-on-team', trackIds: [] }, entry, []), { ok: false, reason: 'On this team' })
@@ -121,7 +121,7 @@ test('eligibility explains why a judge cannot review an entry', async () => {
   assert.deepEqual(judgeEligibility({ id: 'j', userId: null, trackIds: ['t1'] }, entry, []), { ok: true })
 })
 
-test('"same track only" off lets track-limited judges review any entry', async () => {
+test('[US-14.4] "same track only" off lets track-limited judges review any entry', async () => {
   const { entryTracks, judgeEligibility } = await import('@/app/(site)/events/_lib/hackathons/judging')
   const judge = { id: 'j', userId: 'u', trackIds: ['t2'] }
   const entry = (sameTrackOnly: boolean) => ({ id: 'e', trackIds: entryTracks(['t1'], sameTrackOnly), teamUserIds: [] })
@@ -155,4 +155,25 @@ test('ineligibleAssignments: open assignments a judge may no longer review after
   ]
   assert.deepEqual(ineligibleAssignments({ id: 'j', userId: null, trackIds: ['a'] }, open), ['x-in-b'])
   assert.deepEqual(ineligibleAssignments({ id: 'j', userId: null, trackIds: [] }, open), [])
+})
+
+
+test('[US-14.2 US-15.3] F1: 1..5 weighted scores normalize endpoints and midpoint to 0..100', () => {
+  assert.equal(weightedTotal({ tech: 1, ux: 1, impact: 1 }, criteria, 5, 1), 0)
+  assert.equal(weightedTotal({ tech: 3, ux: 3, impact: 3 }, criteria, 5, 1), 50)
+  assert.equal(weightedTotal({ tech: 5, ux: 5, impact: 5 }, criteria, 5, 1), 100)
+  assert.equal(weightedTotal({ tech: 5, ux: 1, impact: 3 }, criteria, 5, 1), 62.5)
+  assert.equal(weightedTotal({ tech: 0, ux: 3, impact: 3 }, criteria, 5, 1), null)
+  assert.equal(weightedTotal({ tech: 6, ux: 3, impact: 3 }, criteria, 5, 1), null)
+  assert.equal(weightedTotal({ tech: 3 }, criteria, 5, 1), null)
+  const totals = [1, 3, 5].map((v) => weightedTotal({ tech: v, ux: v, impact: v }, criteria, 5, 1)!)
+  assert.deepEqual(rankEntries(totals.map((v, i) => ({ entryId: String(i), submittedAt: new Date(0), totals: [v] }))).map((r) => [r.entryId, r.mean]), [['2', 100], ['1', 50], ['0', 0]])
+})
+
+test('[US-15.2] F1: only a zero or one minimum below the maximum forms a valid scale', () => {
+  for (const scale of [{ scaleMin: 0, scaleMax: 1 }, { scaleMin: 1, scaleMax: 5 }, { scaleMin: 0, scaleMax: 100 }]) assert.ok(isValidScoreScale(scale))
+  for (const scale of [{ scaleMin: 1, scaleMax: 1 }, { scaleMin: 2, scaleMax: 5 }, { scaleMin: -1, scaleMax: 5 }, { scaleMin: 0, scaleMax: 101 }, { scaleMin: 0, scaleMax: 2.5 }]) {
+    assert.equal(isValidScoreScale(scale), false)
+    assert.equal(weightedTotal({ tech: 1, ux: 1, impact: 1 }, criteria, scale.scaleMax, scale.scaleMin), null)
+  }
 })

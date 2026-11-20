@@ -31,10 +31,14 @@ model Hackathon {
   timezone             String    @default("UTC")
   /// draft | published
   status               String    @default("draft")
+  /// Built-in project fields that do not block submission. Demo video is optional by default.
+  optionalProjectFields String[] @default(["videoUrl"])
   resultsPublishedAt   DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
+  draftProjects HackathonProject[]
+  sponsorPrizes HackathonSponsorPrize[]
   tracks       HackathonTrack[]
   prizes       HackathonPrize[]
   organizers   HackathonOrganizer[]
@@ -63,11 +67,29 @@ model HackathonTrack {
   @@map("hackathon_tracks")
 }
 
+/// Free-text sponsor competition, separate from challenge tracks and Hub organizations.
+model HackathonSponsorPrize {
+  id              String @id @default(cuid())
+  hackathonId     String
+  hackathon       Hackathon @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  sponsor         String
+  name            String
+  description     String?
+  eligibilityHint String?
+  order           Int @default(0)
+  prize           HackathonPrize?
+
+  @@index([hackathonId])
+  @@map("hackathon_sponsor_prizes")
+}
+
 model HackathonPrize {
   id          String          @id @default(cuid())
   hackathonId String
   hackathon   Hackathon       @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
-  /// null = overall prize
+  sponsorPrizeId String? @unique
+  sponsorPrize HackathonSponsorPrize? @relation(fields: [sponsorPrizeId], references: [id], onDelete: Cascade)
+  /// null = overall prize (unless sponsorPrizeId is set)
   trackId     String?
   track       HackathonTrack? @relation(fields: [trackId], references: [id], onDelete: Cascade)
   placement   Int             @default(1)
@@ -78,6 +100,7 @@ model HackathonPrize {
   amount      String?
   description String?
   order       Int             @default(0)
+  publishedAt DateTime?
   awards      Award[]
 
   @@index([hackathonId])
@@ -179,6 +202,7 @@ model HackathonStage {
   sameTrackOnly       Boolean      @default(true)
   /// Only teams advanced from the previous stage may submit (ignored for the first stage)
   advancedOnly        Boolean      @default(true)
+  scaleMin            Int          @default(0)
   scaleMax            Int          @default(10)
   /// Show this stage's judging criteria on the public page
   showCriteria        Boolean      @default(true)
@@ -210,6 +234,7 @@ model Submission {
   projectId   String
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Restrict)
   trackIds    String[]
+  sponsorPrizeIds String[] @default([])
   /// active | withdrawn | disqualified
   status      String       @default("active")
   createdById String?
@@ -241,6 +266,7 @@ model StageEntry {
   updatedAt        DateTime          @updatedAt
   advancedAt       DateTime?
   advancedById     String?
+  teamChanges      SubmissionTeamChange[]
   assignments      JudgeAssignment[]
 
   @@unique([submissionId, stageId])
@@ -292,4 +318,33 @@ model Award {
 
   @@unique([prizeId, placement])
   @@map("hackathon_awards")
+}
+
+/// A team explicitly saved a project for this event. This is not a submission.
+model HackathonProject {
+  hackathonId String
+  hackathon Hackathon @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  projectId String
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([hackathonId, projectId])
+  @@index([projectId])
+  @@map("hackathon_projects")
+}
+
+/// Organizer correction of one submitted team, independent of project access and sealed versions.
+model SubmissionTeamChange {
+  id String @id @default(cuid())
+  entryId String
+  entry StageEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  actorId String
+  actorName String
+  reason String
+  beforeTeam Json
+  afterTeam Json
+  createdAt DateTime @default(now())
+
+  @@index([entryId, createdAt])
+  @@map("hackathon_submission_team_changes")
 }

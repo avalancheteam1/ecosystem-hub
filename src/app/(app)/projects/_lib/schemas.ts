@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { videoPreview, DEMO_VIDEO_HINT } from '@/lib/demo-video'
 import { isCountryCode } from '@/lib/countries'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { DEFAULT_NETWORK, PROJECT_NETWORKS, type ProjectNetwork } from '@/lib/project-networks'
@@ -37,8 +38,6 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick a date').refine((d
 
 const NETWORK_KEYS = Object.keys(PROJECT_NETWORKS) as [ProjectNetwork, ...ProjectNetwork[]]
 
-const VIDEO_HOSTS = /(^|\.)(youtube\.com|youtu\.be|loom\.com|vimeo\.com)$/i
-
 export const projectFieldsSchema = z
   .object({
     name: z.string().trim().min(1, 'Project name is required').max(60, 'Max 60 characters'),
@@ -54,12 +53,12 @@ export const projectFieldsSchema = z
       .pipe(z.array(z.string().max(30, 'Tech stack: each technology max 30 characters')).max(20, 'At most 20 technologies')),
     categories: z.array(z.enum(PROJECT_CATEGORIES)).max(8).transform((c) => [...new Set(c)]),
     otherCategory: z.string().trim().max(60).nullable().optional().transform((v) => v || null),
-    maturity: z.enum(Object.keys(PROJECT_MATURITY) as [ProjectMaturity, ...ProjectMaturity[]], 'Pick the project stage'),
+    maturity: z.enum(Object.keys(PROJECT_MATURITY) as [ProjectMaturity, ...ProjectMaturity[]], 'Pick the project stage').nullable().optional().transform((v) => v ?? null),
     launchDate: z.union([z.literal(''), z.null(), isoDate]).optional().transform((v) => v || null),
     country: z.string().nullable().optional().transform((v) => v || null).refine((c) => !c || isCountryCode(c), 'Pick a country from the list'),
     githubRepos: linkList(10, 'repository links'),
     demoLinks: linkList(10, 'demo links').refine((a) => !a.some((u) => /youtube\.com|youtu\.be|loom\.com/i.test(u)), 'Put YouTube and Loom links in the demo video field'),
-    videoUrl: optionalUrl.refine((u) => !u || VIDEO_HOSTS.test(new URL(u).hostname), 'Use a YouTube, Loom or Vimeo link'),
+    videoUrl: optionalUrl.refine((u) => !u || !!videoPreview(u), DEMO_VIDEO_HINT),
     logoUrl: optionalUrl,
     coverUrl: optionalUrl,
     screenshots: z.array(httpUrl).max(5, 'At most 5 screenshots'),
@@ -72,6 +71,12 @@ export const projectFieldsSchema = z
 
 export type ProjectFields = z.output<typeof projectFieldsSchema>
 export type ProjectFieldsInput = z.input<typeof projectFieldsSchema>
+
+/** List inputs use exactly the same URL and video-placement rules as saving. */
+export function projectLinkError(kind: 'githubRepos' | 'demoLinks', value: string): string | null {
+  const parsed = projectFieldsSchema.shape[kind].safeParse([value])
+  return parsed.success ? null : parsed.error.issues[0]?.message ?? 'Enter a full HTTP or HTTPS link'
+}
 
 export const milestoneSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(120, 'Max 120 characters'),

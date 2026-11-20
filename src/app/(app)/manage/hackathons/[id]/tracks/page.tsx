@@ -4,6 +4,7 @@ import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/guards'
+import { SponsorPrizeDialog, DeleteSponsorPrize } from '../_components/sponsor-prize-editor'
 import { DeletePrize, DeleteTrack, PrizeDialog, PrizePoolForm, TrackDialog } from '../_components/track-prize-editors'
 
 export const metadata = { title: 'Tracks & prizes' }
@@ -15,7 +16,7 @@ export default async function TracksPage({ params }: { params: Promise<{ id: str
   const groups = [{ id: null as string | null, name: 'Overall' }, ...h.tracks.map((t) => ({ id: t.id as string | null, name: t.name }))]
   return (
     <div className="grid gap-8 lg:grid-cols-2">
-      <SectionCard title="Tracks" description="Optional. Teams pick one or more when they submit." actions={<TrackDialog hackathonId={h.id} trigger={<Button size="sm" variant="outline"><Plus aria-hidden /> Track</Button>} />}>
+      <SectionCard title="Tracks" description="Teams may pick any number, or no track / free project. Existing track sponsors remain attached to their tracks." actions={<TrackDialog hackathonId={h.id} trigger={<Button size="sm" variant="outline"><Plus aria-hidden /> Track</Button>} />}>
         {h.tracks.length === 0 ? (
           <p className="text-sm text-fg-muted">No tracks - everyone competes in one pool.</p>
         ) : (
@@ -35,6 +36,9 @@ export default async function TracksPage({ params }: { params: Promise<{ id: str
           </ul>
         )}
       </SectionCard>
+      <SectionCard title="Sponsor prizes / technologies" description="Separate opt-ins, independent of tracks." actions={<SponsorPrizeDialog hackathonId={h.id} trigger={<Button variant="outline"><Plus aria-hidden /> Sponsor prize</Button>} />}>
+        {h.sponsorPrizes.length === 0 ? <p className="text-sm text-fg-muted">No sponsor prizes.</p> : <ul className="divide-y divide-line">{h.sponsorPrizes.map((p) => <li key={p.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><p>{p.name}</p><p className="text-sm text-fg-muted">{p.sponsor}</p>{p.eligibilityHint && <p className="text-xs text-fg-muted">{p.eligibilityHint}</p>}</div><SponsorPrizeDialog hackathonId={h.id} prize={p} trigger={<Button variant="ghost">Edit</Button>} /><DeleteSponsorPrize hackathonId={h.id} prize={p} /></li>)}</ul>}
+      </SectionCard>
       <SectionCard title="Prizes" description="Set a total pool, per-place prizes, or both. Awarded after the last stage closes." actions={<PrizeDialog hackathonId={h.id} tracks={h.tracks} trigger={<Button size="sm" variant="outline"><Plus aria-hidden /> Prize</Button>} />}>
         <div className="mb-6 border-b border-line pb-6"><PrizePoolForm hackathonId={h.id} initial={h.prizePool} /></div>
         {h.prizes.length === 0 ? (
@@ -42,7 +46,7 @@ export default async function TracksPage({ params }: { params: Promise<{ id: str
         ) : (
           <div className="space-y-6">
             {groups.map((g) => {
-              const prizes = h.prizes.filter((p) => p.trackId === g.id)
+              const prizes = h.prizes.filter((p) => !p.sponsorPrizeId && p.trackId === g.id)
               if (!prizes.length) return null
               return (
                 <div key={g.id ?? 'overall'}>
