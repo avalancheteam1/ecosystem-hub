@@ -23,6 +23,7 @@ export type PermissionDef = {
 import { eventPermissions } from '@/app/(site)/events/_lib/permissions'
 import { referralPermissions } from '@/app/(app)/referrals/_lib/permissions'
 import { campusPermissions } from '@/app/(app)/campus/_lib/permissions'
+import { toolingPermissions } from '@/app/(site)/tooling/_lib/permissions'
 
 const corePermissions = {
   'users.view': { group: 'users', label: 'View the user list', sensitive: "Sees every user's email address" },
@@ -33,6 +34,7 @@ export const PERMISSIONS = {
   ...eventPermissions,
   ...referralPermissions,
   ...campusPermissions,
+  ...toolingPermissions,
 } as const satisfies Record<string, PermissionDef>
 
 export type Permission = keyof typeof PERMISSIONS

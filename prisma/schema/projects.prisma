@@ -17,6 +17,7 @@ model Project {
   invites     ProjectInvite[]
   submissions Submission[]
   milestones  ProjectMilestone[]
+  toolingListing ToolingListing?
 
   @@map("projects")
 }
@@ -68,6 +69,8 @@ model ProjectVersion {
 
   currentOf    Project?     @relation("CurrentVersion")
   stageEntries StageEntry[]
+  toolingApproved ToolingListing[] @relation("ToolingApproved")
+  toolingPending  ToolingListing[] @relation("ToolingPending")
 
   @@unique([projectId, number])
   @@map("project_versions")

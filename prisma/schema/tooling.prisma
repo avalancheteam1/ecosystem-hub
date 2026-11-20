@@ -1,0 +1,40 @@
+// Developer Tooling list (/tooling): builders submit a sealed version of their project, team1
+// reviewers (`tooling.review`) approve or reject it. Rules in src/app/(site)/tooling/_lib/rules.ts,
+// area docs in src/app/(site)/tooling/AGENTS.md.
+
+/// One row per project. /tooling shows `approvedVersion` (only ever set by a reviewer);
+/// `pendingVersion` waits for review. Both point at SEALED versions, which never change.
+model ToolingListing {
+  id                   String          @id @default(cuid())
+  projectId            String          @unique
+  project              Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  approvedVersionId    String?
+  approvedVersion      ProjectVersion? @relation("ToolingApproved", fields: [approvedVersionId], references: [id], onDelete: Restrict)
+  approvedAt           DateTime?
+  approvedById         String?
+  pendingVersionId     String?
+  pendingVersion       ProjectVersion? @relation("ToolingPending", fields: [pendingVersionId], references: [id], onDelete: Restrict)
+  submittedAt          DateTime?
+  submittedById        String?
+  /// Agreement to be listed publicly, given with the latest submission (TOOLING_CONSENT)
+  consentAt            DateTime?
+  consentById          String?
+  /// The latest rejection; cleared by the next submission or approval
+  rejectedVersionId    String?
+  rejectedAt           DateTime?
+  rejectedById         String?
+  rejectReason         String?
+  /// true = only reviewers see the reason
+  rejectReasonInternal Boolean         @default(false)
+  /// Set when the team withdraws or a reviewer removes the listing (nothing listed or pending then); cleared by the next submission
+  closedAt             DateTime?
+  closedById           String?
+  /// withdrawn | removed
+  closedReason         String?
+  /// Why a reviewer removed it; shown to the team (required on remove)
+  closedNote           String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@map("tooling_listings")
+}

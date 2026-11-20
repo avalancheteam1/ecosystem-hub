@@ -122,6 +122,7 @@ Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads 
 - **Referrals & groups** - `src/app/(app)/referrals/AGENTS.md` (`/groups/[slug]`, `/admin/groups`)
 - **Education** - `src/app/(site)/education/AGENTS.md`
 - **Campus** - `src/app/(app)/campus/AGENTS.md` (universities + blockchain clubs, student profile data, `/admin/campus`)
+- **Tooling** - `src/app/(site)/tooling/AGENTS.md` (builders submit live Developer Tooling projects, `tooling.review` approves sealed versions, `/admin/tooling`)
 - **Profile** (`src/app/(app)/profile/`, rules `src/lib/profile.ts`): builders-hub's profile fields (roles, socials with its regexes, wallets, skills, consents), ISO-2 countries (`src/lib/countries.ts`). `hasCompleteBasicProfile` (name + country + role) is required to join a hackathon.
 
 ## Conventions
