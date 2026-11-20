@@ -12,11 +12,11 @@ import { useActionToast } from '@/hooks/use-action-toast'
 
 type Criterion = { id: string; name: string; description: string | null; weight: number }
 
-export function ReviewForm(props: { assignmentId: string; criteria: Criterion[]; scaleMax: number; initialScores: Record<string, number>; initialComment: string; locked: string | null; submitted: boolean; nextHref: string | null; queueHref: string }) {
+export function ReviewForm(props: { assignmentId: string; criteria: Criterion[]; scaleMin: number; scaleMax: number; initialScores: Record<string, number>; initialComment: string; locked: string | null; submitted: boolean; nextHref: string | null; queueHref: string }) {
   const [scores, setScores] = useState<Record<string, number>>(props.initialScores)
   const [comment, setComment] = useState(props.initialComment)
   const { pending, run } = useActionToast()
-  const total = useMemo(() => weightedTotal(scores, props.criteria, props.scaleMax), [scores, props.criteria, props.scaleMax])
+  const total = useMemo(() => weightedTotal(scores, props.criteria, props.scaleMax, props.scaleMin), [scores, props.criteria, props.scaleMax, props.scaleMin])
   const totalWeight = props.criteria.reduce((a, c) => a + c.weight, 0)
   const save = (submit: boolean, conflictDeclared = false) =>
     run(
@@ -26,6 +26,7 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
 
   return (
     <form className="space-y-8" onSubmit={(e) => { e.preventDefault(); save(true) }}>
+      <p className="text-sm text-fg-muted">Score each criterion from {props.scaleMin} to {props.scaleMax}. The total is normalized to 0-100.</p>
       <fieldset disabled={!!props.locked} className="space-y-6">
         {props.criteria.map((c) => {
           const v = scores[c.id]
@@ -40,10 +41,10 @@ export function ReviewForm(props: { assignmentId: string; criteria: Criterion[];
                 <input
                   id={`c-${c.id}`}
                   type="range"
-                  min={0}
+                  min={props.scaleMin}
                   max={props.scaleMax}
                   step={props.scaleMax <= 10 ? 0.5 : 1}
-                  value={v ?? 0}
+                  value={v ?? props.scaleMin}
                   onChange={(e) => setScores({ ...scores, [c.id]: Number(e.target.value) })}
                   className="h-11 flex-1 accent-[var(--color-brand)]"
                   aria-valuetext={v == null ? 'Not scored' : `${v} of ${props.scaleMax}`}

@@ -1,14 +1,19 @@
+import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
+import { submissionWindowText, judgingWindowText } from '@/app/(site)/events/_lib/hackathons/presentation'
+import { StageStateBadge } from '@/components/stage-state-badge'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Flag, Pencil } from 'lucide-react'
+import { submissionBanner } from '@/lib/submission-status'
+import { teamMemberStatus } from '@/lib/project-team'
 import { ProjectVersionView } from '@/components/project-version-view'
 import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/guards'
 import { MilestonesPanel } from '../_components/milestones'
 import { SealVersionButton } from '../_components/seal-version-button'
 import { TeamPanel } from '../_components/team-panel'
-import { getProjectForMember } from '../_lib/queries'
+import { getProjectForMember, getProjectHackathonContext, listProjectHackathonTargets } from '../_lib/queries'
 import { canEditProject, versionLabel, wasReplaced, type MilestoneStatus } from '../_lib/rules'
 
 const VISIBLE_VERSIONS = 3
@@ -54,12 +59,43 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   if (!project?.currentVersion) notFound()
   const myRole = project.members.find((m) => m.userId === user.id)!.role
   const canEdit = canEditProject(myRole)
+  const [contexts, targets] = await Promise.all([getProjectHackathonContext(project.id, user.id), canEdit ? listProjectHackathonTargets(user.id) : []])
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
       <section className="min-w-0 rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <p className="meta">{versionLabel(project.currentVersion)}</p>
           {canEdit && <Button asChild variant="outline" size="sm"><Link href={`/projects/${slug}/edit`}><Pencil aria-hidden /> Edit</Link></Button>}
+        </div>
+        <div className="mb-6 space-y-4">
+          {contexts.length === 0 && <p role="status" className="rounded-lg border border-line p-4 text-lg">Draft, not submitted</p>}
+          {contexts.map((h) => {
+            const submission = h.submissions[0]
+            const entry = submission?.entries[0]
+            const now = new Date()
+            const open = h.stages.some((stage) => stageState(stage, now) === 'open')
+            return (
+              <section key={h.id} className="rounded-xl border border-line bg-surface-1 p-5">
+                <p className="text-sm text-fg-muted">{h.event.name}</p>
+                <p role="status" className="mt-1 text-lg">{submissionBanner(submission?.status ?? null, entry?.submittedAt ?? null, h.timezone)}</p>
+                {entry && entry.projectVersionId !== project.currentVersionId && <p className="mt-2 text-sm text-warning">Your latest edits have not been submitted. Update the submission before the deadline.</p>}
+                {h.stages.map((stage) => <div key={stage.id} className="mt-3 space-y-1 text-sm text-fg-muted"><p>{stage.name} <StageStateBadge state={stageState(stage, now)} /></p><p>{submissionWindowText(stage, h.timezone)}</p><p>{judgingWindowText(stage, h.timezone)}</p></div>)}
+                {canEdit && open ? (
+                  <Button asChild className="mt-3 h-auto min-h-11 max-w-full whitespace-normal"><Link href={`/events/${h.event.slug}/submit?project=${project.id}`}>{entry ? 'Update submission' : `Submit to ${h.event.name}`}</Link></Button>
+                ) : !open && <p className="mt-3 text-sm text-fg-muted">{h.stages.some((stage) => stageState(stage, now) === 'upcoming') ? 'Submissions have not opened yet.' : 'Submissions are closed.'} <Link href={`/events/${h.event.slug}`} className="underline">View hackathon</Link></p>}
+                <ul className="mt-4 space-y-2 text-sm">
+                  {project.members.map((m) => (
+                    <li key={m.userId}>{m.user.name}: {m.role === 'reader' ? 'Reader, excluded from hackathon team' : teamMemberStatus(true, h.participants.find((p) => p.userId === m.userId)?.status ?? null)}</li>
+                  ))}
+                  {myRole === 'owner' && project.invites.map((i) => (
+                    <li key={i.id}>{i.email}: {i.role === 'reader' ? 'Invited as reader, excluded from hackathon team' : teamMemberStatus(false, h.participants.find((p) => p.user.email.toLowerCase() === i.email)?.status ?? null)}</li>
+                  ))}
+                </ul>
+              </section>
+            )
+          })}
+          {targets.filter((h) => !contexts.some((c) => c.id === h.id)).map((h) => <Button key={h.id} asChild className="h-auto min-h-11 max-w-full whitespace-normal"><Link href={`/events/${h.event.slug}/submit?project=${project.id}`}>Submit to {h.event.name}</Link></Button>)}
+          {contexts.length === 0 && <p className="text-sm text-fg-muted">Open a hackathon you registered for and choose this project on its submission page. Save it for that event to track the draft here.</p>}
         </div>
         <ProjectVersionView version={project.currentVersion} />
       </section>

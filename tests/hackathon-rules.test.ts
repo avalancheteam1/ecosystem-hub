@@ -7,7 +7,7 @@ const stage = (o: Partial<{ opensAt: Date; closesAt: Date; judgingClosedAt: Date
   name: 'Round 1', order: 0, opensAt: d('2026-11-01T00:00Z'), closesAt: d('2026-11-10T00:00Z'), judgingClosedAt: null, ...o,
 })
 
-test('stageState walks upcoming → open → judging → closed', () => {
+test('[US-1.4] stageState walks upcoming → open → judging → closed', () => {
   const s = stage()
   assert.equal(stageState(s, d('2026-10-31T23:59Z')), 'upcoming')
   assert.equal(stageState(s, d('2026-11-01T00:00Z')), 'open')
@@ -41,7 +41,7 @@ const fields: FieldDef[] = [
   { id: 'f6', label: 'Years', type: 'number', required: false, options: [], maxLength: null },
 ]
 
-test('answers schema enforces required, options, length, url scheme and strips unknown keys', () => {
+test('[US-4.2 US-5.3] answers schema enforces required, options, length, url scheme and strips unknown keys', () => {
   const s = buildAnswersSchema(fields)
   const ok = s.safeParse({ f1: 'Dev', f2: '', f3: '', f4: ['A', 'C'], f5: true, f6: '3', extra: 'x' })
   assert.equal(ok.success, true)
@@ -56,7 +56,7 @@ test('answers schema enforces required, options, length, url scheme and strips u
 
 const hack = { status: 'published', registrationOpensAt: d('2026-10-01T00:00Z'), registrationClosesAt: d('2026-10-30T00:00Z'), maxParticipants: 2, termsUrl: 'https://t.io' }
 
-test('canJoin checks publish state, window, cap, terms and duplicates', () => {
+test('[US-4.3] canJoin checks publish state, window, cap, terms and duplicates', () => {
   const now = d('2026-10-15T00:00Z')
   assert.deepEqual(canJoin(hack, { now, participants: 1, existing: null, invited: false, acceptedTerms: true }), { ok: true })
   assert.equal(canJoin({ ...hack, status: 'draft' }, { now, participants: 0, existing: null, invited: false, acceptedTerms: true }).ok, false)
@@ -68,7 +68,7 @@ test('canJoin checks publish state, window, cap, terms and duplicates', () => {
   assert.equal(canJoin({ ...hack, termsUrl: null, maxParticipants: null, registrationOpensAt: null, registrationClosesAt: null }, { now, participants: 99, existing: null, invited: false, acceptedTerms: false }).ok, true)
 })
 
-test('canJoin: pending waits, rejected is final unless invited, withdrawn may re-register', () => {
+test('[US-4.3] canJoin: pending waits, rejected is final unless invited, withdrawn may re-register', () => {
   const now = d('2026-10-15T00:00Z')
   const c = { now, participants: 0, invited: false, acceptedTerms: true }
   assert.equal(canJoin(hack, { ...c, existing: 'pending' }).ok, false)
@@ -80,13 +80,13 @@ test('canJoin: pending waits, rejected is final unless invited, withdrawn may re
   assert.equal(canJoin(hack, { ...c, participants: 2, existing: null, invited: true }).ok, false)
 })
 
-test('registrationStatus: approval needed unless invited', () => {
+test('[US-4.3] registrationStatus: approval needed unless invited', () => {
   assert.equal(registrationStatus(false, false), 'active')
   assert.equal(registrationStatus(true, false), 'pending')
   assert.equal(registrationStatus(true, true), 'active')
 })
 
-test('canManageHackathon: global permission or bound organiser', () => {
+test('[US-3.3] canManageHackathon: global permission or bound organiser', () => {
   const base = { id: 'u1', isSuperAdmin: false, permissions: new Set<never>() }
   assert.equal(canManageHackathon(base, [{ userId: 'u1' }]), true)
   assert.equal(canManageHackathon(base, [{ userId: 'u2' }, { userId: null }]), false)
@@ -94,7 +94,7 @@ test('canManageHackathon: global permission or bound organiser', () => {
   assert.equal(canManageHackathon(null, [{ userId: null }]), false)
 })
 
-test('needsOrganizerTerms: bound organisers until they accept, never hackathons.manage', () => {
+test('[US-3.3] needsOrganizerTerms: bound organisers until they accept, never hackathons.manage', () => {
   const base = { id: 'u1', isSuperAdmin: false, permissions: new Set<never>() }
   assert.equal(needsOrganizerTerms(base, [{ userId: 'u1', termsAcceptedAt: null }]), true)
   assert.equal(needsOrganizerTerms(base, [{ userId: 'u1', termsAcceptedAt: d('2026-10-10T00:00Z') }]), false)
@@ -153,4 +153,13 @@ test('judgingOpen: only after submissions close and before judging is closed (ju
   assert.equal(judgingOpen(s, d('2026-11-02T23:59Z')), false) // open
   assert.equal(judgingOpen(s, d('2026-11-03T00:00Z')), true) // closesAt is exclusive: judging starts
   assert.equal(judgingOpen({ ...s, judgingClosedAt: d('2026-11-05T00:00Z') }, d('2026-11-06T00:00Z')), false) // closed
+})
+
+test('[US-4.3] an invitation never bypasses the publication or registration window', () => {
+  const c = { now: d('2026-10-15T00:00Z'), participants: 0, existing: null, invited: true, acceptedTerms: true }
+  for (const h of [
+    { ...hack, status: 'draft' },
+    { ...hack, registrationOpensAt: d('2026-10-16T00:00Z') },
+    { ...hack, registrationClosesAt: c.now },
+  ]) assert.equal(canJoin(h, c).ok, false)
 })

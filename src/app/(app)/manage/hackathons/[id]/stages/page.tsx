@@ -1,3 +1,4 @@
+import { submissionWindowText, judgingWindowText } from '@/app/(site)/events/_lib/hackathons/presentation'
 import { notFound } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { getManagedHackathon, stageReviewCounts } from '@/app/(site)/events/_lib/hackathons/queries'
@@ -5,7 +6,6 @@ import { stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
 import { StageStateBadge } from '@/components/stage-state-badge'
 import { Button } from '@/components/ui/button'
-import { formatEventRange } from '@/lib/dates'
 import { requireUser } from '@/lib/guards'
 import { FieldList } from '../_components/field-editor'
 import { CloseSubmissions, CriterionDialog, DeleteCriterion, DeleteStage, DuplicateStage, OpenSubmissions, StageDialog } from '../_components/stage-editors'
@@ -34,7 +34,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
           <SectionCard
             key={s.id}
             title={`${i + 1}. ${s.name}`}
-            description={`${formatEventRange(s.opensAt, s.closesAt, tz)} - ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} - scored 0–${s.scaleMax}${i > 0 ? (s.advancedOnly ? ' - advanced teams only' : ' - open to all teams') : ''}`}
+            description={`${submissionWindowText(s, tz)} - ${s.reviewMode === 'all' ? 'every judge reviews every submission' : `${s.judgesPerSubmission} random judge${s.judgesPerSubmission === 1 ? '' : 's'} per submission`} - scored ${s.scaleMin}-${s.scaleMax}${i > 0 ? (s.advancedOnly ? ' - advanced teams only' : ' - open to all teams') : ''}`}
             actions={
               <>
                 <StageStateBadge state={state} />
@@ -45,6 +45,7 @@ export default async function StagesPage({ params }: { params: Promise<{ id: str
               </>
             }
           >
+            <p className="mb-5 text-sm text-fg-muted">{judgingWindowText(s, tz)}</p>
             <div className="grid gap-8 lg:grid-cols-2">
               <div>
                 <h3 className="mb-3 text-sm text-fg-muted">Judging criteria</h3>

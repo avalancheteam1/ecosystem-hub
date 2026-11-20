@@ -1,26 +1,19 @@
 'use server'
 
-import { logger } from '@/lib/logger'
+import { requireProjectOwner as requireOwner } from '@/lib/project-access'
+import { submissionTeamWhere } from '@/lib/submission-team'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
-import { brandedShell, button, CELL, esc, PARA, SMALL } from '@/lib/email-template'
-import { sendMail } from '@/lib/mailer'
-import { rateLimit } from '@/lib/rate-limit'
 import { shortId, slugify, withSuffix } from '@/lib/slug'
 import { isOwnUpload } from '@/lib/storage'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
 import { ASSIGNABLE_ROLES, canEditProject, canManageTeam, fieldsOf, MAX_MILESTONES, milestoneDoneAt, planSave, TEAM_ROLES, versionChanged } from './rules'
 import { milestoneSchema, projectFieldsSchema, type ProjectFields } from './schemas'
 
-const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
-const INVITE_DAYS = 14
-// Invites mail any address from our domain - caps keep that from becoming a spam/phishing relay.
-const MAX_OPEN_INVITES = 20
-const INVITES_PER_HOUR = 20
 const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex')
 
 async function membership(projectId: string, userId: string) {
@@ -35,12 +28,6 @@ async function requireWriter(projectId: string, userId: string) {
   return m
 }
 
-async function requireOwner(projectId: string, userId: string) {
-  const m = await membership(projectId, userId)
-  if (!canManageTeam(m.role)) throw new ForbiddenError('Only the owner can manage the team')
-  return m
-}
-
 /** A submitted team can't grow past its hackathon's limit, and (unless allowed) nobody may end up on two submissions of one hackathon. */
 async function assertCanJoinTeam(projectId: string, userId: string) {
   const running = await prisma.submission.findMany({
@@ -50,7 +37,7 @@ async function assertCanJoinTeam(projectId: string, userId: string) {
   for (const s of running) {
     if (s.hackathon.teamSizeMax != null && s.project._count.members + 1 > s.hackathon.teamSizeMax) throw new ActionError(`This team is at the ${s.hackathon.event.name} size limit (${s.hackathon.teamSizeMax})`)
     if (s.hackathon.allowMultipleSubmissions) continue
-    const other = await prisma.submission.findFirst({ where: { hackathonId: s.hackathon.id, status: 'active', projectId: { not: projectId }, project: { members: { some: { userId, role: { in: TEAM_ROLES } } } } } })
+    const other = await prisma.submission.findFirst({ where: { hackathonId: s.hackathon.id, status: 'active', projectId: { not: projectId }, ...submissionTeamWhere([userId], TEAM_ROLES) } })
     if (other) throw new ActionError(`Already on another team in ${s.hackathon.event.name}`)
   }
 }
@@ -173,44 +160,6 @@ export const deleteMilestone = action({ schema: z.object({ id: z.string().min(1)
   await recordAudit({ actorId: user.id, action: 'project.milestone.delete', entityType: 'ProjectMilestone', entityId: id, before: { title: cur.title, targetDate: cur.targetDate, status: cur.status } })
   revalidatePath(`/projects/${project.slug}`)
 })
-
-export const inviteMember = action(
-  { schema: z.object({ projectId: z.string().min(1), email: z.string().trim().toLowerCase().email('Enter a valid email'), role: z.enum(ASSIGNABLE_ROLES) }), permission: 'user' },
-  async ({ projectId, email, role }, user) => {
-    await requireOwner(projectId, user.id)
-    const project = await prisma.project.findUnique({ where: { id: projectId }, include: { currentVersion: { select: { name: true } } } })
-    if (!project || project.archivedAt) throw new ActionError('Project not found')
-    const already = await prisma.projectMember.findFirst({ where: { projectId, user: { email } } })
-    if (already) throw new ActionError('That person is already on the team') // never re-invite (no downgrades)
-    const open = await prisma.projectInvite.count({ where: { projectId, email: { not: email }, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } })
-    if (open >= MAX_OPEN_INVITES) throw new ActionError(`A project can have at most ${MAX_OPEN_INVITES} open invites - revoke some first`)
-    if (!rateLimit(`project-invite:${user.id}`, { limit: INVITES_PER_HOUR, windowMs: 3_600_000 }).ok) throw new ActionError('Too many invites sent - try again in an hour')
-    const token = crypto.randomBytes(32).toString('base64url')
-    await prisma.$transaction([
-      prisma.projectInvite.updateMany({ where: { projectId, email, acceptedAt: null, revokedAt: null }, data: { revokedAt: new Date() } }),
-      prisma.projectInvite.create({ data: { projectId, email, role, tokenHash: hashToken(token), invitedById: user.id, expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000) } }),
-    ])
-    const name = project.currentVersion?.name ?? 'a project'
-    await sendMail({
-      to: email,
-      subject: `${user.name} invited you to ${name} on the team1 Ecosystem Hub`,
-      text: `${user.name} invited you to join the team of "${name}" on the team1 Ecosystem Hub.\n\nAccept the invite (sign in with ${email}):\n${siteUrl()}/projects/invite/${token}\n\nThe link expires in ${INVITE_DAYS} days.`,
-      html: brandedShell({
-        preheader: `${user.name} invited you to ${name}`,
-        body: `<tr><td class="m-px" style="${CELL}">
-          <p style="${PARA}">Hey,</p>
-          <p style="${PARA}">${esc(user.name)} invited you to join the team of <strong>${esc(name)}</strong> on the team1 Ecosystem Hub.</p>
-          <p style="${PARA}">Sign in with ${esc(email)} to accept. The link expires in ${INVITE_DAYS} days.</p>
-          ${button(`${siteUrl()}/projects/invite/${token}`, 'Accept invite')}
-          <p style="${SMALL}">Or copy this link:<br/>${esc(`${siteUrl()}/projects/invite/${token}`)}</p>
-        </td></tr>`,
-      }),
-    }).catch((err) => logger.error({ err }, '[projects] invite mail failed'))
-    await recordAudit({ actorId: user.id, action: 'project.invite.create', entityType: 'Project', entityId: projectId, after: { email, role } })
-    revalidatePath(`/projects/${project.slug}`)
-    return null
-  },
-)
 
 export const revokeInvite = action({ schema: z.object({ inviteId: z.string().min(1) }), permission: 'user' }, async ({ inviteId }, user) => {
   const invite = await prisma.projectInvite.findUnique({ where: { id: inviteId }, include: { project: { select: { slug: true } } } })

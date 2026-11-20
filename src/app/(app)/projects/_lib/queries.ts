@@ -48,3 +48,34 @@ export async function listMyInvites(userId: string) {
     select: { id: true, role: true, project: { select: { currentVersion: { select: { name: true } } } } },
   })
 }
+
+/** Team-only context for explicit event drafts and actual submissions, never inferred from unrelated personal projects. */
+export async function getProjectHackathonContext(projectId: string, userId: string) {
+  const membership = await prisma.projectMember.findUnique({ where: { projectId_userId: { projectId, userId } }, select: { role: true } })
+  if (!membership) return []
+  const emails = membership.role === 'owner' ? (await prisma.projectInvite.findMany({ where: { projectId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, select: { email: true } })).map((i) => i.email) : []
+  return prisma.hackathon.findMany({
+    where: { OR: [{ draftProjects: { some: { projectId } } }, { submissions: { some: { projectId } } }] },
+    select: {
+      stages: { orderBy: { order: 'asc' }, select: { id: true, name: true, opensAt: true, closesAt: true, judgingClosedAt: true } },
+      id: true, timezone: true, optionalProjectFields: true, event: { select: { name: true, slug: true } },
+      participants: { where: { user: { OR: [{ projectMembers: { some: { projectId } } }, { email: { in: emails } }] } }, select: { userId: true, status: true, user: { select: { email: true } } } },
+      submissions: { where: { projectId }, select: { status: true, entries: { orderBy: { submittedAt: 'desc' }, select: { submittedAt: true, projectVersionId: true } } } },
+    },
+  })
+}
+
+/** Public requirement configuration for a project editor returning to an event. */
+export async function projectRequirementsForReturn(next: string | null) {
+  const slug = next?.match(/^\/events\/([^/?]+)\/submit(?:[?]|$)/)?.[1]
+  if (!slug) return ['videoUrl']
+  const h = await prisma.hackathon.findFirst({ where: { status: 'published', event: { slug, status: { in: ['published', 'unlisted'] } } }, select: { optionalProjectFields: true } })
+  return h?.optionalProjectFields ?? ['videoUrl']
+}
+
+export async function listProjectHackathonTargets(userId: string) {
+  return prisma.hackathon.findMany({
+    where: { status: 'published', event: { status: { in: ['published', 'unlisted'] } }, participants: { some: { userId, status: 'active' } }, stages: { some: { opensAt: { lte: new Date() }, closesAt: { gt: new Date() }, judgingClosedAt: null } } },
+    select: { id: true, event: { select: { name: true, slug: true } } },
+  })
+}

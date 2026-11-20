@@ -18,6 +18,7 @@ export function FormDialog({
   onOpenChange,
   children,
   wide,
+  noValidate,
 }: {
   trigger: React.ReactNode
   title: string
@@ -28,6 +29,7 @@ export function FormDialog({
   onOpenChange?: (open: boolean) => void
   children: React.ReactNode
   wide?: boolean
+  noValidate?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const change = (o: boolean) => {
@@ -43,10 +45,12 @@ export function FormDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <form
+          noValidate={noValidate}
           id={`form-${title}`}
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault()
+            e.stopPropagation()
             if ((await onSubmit()) !== false) change(false)
           }}
         >

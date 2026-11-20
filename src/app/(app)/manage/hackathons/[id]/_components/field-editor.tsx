@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useFormErrors } from '@/hooks/use-form-errors'
+import { fieldSchema } from '@/app/(site)/events/_lib/hackathons/schemas'
 import { deleteField, saveField } from '@/app/(site)/events/_lib/hackathons/setup-actions'
 import { FIELD_TYPES } from '@/app/(site)/events/_lib/hackathons/rules'
 import { ConfirmButton } from '@/components/confirm-button'
@@ -23,29 +25,40 @@ function FieldDialog({ hackathonId, stageId, field, trigger }: { hackathonId: st
   const empty = { label: field?.label ?? '', help: field?.help ?? '', type: (field?.type ?? 'short_text') as (typeof FIELD_TYPES)[number], required: field?.required ?? false, options: (field?.options ?? []).join('\n'), maxLength: field?.maxLength ? String(field.maxLength) : '' }
   const [v, setV] = useState(empty)
   const { pending, run } = useActionToast()
+  const validation = useFormErrors({ label: 'q-label', help: 'q-help', options: 'q-options', maxLength: 'q-max' })
   const hasOptions = v.type === 'select' || v.type === 'multi_select'
   const hasLength = v.type === 'short_text' || v.type === 'long_text'
   return (
-    <FormDialog
+    <FormDialog noValidate
       trigger={trigger}
       title={field ? 'Edit question' : 'New question'}
       submitLabel={field ? 'Save question' : 'Add question'}
       pending={pending}
-      onOpenChange={(o) => o && setV(empty)}
-      onSubmit={() => run(() => saveField({ hackathonId, fieldId: field?.id, stageId: stageId ?? '', ...v, options: hasOptions ? v.options.split('\n') .filter((o) => o.trim()) : [] }), field ? 'Question saved' : 'Question added')}
+      onOpenChange={(o) => { if (o) { setV(empty); validation.reset() } }}
+      onSubmit={() => {
+        const input = { hackathonId, fieldId: field?.id, stageId: stageId ?? '', ...v, options: hasOptions ? v.options.split('\n').filter((o) => o.trim()) : [] }
+        if (!validation.validate(fieldSchema, input)) return false
+        return run(async () => {
+          const result = await saveField(input)
+          if (!result.ok) validation.fail(`${result.error} Check the latest settings and try again.`)
+          return result
+        }, field ? 'Question saved' : 'Question added')
+      }}
     >
-      <Field id="q-label" label="Question"><Input id="q-label" value={v.label} onChange={(e) => setV({ ...v, label: e.target.value })} required maxLength={200} className="h-11" /></Field>
-      <Field id="q-help" label="Help text (optional)"><Input id="q-help" value={v.help} onChange={(e) => setV({ ...v, help: e.target.value })} maxLength={500} className="h-11" /></Field>
+      {validation.errors.form && <p role="alert" className="text-sm text-destructive">{validation.errors.form}</p>}
+      <p className="text-sm text-fg-muted">Demo video, code repository, live app/demo and project stage are built-in project fields. Set their Required toggles in Registration instead of adding custom questions.</p>
+      <Field error={validation.errors.label} id="q-label" label="Question"><Input {...validation.props('label')} id="q-label" value={v.label} onChange={(e) => setV({ ...v, label: e.target.value })} required maxLength={200} className="h-11" /></Field>
+      <Field error={validation.errors.help} id="q-help" label="Help text (optional)"><Input {...validation.props('help')} id="q-help" value={v.help} onChange={(e) => setV({ ...v, help: e.target.value })} maxLength={500} className="h-11" /></Field>
       <Field id="q-type" label="Answer type">
         <NativeSelect id="q-type" value={v.type} onChange={(e) => setV({ ...v, type: e.target.value as typeof v.type })}>
           {FIELD_TYPES.map((t) => <option key={t} value={t}>{FIELD_TYPE_LABEL[t]}</option>)}
         </NativeSelect>
       </Field>
       {hasOptions && (
-        <Field id="q-options" label="Options" hint="One per line, at least two."><Textarea id="q-options" value={v.options} onChange={(e) => setV({ ...v, options: e.target.value })} rows={5} /></Field>
+        <Field error={validation.errors.options} id="q-options" label="Options" hint="One per line, at least two."><Textarea {...validation.props('options')} id="q-options" value={v.options} onChange={(e) => setV({ ...v, options: e.target.value })} rows={5} /></Field>
       )}
       {hasLength && (
-        <Field id="q-max" label="Character limit" hint={v.type === 'short_text' ? 'Default 280' : 'Default 5000'}><Input id="q-max" type="number" min={1} value={v.maxLength} onChange={(e) => setV({ ...v, maxLength: e.target.value })} className="h-11" /></Field>
+        <Field error={validation.errors.maxLength} id="q-max" label="Character limit" hint={v.type === 'short_text' ? 'Default 280' : 'Default 5000'}><Input {...validation.props('maxLength')} id="q-max" type="number" min={1} value={v.maxLength} onChange={(e) => setV({ ...v, maxLength: e.target.value })} className="h-11" /></Field>
       )}
       <label className="flex items-center gap-3 text-sm"><Checkbox checked={v.required} onCheckedChange={(c) => setV({ ...v, required: c === true })} /> Required{v.type === 'checkbox' && ' (must be ticked - use for agreements)'}</label>
     </FormDialog>
@@ -57,6 +70,7 @@ export function FieldList({ hackathonId, stageId, fields, emptyText }: { hackath
   const { pending, run } = useActionToast()
   return (
     <div className="space-y-3">
+      <p className="text-sm text-fg-muted">Demo video, code repository, live app/demo and project stage are built-in project fields. Their Required toggles are in Registration.</p>
       {fields.length === 0 ? (
         <p className="text-sm text-fg-muted">{emptyText}</p>
       ) : (
