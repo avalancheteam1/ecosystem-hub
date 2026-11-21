@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { EmptyState } from '@/components/empty-state'
 import { Pager } from '@/components/layout/pager'
 import { SectionHeading } from '@/components/section-heading'
+import { Button } from '@/components/ui/button'
 import { canonical } from '@/lib/metadata'
 import { pageParam } from '@/lib/params'
 import { cn } from '@/lib/utils'
@@ -25,6 +27,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const href = (w: string, h: boolean) => { const q = new URLSearchParams(); if (w === 'past') q.set('when', 'past'); if (h) q.set('type', 'hackathons'); return q.size ? `/events?${q}` : '/events' }
   const rows = await listPublicEvents(when, PAGE_SIZE + 1, (page - 1) * PAGE_SIZE, hackathonsOnly)
   const events = rows.slice(0, PAGE_SIZE)
+  const outOfRange = page > 1 && events.length === 0
   return (
     <div className="container-page py-14 sm:py-20">
       <SectionHeading title={<>Events<span className="text-brand">.</span></>}>Hackathons, workshops and meetups for builders in the team1 community. Register on Luma; hackathons run here.</SectionHeading>
@@ -64,12 +67,22 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
             <li key={e.id}><EventCard event={e} hackathon={e.hackathon?.status === 'published'} /></li>
           ))}
         </ul>
+      ) : outOfRange ? (
+        <EmptyState
+          className="mt-10"
+          title="No events on this page"
+          action={
+            <Button asChild variant="outline">
+              <Link href={href(when, hackathonsOnly)}>Back to first page</Link>
+            </Button>
+          }
+        />
       ) : (
         <p className="mt-12 text-fg-muted">
           {hackathonsOnly ? `No ${when} hackathons${when === 'upcoming' ? ' right now - check back soon' : ' yet'}.` : when === 'upcoming' ? 'No upcoming events right now - check back soon.' : 'No past events yet.'}
         </p>
       )}
-      <Pager page={page} hasMore={rows.length > PAGE_SIZE} params={{ when: when === 'past' ? 'past' : undefined, type: hackathonsOnly ? 'hackathons' : undefined }} />
+      {!outOfRange && <Pager page={page} hasMore={rows.length > PAGE_SIZE} params={{ when: when === 'past' ? 'past' : undefined, type: hackathonsOnly ? 'hackathons' : undefined }} />}
     </div>
   )
 }
