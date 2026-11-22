@@ -13,7 +13,7 @@ import { formatShortDate } from '@/lib/dates'
 import { canonical } from '@/lib/metadata'
 import { listPublicBounties } from './_lib/queries'
 import { earnCatalogFilters } from './_lib/rules'
-import { EarnDirectoryHeader } from './_components/earn-directory-header'
+import { EarnDirectory } from './_components/earn-directory'
 
 export const metadata: Metadata = {
   title: 'Earn',
@@ -27,8 +27,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
   const [{ rows, hasMore }, user] = await Promise.all([listPublicBounties({ ...filters, page }, now), getCurrentUser()])
 
   return (
-    <div className="container-page py-10 sm:py-14">
-      <EarnDirectoryHeader current="/earn" signedIn={!!user} />
+    <EarnDirectory current="/earn" signedIn={!!user}>
       <form id="earn-reset-filters" action="/earn" method="get" />
       <form action="/earn" role="search" aria-label="Filter bounties" className="mb-8 grid items-end gap-4 rounded-xl border border-line bg-surface-1 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Field id="earn-search" label="Search bounties" className="sm:col-span-2">
@@ -76,6 +75,6 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
         </ul>
       ) : <EmptyState title="No bounties match these filters">Check all statuses or try a different search.</EmptyState>}
       <div className="[&_a]:min-h-11"><Pager page={page} hasMore={hasMore} params={filters} /></div>
-    </div>
+    </EarnDirectory>
   )
 }

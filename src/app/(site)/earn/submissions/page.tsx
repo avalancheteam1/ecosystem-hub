@@ -6,7 +6,7 @@ import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
 import { pageParam } from '@/lib/params'
 import { formatUtc } from '@/lib/dates'
-import { EarnDirectoryHeader } from '../_components/earn-directory-header'
+import { EarnDirectory } from '../_components/earn-directory'
 import { contributorStatus } from '../_lib/stage-rules'
 import { listMySubmissions } from '../_lib/workflow-queries'
 
@@ -16,8 +16,7 @@ export default async function MySubmissionsPage({ searchParams }: { searchParams
   const page = pageParam((await searchParams).page)
   const { rows, hasMore } = await listMySubmissions(page)
   return (
-    <div className="container-page py-10 sm:py-14">
-      <EarnDirectoryHeader current="/earn/submissions" signedIn />
+    <EarnDirectory current="/earn/submissions" signedIn>
       {rows.length > 0 ? <SectionCard title="Your receipts">
         <ul className="divide-y divide-line">{rows.map((entry) => {
           const final = entry.stage.position === entry.stage.bounty._count.stages
@@ -37,6 +36,6 @@ export default async function MySubmissionsPage({ searchParams }: { searchParams
         })}</ul>
       </SectionCard> : <EmptyState title={page === 1 ? "No submissions yet" : "No submissions on this page"}>Your receipts appear here after you submit work.</EmptyState>}
       <Pager page={page} hasMore={hasMore} params={{}} />
-    </div>
+    </EarnDirectory>
   )
 }
