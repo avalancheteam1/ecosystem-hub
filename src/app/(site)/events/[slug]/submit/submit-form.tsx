@@ -1,24 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { ProjectForm } from '@/app/(app)/projects/_components/project-form'
 import { submitToStage } from '@/app/(site)/events/_lib/hackathons/submission-actions'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ChipToggle } from '@/components/chip-toggle'
-import { StatusPill } from '@/components/status-pill'
 import { AnswerFields, type AnswerField, type Answers } from '@/components/answer-fields'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
-import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
-import { cn } from '@/lib/utils'
-
-type ProjectOption = { id: string; slug: string; name: string; tagline: string; imageUrl: string | null; maturity: string | null; versionNumber: number; sealed: boolean; members: number; submittedVersion: number | null; missing: string[] }
+import { ProjectPicker, type ProjectPickerOption } from '@/components/project-picker'
 
 type CountryProps = { countries: { code: string; name: string }[]; defaultCountry: string | null }
 
@@ -52,7 +47,7 @@ export function SubmitForm(props: {
   submitPath: string
   hackathonId: string
   stageId: string
-  projects: ProjectOption[]
+  projects: ProjectPickerOption[]
   /** Selected project (`?project=`); the page re-renders with its existing submission. */
   projectId: string
   /** false = the project is fixed (advanced team, or one submission per person). */
@@ -75,7 +70,6 @@ export function SubmitForm(props: {
   const [builtDuringEvent, setBuilt] = useState(props.initialBuilt)
   const { pending, run } = useActionToast()
   const project = props.projects.find((p) => p.id === projectId)
-  const back = encodeURIComponent(`${props.submitPath}?project=${projectId}`)
 
   if (!props.projects.length) {
     return (
@@ -103,44 +97,7 @@ export function SubmitForm(props: {
           <legend className="text-lg">Project</legend>
           {props.canCreate && <NewProjectDialog onCreated={setProjectId} countries={props.countries} defaultCountry={props.defaultCountry} />}
         </div>
-        <div className="grid gap-3">
-          {props.projects.map((p) => (
-            <label key={p.id} className={cn('flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition-colors', projectId === p.id ? 'border-brand bg-brand/5' : 'border-line hover:border-fg-faint')}>
-              <input type="radio" name="project" className="accent-[var(--color-brand)]" checked={projectId === p.id} onChange={() => setProjectId(p.id)} />
-              {p.imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- own CDN upload
-                <img src={p.imageUrl} alt="" className="size-12 shrink-0 rounded-lg border border-line object-cover" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-fg-heading">{p.name}</p>
-                  {p.submittedVersion && (p.submittedVersion === p.versionNumber && p.sealed
-                    ? <StatusPill tone="success">Submitted · v{p.submittedVersion}</StatusPill>
-                    : <StatusPill tone="warning">Submitted v{p.submittedVersion} · changed since</StatusPill>)}
-                </div>
-                <p className="truncate text-sm text-fg-muted">{p.tagline}</p>
-                <p className="mt-1 text-xs text-fg-body">Stage: {PROJECT_MATURITY[p.maturity as ProjectMaturity]?.label ?? <span className="text-destructive">not set</span>}</p>
-              </div>
-              <p className="shrink-0 text-right text-xs text-fg-faint">Version {p.versionNumber}{p.sealed ? '' : ' · draft'}<br />{p.members} {p.members === 1 ? 'member' : 'members'}</p>
-            </label>
-          ))}
-        </div>
-        {project && project.missing.length > 0 && (
-          <p role="alert" className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-            This project isn&apos;t complete yet - missing: {project.missing.join(', ')}.{' '}
-            <Link href={`/projects/${project.slug}/edit?next=${back}`} className="underline decoration-brand underline-offset-2">Complete it</Link>
-          </p>
-        )}
-        {project && (
-          <p className="mt-3 text-sm text-fg-muted">
-            {props.submittedVersion && props.submittedVersion === project.versionNumber && project.sealed
-              ? `You submitted version ${project.versionNumber} and haven’t changed the project since.`
-              : project.sealed
-                ? `Submits version ${project.versionNumber}.`
-                : `Submitting seals your project as version ${project.versionNumber} - exactly what judges see. Later edits start a new draft and don’t change this submission unless you update it here.`}{' '}
-            <Link href={`/projects/${project.slug}/edit?next=${back}`} className="underline decoration-brand underline-offset-2">Edit the project first</Link>
-          </p>
-        )}
+        <ProjectPicker projects={props.projects} projectId={projectId} onChange={setProjectId} returnTo={`${props.submitPath}?project=${encodeURIComponent(projectId)}`} />
       </fieldset>
 
       {props.chooseTracks && props.tracks.length > 0 && (

@@ -15,17 +15,7 @@ export function versionChanged(prev: ProjectFields | null, next: ProjectFields):
   return KEYS.some((k) => JSON.stringify(prev[k] ?? null) !== JSON.stringify(next[k] ?? null))
 }
 
-/** builders-hub's "complete submission" set (minus tracks, chosen at submit time) + project stage; a website stands in for a demo link. */
-export function missingForSubmission(v: { maturity: string | null; fullDescription: string; techDescription: string; techStack: string[]; githubRepos: string[]; demoLinks: string[]; websiteUrl: string | null }): string[] {
-  const missing: string[] = []
-  if (!v.maturity) missing.push('Project stage')
-  if (!v.fullDescription.trim()) missing.push('Full description')
-  if (!v.techDescription.trim()) missing.push('How it’s made')
-  if (!v.techStack.length) missing.push('Tech stack')
-  if (!v.githubRepos.length) missing.push('Code repository')
-  if (!v.demoLinks.length && !v.websiteUrl) missing.push('Website or demo link') // either gives judges something to open
-  return missing
-}
+export { missingForSubmission } from '@/lib/project-submission'
 
 /** Field set of a stored version (for diffing / prefilling the form). */
 export function fieldsOf(v: Record<string, unknown>): ProjectFields {
@@ -44,10 +34,7 @@ export function planSave(current: VersionState, changed: boolean): 'noop' | 'upd
   return current.sealedAt ? 'new-draft' : 'update-draft'
 }
 
-/** On submit: seal the draft - or, if the latest version is already sealed (no edits since), reuse it. */
-export function planSeal(current: VersionState): 'seal-draft' | 'reuse-sealed' {
-  return current.sealedAt ? 'reuse-sealed' : 'seal-draft'
-}
+export { planSeal } from '@/lib/project-submission'
 
 // ponytail: the generated note marks submission seals - no column needed. Ceiling: a manual note typed as "Submitted to …" reads as one too.
 const SUBMITTED_PREFIX = 'Submitted to '
@@ -86,9 +73,7 @@ export type ProjectRole = keyof typeof PROJECT_ROLES
 /** Roles an owner can give by invite or change to (ownership moves only via transfer). */
 export const ASSIGNABLE_ROLES = ['writer', 'reader'] as const
 /** Roles that make up the hackathon team - use in Prisma filters: `{ role: { in: TEAM_ROLES } }`. */
-export const TEAM_ROLES: string[] = ['owner', 'writer']
-
-export const canEditProject = (role: string) => TEAM_ROLES.includes(role)
+export { TEAM_ROLES, canEditProject } from '@/lib/project-submission'
 export const canManageTeam = (role: string) => role === 'owner'
 
 // ── Milestones ─────────────────────────────────────────────────────────────

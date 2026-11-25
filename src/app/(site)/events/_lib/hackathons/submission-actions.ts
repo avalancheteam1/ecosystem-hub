@@ -8,7 +8,8 @@ import { prisma } from '@/lib/db'
 import { hackathonTargetName, recordProjectActivity } from '@/lib/project-activity'
 import { buildAnswersSchema, stageState } from './rules'
 import { canSubmitToStage } from './submissions'
-import { canEditProject, missingForSubmission, planSeal, submissionNote, TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
+import { canEditProject, missingForSubmission, planSeal, TEAM_ROLES } from '@/lib/project-submission'
+import { submissionNote } from '@/app/(app)/projects/_lib/rules'
 
 /** Submit (or update) a project to a stage: pins the project's CURRENT version and the team. */
 export const submitToStage = action(

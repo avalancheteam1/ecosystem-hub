@@ -25,8 +25,7 @@ export async function SiteHeader() {
           <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
           <Link href="/education" className="text-fg-muted transition-colors hover:text-fg-heading">Education</Link>
           <Link href="/ecosystem" className="text-fg-muted transition-colors hover:text-fg-heading">Ecosystem</Link>
-          {/* ponytail: external until grants live in the hub */}
-          <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</a>
+          <Link href="/grants" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</Link>
           {user && (
             <>
               <span aria-hidden className="h-4 w-px bg-line" />

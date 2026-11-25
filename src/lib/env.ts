@@ -29,6 +29,8 @@ const schema = z.object({
   SENTRY_ORG: opt(z.string()),
   SENTRY_PROJECT: opt(z.string()),
   SENTRY_AUTH_TOKEN: opt(z.string()),
+  GRANTS_SHORT_INTAKE_ENABLED: opt(z.enum(['true', 'false'])),
+  GRANTS_MILESTONE_FIRST_ENABLED: opt(z.enum(['true', 'false'])),
   DB_POOL_MAX: opt(int),
   DB_POOL_IDLE_MS: opt(int),
   DB_POOL_CONNECT_MS: opt(int),
