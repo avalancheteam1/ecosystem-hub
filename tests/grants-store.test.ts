@@ -5,6 +5,7 @@ import type { CurrentUser } from '@/lib/session'
 import type { Permission } from '@/lib/permissions'
 import { answers, criterionIds, clearanceIds, type Command, type GrantState, type PlanIntake } from '@/app/(site)/grants/_lib/schemas'
 import { addDays, initialState, transition } from '@/app/(site)/grants/_lib/rules'
+import { projectReviewSnapshot } from '@/app/(site)/grants/_lib/reviewed-project'
 
 // Explicitly opt in; the default Hub suite remains DB-less. Refuse production URLs.
 const database = process.env.GRANTS_TEST_DATABASE_URL
@@ -48,6 +49,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     superAdminNeedsSecondFactor: false,
   })
   const now = () => new Date().toISOString()
+  const reviewedProjectFor = async (versionId: string) =>
+    projectReviewSnapshot(await db.projectVersion.findUniqueOrThrow({ where: { id: versionId } }))
   const fields = () =>
     answers.parse({
       problem: 'Problem',
@@ -286,7 +289,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       const planAnswers = { intakeVersion: 3 as const, amountMinor: 12500, summary: 'Publish synthetic tooling', milestones: [
         { source: 'application' as const, title: 'Publish quickstart', due: fields().terms.due, evidence: 'Show independent reproduction' },
       ] }
-      await store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers }, builder)
+      await store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers,
+        reviewedProject: await reviewedProjectFor(p.versionId) }, builder)
       const read = () => db.grantApplication.findUniqueOrThrow({ where: { id } })
       const input = { applicationId: id, revision: 1, command }
       const before = await read()
@@ -340,7 +344,6 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       summary: 'Finish the prototype quickstart',
       milestones: [{ source: 'application' as const, title: 'Publish quickstart', due: fields().terms.due, evidence: 'Replay results' }],
     }
-    const submit = { kind: 'submit_application' as const, confirm: true as const, planAnswers }
     vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
     await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
     try {
@@ -352,6 +355,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.projectVersion.update({
         where: { id: p.versionId }, data: { demoLinks: [], websiteUrl: 'https://example.test/about' },
       })
+      const submit = { kind: 'submit_application' as const, confirm: true as const, planAnswers, reviewedProject: await reviewedProjectFor(p.versionId) }
       const saved = await store.mutateGrant(id, 0, { kind: 'save_application', answers: planAnswers }, builder)
       await expect(store.mutateGrant(id, saved.revision, submit, builder)).rejects.toThrow('demo link')
       expect(await readApplication(id, false)).toMatchObject({ revision: 1, state: { status: 'draft', answers: planAnswers } })
@@ -360,7 +364,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await expect(store.mutateGrant(id, saved.revision, submit, builder)).rejects.toThrow('paused')
       await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: true } })
       await db.projectVersion.update({ where: { id: p.versionId }, data: { demoLinks: ['https://example.test/demo'] } })
-      await expect(store.mutateGrant(id, saved.revision, submit, builder)).resolves.toMatchObject({ revision: 2 })
+      await expect(store.mutateGrant(id, saved.revision, { ...submit, reviewedProject: await reviewedProjectFor(p.versionId) }, builder)).resolves.toMatchObject({ revision: 2 })
       const legacySaved = await store.mutateGrant(legacy.id, 0, {
         kind: 'save_application', answers: { ...fields(), projectMilestoneId: legacyProject.milestoneId },
       }, builder)
@@ -405,8 +409,9 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       expect(await db.grantRevision.count({ where: { applicationId: latest.id } })).toBe(3)
       expect(await db.grantRevision.count({ where: { applicationId: older.id } })).toBe(3)
       expect((await db.grantApplication.findUniqueOrThrow({ where: { id: latest.id } })).state).toEqual(latest.state)
+      const reviewedProject = await reviewedProjectFor(p.versionId)
       const submit = () => store.mutateGrant(attempts[0].id, 0, {
-        kind: 'submit_application', confirm: true,
+        kind: 'submit_application', confirm: true, reviewedProject,
         planAnswers: { intakeVersion: 3, amountMinor: 12500, summary: 'New project work',
           milestones: [{ source: 'roadmap', id: changed.id, title: changed.title, due: changed.targetDate, evidence: 'Publish signed build checksums' }],
         },
@@ -437,8 +442,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     const copied = await db.projectMilestone.create({ data: { projectId: p.id, title: '  QUICKSTART!  ', targetDate: due } })
     const newItem = await db.projectMilestone.create({ data: { projectId: p.id, title: 'Publish an offline indexer', targetDate: due } })
     await db.featureFlag.createMany({ data: [{ key: 'miniGrantsIntake', enabled: true }, { key: 'miniGrantsReapplication', enabled: true }] })
-    const submit = (id: string, item: typeof newItem, evidence: string) => store.mutateGrant(id, 0, {
-      kind: 'submit_application', confirm: true,
+    const submit = async (id: string, item: typeof newItem, evidence: string) => store.mutateGrant(id, 0, {
+      kind: 'submit_application', confirm: true, reviewedProject: await reviewedProjectFor(p.versionId),
       planAnswers: { intakeVersion: 3, amountMinor: 12500, summary: 'A rewritten project pitch',
         milestones: [{ source: 'roadmap', id: item.id, title: item.title, due, evidence }] },
     }, builder)
@@ -492,7 +497,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.projectVersion.update({ where: { id: candidate.id }, data: { demoLinks: ['https://example.test/new-working-demo'] } })
       const { id } = await store.startGrant(p.id, builder)
       applications.push(id)
-      const submit = () => store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers: {
+      const submit = async () => store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true,
+        reviewedProject: await reviewedProjectFor(candidate.id), planAnswers: {
         intakeVersion: 3, amountMinor: 12500, summary: 'Original scope with a new working demo',
         milestones: [{ source: 'application', title: 'Quickstart', due: '2027-08-15', evidence: 'Independent reproduction' }],
       } }, builder)
@@ -523,7 +529,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       const planAnswers = { intakeVersion: 3 as const, amountMinor: 12500, summary: 'Synthetic prototype quickstart', milestones: [
         { source: 'application' as const, title: 'Publish the quickstart', due: fields().terms.due, evidence: 'Independent replay verifies the output' },
       ] }
-      await store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers }, builder)
+      await store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers,
+        reviewedProject: await reviewedProjectFor(declined.versionId) }, builder)
       await store.mutateGrant(id, 1, { kind: 'decline_application', rationale: 'Staff-only fixture', publicNote: 'The application was declined.' }, reviewer)
       await store.startGrant(active.id, builder)
       await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
@@ -555,6 +562,74 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     expect(await actions.createApplication(input)).toMatchObject({ ok: false, error: expect.stringContaining('existing grant') })
     expect(await db.grantApplication.count({ where: { projectId: awarded.projectId } })).toBe(1)
   })
+
+  it.each(['in-place edit', 'new version'] as const)('Grants v1 US-4 refuses a changed reviewed project after a project change (%s)', async (change) => {
+    const session = await import('@/lib/session')
+    const { readApplication } = await import('@/app/(site)/grants/_lib/queries')
+    const { saveProject } = await import('@/app/(app)/projects/_lib/actions')
+    const { fieldsOf } = await import('@/app/(app)/projects/_lib/rules')
+    const p = await project()
+    const planAnswers: PlanIntake = {
+      intakeVersion: 3, amountMinor: 25000, summary: 'Finish the prototype',
+      milestones: [{ source: 'application', title: 'Publish the tool', due: fields().terms.due, evidence: 'A reproducible run' }],
+    }
+    const demoLinks = ['https://example.test/revised-demo']
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      await db.projectMember.create({ data: { projectId: p.id, userId: stranger.id, role: 'writer' } })
+      if (change === 'new version') await db.projectVersion.update({ where: { id: p.versionId }, data: { sealedAt: new Date() } })
+      vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+      const { id } = await store.startGrant(p.id, builder)
+      applications.push(id)
+      const preview = async (revision: number) => {
+        await store.mutateGrant(id, revision, { kind: 'save_application', answers: planAnswers }, builder)
+        const readback = await readApplication(id, false)
+        if (readback.staff || !readback.draftProject) throw new Error('Expected the persisted applicant draft')
+        return { revision: readback.revision, draftProject: readback.draftProject }
+      }
+      const reviewed = await preview(0)
+      const original = await db.projectVersion.findUniqueOrThrow({ where: { id: p.versionId } })
+      expect(reviewed.draftProject.demoLinks).toEqual(original.demoLinks)
+
+      vi.mocked(session.getCurrentUser).mockResolvedValue(stranger)
+      expect(await saveProject({ projectId: p.id, fields: { ...fieldsOf(original), demoLinks } })).toMatchObject({ ok: true, data: { changed: true } })
+      const { currentVersion } = await db.project.findUniqueOrThrow({ where: { id: p.id }, include: { currentVersion: true } })
+      if (!currentVersion) throw new Error('Expected the edited project')
+      expect(currentVersion.demoLinks).toEqual(demoLinks)
+      if (change === 'in-place edit') {
+        expect(currentVersion).toMatchObject({ id: original.id, number: original.number })
+      } else expect(currentVersion.id).not.toBe(original.id)
+
+      vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+      const confirm = (saved: typeof reviewed) => actions.changeApplication({
+        applicationId: id, revision: saved.revision,
+        command: { kind: 'submit_application', confirm: true, planAnswers, reviewedProject: saved.draftProject.snapshot },
+      })
+      expect(await confirm(reviewed)).toMatchObject({ ok: false, error: expect.stringContaining('Review the latest Hub project') })
+      expect(await actions.changeApplication({ applicationId: id, revision: reviewed.revision,
+        command: { kind: 'submit_application', confirm: true, planAnswers },
+      })).toMatchObject({ ok: false, error: expect.stringContaining('Review the latest Hub project') })
+      expect(await db.grantApplication.findUniqueOrThrow({ where: { id } })).toMatchObject({
+        status: 'draft', revision: 1, projectVersionId: p.versionId, state: { applications: [], answers: planAnswers },
+      })
+      expect(await db.grantRevision.count({ where: { applicationId: id, kind: 'submit_application' } })).toBe(0)
+      expect(await db.auditLog.count({ where: { entityId: id, action: 'grant.submit_application' } })).toBe(0)
+      expect(await db.projectActivity.count({ where: { targetId: id, event: 'submitted' } })).toBe(0)
+      expect((await db.projectVersion.findUniqueOrThrow({ where: { id: currentVersion.id } })).sealedAt).toBeNull()
+
+      const refreshed = await preview(1)
+      expect(refreshed.draftProject.snapshot).not.toEqual(reviewed.draftProject.snapshot)
+      expect(refreshed.draftProject.demoLinks).toEqual(demoLinks)
+      expect(await confirm(refreshed)).toMatchObject({ ok: true, data: { revision: 3 } })
+      expect(await readApplication(id, false)).toMatchObject({
+        revision: 3, projectVersion: { id: currentVersion.id, demoLinks, sealedAt: expect.any(Date) },
+        state: { status: 'submitted', applications: [{ projectVersionId: currentVersion.id, answers: planAnswers }] },
+      })
+    } finally {
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
+
   it('Grants v1 US-3 validates one to three milestones and pins terms despite later roadmap changes', async () => {
     const session = await import('@/lib/session')
     const p = await project(), foreign = await project(), one = await project()
@@ -570,8 +645,9 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       if (!started.ok) throw new Error(started.error)
       const { id } = started.data
       applications.push(id)
+      const reviewedProject = await reviewedProjectFor(p.versionId)
       const submit = (milestones: PlanIntake['milestones']) => actions.changeApplication({
-        applicationId: id, revision: 0, command: { kind: 'submit_application', confirm: true,
+        applicationId: id, revision: 0, command: { kind: 'submit_application', confirm: true, reviewedProject,
           planAnswers: { intakeVersion: 3, amountMinor: 25000, summary: 'Complete open-source tooling', milestones } },
       })
       for (const milestones of [[], [roadmap, a, b, a], [roadmap, roadmap], [{ ...roadmap, id: foreign.milestoneId }], [injected], [{ ...a, evidence: '' }]]) {
@@ -591,7 +667,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       const single = await store.startGrant(one.id, builder)
       applications.push(single.id)
       expect(await actions.changeApplication({ applicationId: single.id, revision: 0,
-        command: { kind: 'submit_application', confirm: true, planAnswers: { intakeVersion: 3, amountMinor: 100, summary: 'Ship one item', milestones: [a] } },
+        command: { kind: 'submit_application', confirm: true, reviewedProject: await reviewedProjectFor(one.versionId),
+          planAnswers: { intakeVersion: 3, amountMinor: 100, summary: 'Ship one item', milestones: [a] } },
       })).toMatchObject({ ok: true })
     } finally {
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
@@ -618,7 +695,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       const milestones = ['Quickstart', 'Automated checks'].map((title) => ({
         source: 'application', title, due: fields().terms.due, evidence: `Independent reproduction of ${title}`,
       }))
-      expect(await change({ kind: 'submit_application', confirm: true,
+      expect(await change({ kind: 'submit_application', confirm: true, reviewedProject: await reviewedProjectFor(p.versionId),
         planAnswers: { intakeVersion: 3, amountMinor: 500000, summary: 'Ship tooling', milestones },
       })).toMatchObject({ ok: true })
       const submitted = await read()

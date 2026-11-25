@@ -12,7 +12,7 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
 import { changeApplication, createApplication } from '../_lib/actions'
-import { continuousIntakePaused, MAX_PLAN_MILESTONES, missingDemo, planDraft, planSubmission, roundClosedForSubmission, roundNotAccepting, shortDraft, shortSubmission, type PlanIntake, type ShortIntake } from '../_lib/schemas'
+import { continuousIntakePaused, MAX_PLAN_MILESTONES, missingDemo, planDraft, planSubmission, projectReviewChanged, roundClosedForSubmission, roundNotAccepting, shortDraft, shortSubmission, type PlanIntake, type ReviewedProject, type ShortIntake } from '../_lib/schemas'
 import { ApplicationChecklist } from './application-checklist'
 import { GrantPlanSummary, ProjectDemoLinks } from './grant-plan-summary'
 import { RoundIntakeStatus } from './navigation'
@@ -27,7 +27,7 @@ const amountError = 'Enter a whole-dollar amount from $1 to $10,000.'
 type ShortGrantFormProps = {
   continuous?: boolean
   demoProofMissing?: boolean
-  draftProject?: { name: string; number: number; demoLinks: string[]; missing: string[] } | null
+  draftProject?: { name: string; number: number; demoLinks: string[]; missing: string[]; snapshot: ReviewedProject } | null
   draft?: ExistingDraft
   roundOpen?: boolean
   projects?: ProjectPickerOption[]
@@ -83,7 +83,11 @@ function ShortGrantFields({
   const updateMilestone = (key: number, milestone: ShortIntake['milestone']) =>
     setRows((current) => current.map((row) => row.key === key ? { ...row, milestone } : row))
   const [localReview, setLocalReview] = useState<ShortAnswers | null>(null)
-  const review = reviewSaved ? draft?.answers : localReview
+  const [reviewedProject, setReviewedProject] = useState<ShortGrantFormProps['draftProject']>(null)
+  // Keep the displayed project and its expectation together if live props refresh during review.
+  if (reviewSaved && draftProject && !reviewedProject) setReviewedProject(draftProject)
+  else if (!reviewSaved && reviewedProject) setReviewedProject(null)
+  const review = reviewSaved && reviewedProject ? draft?.answers : localReview
   const [errors, setErrors] = useState<FormError[]>([])
   const heading = useRef<HTMLHeadingElement>(null)
   const errorSummary = useRef<HTMLDivElement>(null)
@@ -122,7 +126,7 @@ function ShortGrantFields({
     : undefined
   const fields: Record<string, string> = {
     project: `${uid}-project`, demo: `${uid}-demo`, amountMinor: `${uid}-amount`, summary: `${uid}-summary`,
-    milestones: `${uid}-add`, roadmap: `${uid}-plan`,
+    milestones: `${uid}-add`, roadmap: `${uid}-plan`, review: `${uid}-review`,
   }
   rows.forEach(({ key, milestone }, index) => {
     const path = multi ? `milestones.${index}` : 'milestone'
@@ -178,7 +182,9 @@ function ShortGrantFields({
               applicationId: draft.id, revision: draft.revision,
               command: submit ? {
                 kind: 'submit_application', confirm: true,
-                ...(answers.intakeVersion === 3 ? { planAnswers: answers } : { shortAnswers: answers }),
+                ...(answers.intakeVersion === 3
+                  ? { planAnswers: answers, reviewedProject: reviewedProject?.snapshot }
+                  : { shortAnswers: answers }),
               } : { kind: 'save_application', answers },
             })
           : answers.intakeVersion === 2
@@ -190,7 +196,8 @@ function ShortGrantFields({
           }
           const field = result.error === missingDemo ? 'demo'
             : result.error.startsWith('The roadmap milestone changed') ? 'roadmap'
-              : result.error.startsWith('Complete your project first:') ? 'project' : undefined
+              : result.error.startsWith('Complete your project first:') ? 'project'
+                : result.error === projectReviewChanged ? 'review' : undefined
           if (field) {
             onSave(null)
             setLocalReview(null)
@@ -241,7 +248,7 @@ function ShortGrantFields({
       <SectionCard className="min-w-0 space-y-5 p-4 sm:p-6">
         <h2 ref={heading} tabIndex={-1} className="scroll-mt-24 text-xl">Review your application</h2>
         {!multi && <RoundIntakeStatus open={canSubmit} />}
-        {review.intakeVersion === 3 && draftProject ? <GrantPlanSummary answers={review} project={draftProject} /> : <dl className="space-y-4">
+        {review.intakeVersion === 3 && reviewedProject ? <GrantPlanSummary answers={review} project={reviewedProject} /> : <dl className="space-y-4">
           <div><dt>{continuous ? 'Project' : 'Project and round'}</dt><dd className="text-fg-muted">
             {draft?.projectName ?? project?.name}{!continuous && ` / ${draft?.roundName ?? rounds.find((r) => r.id === roundId)?.name}`}
           </dd></div>
@@ -256,7 +263,7 @@ function ShortGrantFields({
             </div>
           ))}
         </dl>}
-        <p className="text-sm text-fg-muted">Submitting sends this commitment for review and seals the current project version.</p>
+        <p className="text-sm text-fg-muted">Submitting sends this commitment for review and seals the {multi ? 'reviewed' : 'current'} project version.</p>
         {summaryError}
         <div className="flex flex-wrap gap-3">
           <Button type="button" variant="secondary" className="min-h-11" disabled={busy} onClick={() => {
@@ -411,7 +418,7 @@ function ShortGrantFields({
             setErrors(ready.errors)
             if (ready.answers) persist(ready.answers, false)
           }}>Save draft</Button>
-          <Button ref={reviewButton} type="submit" className="min-h-11" disabled={busy || !canSubmit}>{multi ? 'Continue to review' : 'Review and submit'}</Button>
+          <Button id={fields.review} ref={reviewButton} type="submit" className="min-h-11 scroll-mt-24" disabled={busy || !canSubmit}>{multi ? 'Continue to review' : 'Review and submit'}</Button>
         </div>
       </fieldset>
     </form>

@@ -3,9 +3,12 @@ import { z } from 'zod'
 export const roundNotAccepting = 'This round is not accepting applications'
 export const continuousIntakePaused = 'Mini Grants intake is paused. You can keep editing your saved draft.'
 export const missingDemo = 'Add a demo link showing your working project or prototype to your Hub project.'
+export const projectReviewChanged = 'Review the latest Hub project before submitting. Your application is still a draft.'
 export const roundClosedForSubmission = 'This round has closed. You can keep editing the draft and submit when it reopens.'
 
 export const id = z.string().min(1).max(100)
+const reviewedProject = z.strictObject({ versionId: id, fingerprint: z.string().regex(/^[a-f0-9]{64}$/) })
+export type ReviewedProject = z.infer<typeof reviewedProject>
 export const startSchema = z.strictObject({ projectId: id })
 const demoUrl = z.url({ protocol: /^https?$/ })
 export const hasDemoProof = (demoLinks: string[]) => demoLinks.some((link) => demoUrl.safeParse(link).success)
@@ -318,7 +321,10 @@ export const createSchema = z
   })
 export const commandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('save_application'), answers: intakeAnswers }),
-  z.object({ kind: z.literal('submit_application'), confirm: z.literal(true), shortAnswers: shortSubmission.optional(), planAnswers: planSubmission.optional() }),
+  z.object({
+    kind: z.literal('submit_application'), confirm: z.literal(true), shortAnswers: shortSubmission.optional(),
+    planAnswers: planSubmission.optional(), reviewedProject: reviewedProject.optional(),
+  }),
   z.object({ kind: z.literal('save_assessment'), assessment }),
   z.object({ kind: z.literal('release_review_status'), status: reviewStatus }),
   z.object({ kind: z.literal('reopen_application'), confirm: z.literal(true) }),

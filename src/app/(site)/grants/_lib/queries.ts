@@ -11,6 +11,7 @@ import { reviewerOptions } from './reviewers'
 import { applicantProjection, applicationStatus, applicationStatusText, issuedPayoutAward, payoutConfirmationClosed } from './rules'
 import { grantIntakeHistory, reapplicationEligibility } from './reapplication'
 import { syntheticPayoutEnabled } from './config'
+import { projectReviewSnapshot } from './reviewed-project'
 
 export const publishedRounds = () =>
   prisma.grantRound.findMany({ where: { published: true }, select: { id: true, name: true }, orderBy: { createdAt: 'desc' }, take: 50 })
@@ -88,10 +89,7 @@ export async function readApplication(id: string, staff: boolean) {
         select: {
           slug: true,
           members: { where: { userId: user.id }, select: { role: true } },
-          currentVersion: !staff && { select: {
-            name: true, number: true, demoLinks: true, maturity: true, fullDescription: true,
-            techDescription: true, techStack: true, githubRepos: true, websiteUrl: true,
-          } },
+          currentVersion: !staff,
         },
       },
       round: { select: { name: true, published: true } },
@@ -130,6 +128,7 @@ export async function readApplication(id: string, staff: boolean) {
     const current = row.round === null && row.status === 'draft' && common.writer ? row.project.currentVersion : null
     const draftProject = current && {
       name: current.name, number: current.number, demoLinks: current.demoLinks, missing: missingForSubmission(current),
+      snapshot: projectReviewSnapshot(current),
     }
     return { ...common, staff: false as const, state: applicantProjection(state), projectVersion: row.projectVersion, draftProject, milestones }
   }

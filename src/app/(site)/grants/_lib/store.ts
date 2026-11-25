@@ -9,8 +9,9 @@ import type { CurrentUser } from '@/lib/session'
 import { FLAGS, type Flag } from '@/lib/flags'
 import { recordProjectActivity, type ProjectActivityEvent } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
-import { continuousIntakePaused, hasDemoProof, id, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, syntheticPayout, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState, type payoutDestinationSchema } from './schemas'
+import { continuousIntakePaused, hasDemoProof, id, missingDemo, projectReviewChanged, roundClosedForSubmission, roundNotAccepting, stateSchema, syntheticPayout, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState, type payoutDestinationSchema, type ReviewedProject } from './schemas'
 import { milestoneFirstEnabled, shortIntakeEnabled, syntheticPayoutEnabled } from './config'
+import { projectReviewSnapshot } from './reviewed-project'
 import { assertReviewer } from './staff'
 import { commandPermission, initialState, issuedPayoutAward, mayCommand, payoutConfirmationClosed, transition } from './rules'
 import {
@@ -85,12 +86,14 @@ export async function confirmGrantPayoutDestination(input: z.infer<typeof payout
   }
 }
 
-async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versionId: string, requireDemo = false) {
+async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versionId: string, requireDemo = false, reviewed?: ReviewedProject) {
   const version = await tx.projectVersion.findUnique({ where: { id: versionId } })
   if (!version || version.projectId !== projectId) throw new ActionError('Save a project version first')
   if (requireDemo && !hasDemoProof(version.demoLinks)) throw new ActionError(missingDemo)
   const missing = missingForSubmission(version)
   if (missing.length) throw new ActionError(`Complete your project first: ${missing.join(', ')}`)
+  if (reviewed && (reviewed.versionId !== version.id || reviewed.fingerprint !== projectReviewSnapshot(version).fingerprint))
+    throw new ActionError(projectReviewChanged)
   if (planSeal(version) === 'seal-draft')
     await tx.projectVersion.updateMany({
       where: { id: version.id, sealedAt: null },
@@ -296,6 +299,8 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       const now = new Date()
       let previousScope: Awaited<ReturnType<typeof priorScope>> | undefined
       let projectVersionId = row.projectVersionId
+      const reviewRequired = command.kind === 'submit_application' && state.version === 4
+      const reviewed = reviewRequired ? command.reviewedProject : undefined
       const pinReply = command.kind === 'answer_request' && state.version !== 4 && !(state.version === 3 && state.milestoneClearance)
       if (command.kind === 'submit_application' || pinReply) {
         if (command.kind === 'submit_application') {
@@ -308,7 +313,8 @@ export async function mutateGrant(applicationId: string, revision: number, comma
             if (history.latest) previousScope = await priorScope(tx, row.projectId, history.latest)
           }
         }
-        projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '', continuous)
+        if (reviewRequired && !reviewed) throw new ActionError(projectReviewChanged)
+        projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '', continuous, reviewed)
       }
       if (command.kind === 'submit_application') {
         if (state.version === 4) {

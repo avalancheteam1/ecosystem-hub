@@ -38,9 +38,6 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
       { protocol: 'https', hostname: 'images.lumacdn.com' },
-      // Existing team1 programme artwork, served through the Hub image optimizer.
-      { protocol: 'https', hostname: 'www.team1.network', pathname: '/grants/mini.jpg', search: '' },
-      { protocol: 'https', hostname: 'www.team1.network', pathname: '/grants/builder.jpg', search: '' },
       ...uploadsRemotePattern(),
     ],
   },
