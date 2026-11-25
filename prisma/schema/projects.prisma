@@ -15,6 +15,7 @@ model Project {
   versions    ProjectVersion[] @relation("ProjectVersions")
   members     ProjectMember[]
   invites     ProjectInvite[]
+  hackathonDrafts HackathonProject[]
   submissions Submission[]
   milestones  ProjectMilestone[]
   toolingListing ToolingListing?

@@ -38,3 +38,19 @@ test('a URL under a switched-off flag is rewritten to the 404 page, for everyone
   flags.on = true
   assert.equal(await rewrite('/tooling'), null)
 })
+
+
+for (const endpoint of ['export.csv', 'not-submitted.csv']) {
+  test(`anonymous ${endpoint} redirects to sign-in before the CSV handler`, async () => {
+    const path = `/manage/hackathons/synthetic/${endpoint}`
+    const response = proxy(new NextRequest(`https://hub${path}`))
+    assert.equal(response.status, 307)
+    const destination = new URL(response.headers.get('location')!)
+    assert.equal(destination.origin, 'https://hub')
+    assert.equal(destination.pathname, '/sign-in')
+    assert.equal(destination.searchParams.get('next'), path)
+    assert.ok(!response.headers.get('content-type')?.includes('text/csv'))
+    assert.equal(response.headers.get('content-disposition'), null)
+    assert.equal(await response.text(), '')
+  })
+}

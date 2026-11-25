@@ -1,5 +1,7 @@
 'use client'
 
+import { useFormErrors } from '@/hooks/use-form-errors'
+import { buildAnswersSchema } from '../../_lib/hackathons/rules'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { joinHackathon } from '@/app/(site)/events/_lib/hackathons/participant-actions'
@@ -12,20 +14,25 @@ export function JoinForm({ hackathonId, fields, termsUrl, invite, needsApproval 
   const router = useRouter()
   const [answers, setAnswers] = useState<Answers>({})
   const [terms, setTerms] = useState(false)
+  const validation = useFormErrors(Object.fromEntries(fields.map((f) => [f.id, `ans-${f.id}`])))
   const { pending, run } = useActionToast()
   return (
     <form
+      noValidate
       className="grid gap-8"
       onSubmit={(e) => {
         e.preventDefault()
+        if (!validation.validate(buildAnswersSchema(fields), answers)) return
         run(async () => {
           const res = await joinHackathon({ hackathonId, answers, acceptTerms: terms, invite })
           if (res.ok) router.push(`/events/${res.data.slug}`)
+          else validation.fail(res.error)
           return res
         }, needsApproval ? 'Registration received - waiting for approval' : "You're in")
       }}
     >
-      {fields.length > 0 && <AnswerFields fields={fields} value={answers} onChange={setAnswers} />}
+      {fields.length > 0 && <AnswerFields errors={validation.errors} fields={fields} value={answers} onChange={setAnswers} />}
+      {validation.errors.form && <p role="alert" className="text-sm text-destructive">{validation.errors.form}</p>}
       {termsUrl && (
         <label className="flex items-start gap-3 text-sm">
           <Checkbox className="mt-0.5" checked={terms} onCheckedChange={(c) => setTerms(c === true)} />

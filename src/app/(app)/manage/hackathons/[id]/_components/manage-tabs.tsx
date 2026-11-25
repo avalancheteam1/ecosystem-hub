@@ -22,7 +22,7 @@ export function ManageTabs({ base }: { base: string }) {
       <ul className="flex gap-1">
         {TABS.map(([path, label]) => {
           const href = base + path
-          const active = path === '' ? pathname === base : pathname.startsWith(href)
+          const active = path === '' ? pathname === base : pathname === href || pathname.startsWith(`${href}/`) || (path === '/submissions' && pathname.startsWith(`${base}/drafts/`))
           return (
             <li key={path}>
               <Link

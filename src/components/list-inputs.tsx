@@ -39,7 +39,7 @@ export function ValueListInput({ id, value, onChange, placeholder, max = 10, typ
             <Input id={id} type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }} onBlur={add} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} spellCheck={validate ? false : undefined} className={cn('h-11', mono && 'font-mono text-xs')} />
             <Button type="button" variant="outline" size="icon" aria-label="Add" disabled={!!error} onClick={add}><Plus aria-hidden /></Button>
           </div>
-          {error && <p id={`${id}-error`} className="text-xs text-destructive">{error}</p>}
+          {error && <p id={`${id}-error`} role="alert" className="text-xs text-destructive">{error}</p>}
         </div>
       )}
     </div>

@@ -106,7 +106,7 @@ export function CloseJudgingButton({ hackathonId, stageId, closed, canClose }: {
 
 type Row = { entryId: string; rank: number | null; name: string; href: string; criterionMeans: Record<string, number | null>; mean: number | null; min: number | null; max: number | null; reviews: number; advanced: boolean }
 
-export function RankingTable({ hackathonId, stageId, rows, canAdvance, criteria, scaleMax }: { hackathonId: string; stageId: string; rows: Row[]; canAdvance: boolean; criteria: { id: string; name: string }[]; scaleMax: number }) {
+export function RankingTable({ hackathonId, stageId, rows, canAdvance, criteria, scaleMin, scaleMax }: { hackathonId: string; stageId: string; rows: Row[]; canAdvance: boolean; criteria: { id: string; name: string }[]; scaleMin: number; scaleMax: number }) {
   const { pending, run } = useActionToast()
   const advancedIds = rows.filter((r) => r.advanced).map((r) => r.entryId)
   return (
@@ -133,7 +133,7 @@ export function RankingTable({ hackathonId, stageId, rows, canAdvance, criteria,
         { key: 'rank', label: '#', sortable: true, hideable: false },
         { key: 'name', label: 'Project', sortable: true, hideable: false },
         { key: 'mean', label: 'Score', sortable: true, firstDir: 'desc' as const, className: 'text-right' },
-        ...criteria.map((c) => ({ key: `c-${c.id}`, label: `${c.name} (/${scaleMax})`, sortable: true, firstDir: 'desc' as const, className: 'text-right' })),
+        ...criteria.map((c) => ({ key: `c-${c.id}`, label: `${c.name} (${scaleMin}-${scaleMax})`, sortable: true, firstDir: 'desc' as const, className: 'text-right' })),
         { key: 'range', label: 'Range', className: 'text-right' },
         { key: 'reviews', label: 'Reviews', sortable: true, firstDir: 'desc' as const, className: 'text-right' },
       ]}

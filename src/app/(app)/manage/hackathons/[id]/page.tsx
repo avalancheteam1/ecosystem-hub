@@ -1,3 +1,6 @@
+import { SectionCard } from '@/components/section-card'
+import { ExportLinks } from './_components/export-links'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { CircleCheck, CircleAlert } from 'lucide-react'
 import { getManagedHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
@@ -18,6 +21,9 @@ export default async function ManageOverviewPage({ params }: { params: Promise<{
         <OverviewForm hackathonId={h.id} initial={{ ...h, resourceLinks: readLinks(h.resourceLinks) }} />
       </section>
       <aside className="space-y-4 xl:order-last">
+        <ExportLinks hackathonId={h.id} />
+        <SectionCard className="border-warning/40" title={`Not submitted (${h._count.draftProjects})`} description="Saved event projects that have never been submitted, including after the deadline."><Link href={`/manage/hackathons/${h.id}/submissions`} className="mt-3 inline-flex min-h-11 items-center underline">Review event drafts</Link></SectionCard>
+
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="text-lg">{problems.length ? 'Before you publish' : 'Ready to publish'}</h2>
           {problems.length === 0 ? (

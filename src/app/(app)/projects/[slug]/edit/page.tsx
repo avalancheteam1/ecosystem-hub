@@ -6,7 +6,7 @@ import { reportRejectedNext, requireUser } from '@/lib/guards'
 import { safeNext } from '@/lib/safe-next'
 import { DeleteProjectButton } from '../../_components/delete-project-button'
 import { ProjectForm } from '../../_components/project-form'
-import { getProjectForMember } from '../../_lib/queries'
+import { getProjectForMember, projectRequirementsForReturn } from '../../_lib/queries'
 import { canEditProject, canManageTeam, fieldsOf } from '../../_lib/rules'
 
 export const metadata: Metadata = { title: 'Edit project', robots: { index: false } }
@@ -20,10 +20,11 @@ export default async function EditProjectPage({ params, searchParams }: { params
   const role = project?.members.find((m) => m.userId === user.id)?.role
   if (!project || !v || !role || !canEditProject(role)) notFound()
   const initial = fieldsOf(v)
+  const optionalProjectFields = await projectRequirementsForReturn(nextParam ? safeNext(nextParam) : null)
   return (
     <div>
       <PageHeader title={`Edit ${v.name}`} description={v.sealedAt ? `Version ${v.number} was submitted, so your changes start version ${v.number + 1} (draft). What you submitted stays exactly as it was.` : 'Changes go into your draft. Anything you already submitted stays exactly as it was.'} />
-      <ProjectForm projectId={project.id} initial={initial} next={nextParam ? safeNext(nextParam) : null} countries={COUNTRIES} />
+      <ProjectForm optionalProjectFields={optionalProjectFields} projectId={project.id} initial={initial} next={nextParam ? safeNext(nextParam) : null} countries={COUNTRIES} />
       {canManageTeam(role) && (
         <section aria-labelledby="danger-zone" className="mt-12 rounded-xl border border-destructive/40 p-6">
           <h2 id="danger-zone" className="text-lg">Danger zone</h2>

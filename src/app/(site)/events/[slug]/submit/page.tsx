@@ -3,13 +3,16 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { listMyProjects } from '@/app/(app)/projects/_lib/queries'
 import { missingForSubmission, TEAM_ROLES } from '@/app/(app)/projects/_lib/rules'
+import { inviteMember } from '@/lib/project-invite-actions'
+import { canInviteTeammates, teamWarnings } from '@/lib/project-team'
 import { Markdown } from '@/components/markdown'
 import { COUNTRIES } from '@/lib/countries'
-import { formatEventRange } from '@/lib/dates'
+import { submissionWindowText, judgingWindowText } from '../../_lib/hackathons/presentation'
+import { StageStateBadge } from '@/components/stage-state-badge'
 import { prisma } from '@/lib/db'
 import { requireUser } from '@/lib/guards'
-import { getMySubmissions, getPublicHackathon } from '../../_lib/hackathons/queries'
-import { advancedStageIds, pickOpenStage } from '../../_lib/hackathons/rules'
+import { getMySubmissions, getPublicHackathon, getSubmissionTeams } from '../../_lib/hackathons/queries'
+import { advancedStageIds, pickOpenStage, stageState } from '../../_lib/hackathons/rules'
 import { getPublicEvent } from '../../_lib/queries'
 import { SubmitForm } from './submit-form'
 
@@ -19,7 +22,7 @@ function Notice({ title, children, slug }: { title: string; children: React.Reac
   return (
     <div className="container-page max-w-2xl py-20 text-center">
       <h1 className="text-3xl">{title}</h1>
-      <p className="mt-3 text-fg-muted">{children}</p>
+      <div className="mt-3 space-y-4 text-fg-muted">{children}</div>
       <Link href={`/events/${slug}`} className="mt-8 inline-block underline decoration-brand underline-offset-4">Back to the hackathon</Link>
     </div>
   )
@@ -36,9 +39,10 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
   if (!h.joined) return <Notice slug={slug} title="Join first">Join the hackathon before you submit.</Notice>
   const now = new Date()
   const [myProjects, mines, me] = await Promise.all([listMyProjects(user.id, TEAM_ROLES), getMySubmissions(h.id, user.id), prisma.user.findUnique({ where: { id: user.id }, select: { country: true } })])
+  const teams = new Map((await getSubmissionTeams(h.id, myProjects.map((p) => p.id))).map((p) => [p.id, p]))
   const idx = pickOpenStage(h.stages, now, advancedStageIds(mines))
   const stage = h.stages[idx]
-  if (!stage) return <Notice slug={slug} title="No stage is open">Submissions open with the next stage - see the timeline.</Notice>
+  if (!stage) return <Notice slug={slug} title="No stage is open">Check each stage’s submission window below.{h.stages.map((s) => <div key={s.id}><p>{s.name} <StageStateBadge state={stageState(s, now)} /></p><p>{submissionWindowText(s, h.timezone)}</p><p>{judgingWindowText(s, h.timezone)}</p></div>)}</Notice>
   const fields = await prisma.formField.findMany({ where: { stageId: stage.id }, orderBy: { order: 'asc' } })
   // Which of my projects may be picked: later "advanced only" stages only advanced teams; one submission per person unless multiple are allowed.
   const advanced = idx > 0 && stage.advancedOnly ? mines.filter((m) => m.entries.find((e) => e.stageId === h.stages[idx - 1]!.id)?.advancedAt) : null
@@ -57,17 +61,27 @@ export default async function SubmitPage({ params, searchParams }: { params: Pro
     <div className="container-page max-w-3xl py-14">
       <p><Link href={`/events/${slug}`} className="text-fg-muted underline-offset-4 hover:text-fg-heading hover:underline">{event.name}</Link></p>
       <h1 className="mt-2 text-3xl sm:text-4xl">{h.stages.length === 1 ? 'Submit your project' : `Submit to ${stage.name}`}</h1>
-      <p className="mt-2 text-fg-muted">Open until {formatEventRange(stage.closesAt, null, h.timezone)}. You can update your submission until then.</p>
+      <div className="mt-2 space-y-2 text-sm text-fg-muted"><StageStateBadge state={stageState(stage, now)} /><p>{submissionWindowText(stage, h.timezone)} You can update your submission until then.</p><p>{judgingWindowText(stage, h.timezone)}</p></div>
       {stage.descriptionMd && <Markdown className="mt-6">{stage.descriptionMd}</Markdown>}
       <div className="mt-10 rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
         <SubmitForm
           key={projectId}
           submitPath={`/events/${slug}/submit`}
+          inviteAction={inviteMember}
+          timeZone={h.timezone}
+          hackathonName={event.name}
+          submittedAt={entry?.submittedAt.toISOString() ?? null}
           hackathonId={h.id}
           stageId={stage.id}
-          projects={projects.map((p) => ({ id: p.id, slug: p.slug, name: p.currentVersion?.name ?? '', tagline: p.currentVersion?.shortDescription ?? '', imageUrl: p.currentVersion?.logoUrl ?? p.currentVersion?.coverUrl ?? null, maturity: p.currentVersion?.maturity ?? null, versionNumber: p.currentVersion?.number ?? 0, sealed: !!p.currentVersion?.sealedAt, members: p._count.members, submittedVersion: submittedTo(p.id), missing: p.currentVersion ? missingForSubmission(p.currentVersion) : [] }))}
+          projects={projects.map((p) => {
+            const team = teams.get(p.id)!
+            return ({ canInvite: canInviteTeammates(team.members, user.id), id: p.id, slug: p.slug, name: p.currentVersion?.name ?? '', tagline: p.currentVersion?.shortDescription ?? '', imageUrl: p.currentVersion?.logoUrl ?? p.currentVersion?.coverUrl ?? null, maturity: p.currentVersion?.maturity ?? null, versionNumber: p.currentVersion?.number ?? 0, sealed: !!p.currentVersion?.sealedAt, confirmation: { versionId: p.currentVersion?.id ?? '', updatedAt: p.currentVersion?.updatedAt.toISOString() ?? '', teamUserIds: team.members.map((m) => m.userId) }, members: p._count.members, links: { video: p.currentVersion?.videoUrl ?? null, repositories: p.currentVersion?.githubRepos ?? [], liveApp: p.currentVersion?.websiteUrl ?? null, demos: p.currentVersion?.demoLinks ?? [] }, teamNames: team.members.map((m) => m.user.name), warnings: teamWarnings(team.members.map((m) => ({ name: m.user.name, registered: m.user._count.participations > 0 })), team._count.invites), submittedVersion: submittedTo(p.id), missing: p.currentVersion ? missingForSubmission(p.currentVersion, h.optionalProjectFields) : [] })
+          })}
           projectId={projectId}
           canCreate={!only}
+          optionalProjectFields={h.optionalProjectFields}
+          sponsorPrizes={h.sponsorPrizes}
+          initialSponsorPrizeIds={mine?.sponsorPrizeIds ?? []}
           tracks={h.tracks}
           chooseTracks={idx === 0 || !mine}
           initialTrackIds={mine?.trackIds ?? []}

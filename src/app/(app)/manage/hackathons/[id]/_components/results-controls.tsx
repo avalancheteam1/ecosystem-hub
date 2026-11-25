@@ -1,6 +1,6 @@
 'use client'
 
-import { setAward, setResultsPublished } from '@/app/(site)/events/_lib/hackathons/judging-actions'
+import { setAward, setPrizePublished, setResultsPublished } from '@/app/(site)/events/_lib/hackathons/judging-actions'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Button } from '@/components/ui/button'
 import { useActionToast } from '@/hooks/use-action-toast'
@@ -33,7 +33,12 @@ export function PublishResultsButton({ hackathonId, published }: { hackathonId: 
   const { pending, run } = useActionToast()
   return (
     <Button variant={published ? 'outline' : 'default'} disabled={pending} onClick={() => run(() => setResultsPublished({ hackathonId, published: !published }), published ? 'Results hidden' : 'Results are public')}>
-      {published ? 'Hide results' : 'Publish results'}
+      {published ? 'Hide all results' : 'Publish all awarded prizes'}
     </Button>
   )
+}
+
+export function PublishPrizeButton({ hackathonId, prizeId, published }: { hackathonId: string; prizeId: string; published: boolean }) {
+  const { pending, run } = useActionToast()
+  return <Button variant="outline" disabled={pending} onClick={() => run(() => setPrizePublished({ hackathonId, prizeId, published: !published }), published ? 'Prize hidden' : 'Prize winner published')}>{published ? 'Hide this winner' : 'Publish this winner'}</Button>
 }
