@@ -2,7 +2,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { prisma } from '@/lib/db'
+import { prisma, prismaDatabaseUrl } from '@/lib/db'
 import { writeAudit } from '@/lib/audit'
 import { ActionError, ForbiddenError } from '@/lib/action-error'
 import type { CurrentUser } from '@/lib/session'
@@ -40,7 +40,7 @@ async function projectAccess(tx: Prisma.TransactionClient, projectId: string, us
 }
 
 export async function confirmGrantPayoutDestination(input: z.infer<typeof payoutDestinationSchema>, user: CurrentUser) {
-  if (!syntheticPayoutEnabled()) throw new ActionError('Payout destination confirmation is unavailable.')
+  if (!syntheticPayoutEnabled(prismaDatabaseUrl)) throw new ActionError('Payout destination confirmation is unavailable.')
   const { applicationId, revision, awardId, address } = input
   const alreadyConfirmed = () => new ActionError('The test payout address is already confirmed and cannot be replaced.')
   try {

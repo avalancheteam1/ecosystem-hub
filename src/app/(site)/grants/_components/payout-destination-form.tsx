@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Field } from '@/components/field'
 import { Button } from '@/components/ui/button'
 import { NativeSelect } from '@/components/ui/native-select'
@@ -15,6 +15,7 @@ export function PayoutDestinationForm({ applicationId, revision, awardId }: {
   awardId: string
 }) {
   const id = useId()
+  const address = useRef<HTMLTextAreaElement>(null)
   const { pending, run } = useActionToast()
   const [issue, setIssue] = useState<{ field?: string; message: string } | null>(null)
 
@@ -24,7 +25,7 @@ export function PayoutDestinationForm({ applicationId, revision, awardId }: {
     const fields = new FormData(form)
     const parsed = payoutDestinationSchema.safeParse({
       applicationId, revision, awardId,
-      network: fields.get('network'), address: fields.get('address'), confirm: fields.has('confirm'),
+      network: fields.get('network'), address: address.current?.value, confirm: fields.has('confirm'),
     })
     if (!parsed.success) {
       const error = parsed.error.issues[0]
@@ -40,7 +41,7 @@ export function PayoutDestinationForm({ applicationId, revision, awardId }: {
   }
 
   return (
-    <form onSubmit={submit} noValidate className="max-w-lg space-y-4">
+    <form method="post" onSubmit={submit} noValidate className="max-w-lg space-y-4">
       <p className="text-sm text-fg-body">
         Use a synthetic address for the test token. You cannot change the address after confirmation.
       </p>
@@ -53,7 +54,8 @@ export function PayoutDestinationForm({ applicationId, revision, awardId }: {
         </NativeSelect>
       </Field>
       <Field id={`${id}-address`} label="Test payout address" required>
-        <Textarea id={`${id}-address`} name="address" autoComplete="off" autoCapitalize="off" spellCheck={false} rows={2}
+        {/* An unnamed control keeps the address out of native submissions before hydration. */}
+        <Textarea id={`${id}-address`} ref={address} autoComplete="off" autoCapitalize="off" spellCheck={false} rows={2}
           required disabled={pending} className="resize-none wrap-anywhere font-mono" aria-invalid={issue?.field === 'address'}
           aria-describedby={issue?.field === 'address' ? `${id}-error` : undefined} />
       </Field>

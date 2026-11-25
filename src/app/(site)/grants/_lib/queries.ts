@@ -1,7 +1,7 @@
 import 'server-only'
 import { Prisma } from '@prisma/client'
 import { notFound } from 'next/navigation'
-import { prisma } from '@/lib/db'
+import { prisma, prismaDatabaseUrl } from '@/lib/db'
 import { requirePermission, requireUser, denyAccess, denyContext } from '@/lib/guards'
 import { canEditProject, missingForSubmission, TEAM_ROLES } from '@/lib/project-submission'
 import { isFlagOn } from '@/lib/flag-store'
@@ -151,7 +151,7 @@ export async function readApplication(id: string, staff: boolean) {
 }
 
 export async function readPayoutDestination(id: string, staff: boolean) {
-  if (!syntheticPayoutEnabled()) return null
+  if (!syntheticPayoutEnabled(prismaDatabaseUrl)) return null
   const user = await requireUser()
   if (staff && (!can(user, 'grants.review') || !can(user, 'grants.payments'))) return null
   const row = await prisma.grantApplication.findFirst({
