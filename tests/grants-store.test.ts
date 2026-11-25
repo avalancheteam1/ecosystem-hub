@@ -238,6 +238,40 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
     }
   })
+  it('US-1 rolls back a continuous start when its create audit fails and records all three rows on retry', async () => {
+    const session = await import('@/lib/session')
+    const p = await project()
+    vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+    const create = () => actions.startApplication({ projectId: p.id })
+    const actorCreates = { actorId: builder.id, kind: 'create' }
+    const audit = { actorId: builder.id, action: 'grant.create', after: { path: ['projectId'], equals: p.id } }
+    const originalReceipts = await db.grantRevision.count({ where: actorCreates })
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      // Reject just this audit action on the isolated test database. Existing audit rows stay readable.
+      await db.$executeRaw`ALTER TABLE audit_logs ADD CONSTRAINT test_grant_create_audit CHECK (action <> 'grant.create') NOT VALID`
+      try {
+        expect.soft(await create()).toMatchObject({ ok: false })
+        expect.soft(await db.grantApplication.count({ where: { projectId: p.id } })).toBe(0)
+        expect.soft(await db.grantRevision.count({ where: actorCreates })).toBe(originalReceipts)
+        expect(await db.auditLog.count({ where: audit })).toBe(0)
+      } finally {
+        await db.$executeRaw`ALTER TABLE audit_logs DROP CONSTRAINT test_grant_create_audit`
+      }
+      const retry = await create()
+      if (!retry.ok) throw new Error(retry.error)
+      const { id } = retry.data
+      expect(await create()).toEqual(retry)
+      expect(await db.grantApplication.count({ where: { projectId: p.id } })).toBe(1)
+      expect(await db.grantRevision.findMany({ where: { applicationId: id } }))
+        .toMatchObject([{ ...actorCreates, number: 0, state: { status: 'draft' } }])
+      const audits = await db.auditLog.findMany({ where: audit })
+      expect(audits).toMatchObject([{ entityId: id, entityType: 'GrantApplication' }])
+      expect(audits[0].after).toEqual({ projectId: p.id, roundId: null, submitted: false, revision: 0 })
+    } finally {
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
   it('US-1 requires pinned demo proof only for continuous submissions and preserves the saved draft on refusal', async () => {
     const session = await import('@/lib/session')
     const { readApplication } = await import('@/app/(site)/grants/_lib/queries')
@@ -419,6 +453,52 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       vi.useRealTimers()
       await db.featureFlag.deleteMany({ where: { key: { in: ['miniGrantsIntake', 'miniGrantsReapplication'] } } })
     }
+  })
+  it('US-2 blocks new legacy starts after a continuous decline, missing receipt or active case with both flags off', async () => {
+    const session = await import('@/lib/session')
+    vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+    const declined = await project(), unverified = await project(), active = await project(), legacy = await project()
+    const legacyAnswers = { ...fields(), projectMilestoneId: legacy.milestoneId }
+    const saved = await store.createGrant(legacy.id, roundId, legacyAnswers, builder)
+    const oldReceipt = await declinedGrant(unverified, new Date(), null)
+    await db.grantRevision.deleteMany({ where: { applicationId: oldReceipt.id, kind: 'record_decision' } })
+    await db.featureFlag.createMany({ data: [{ key: 'miniGrantsIntake', enabled: true }, { key: 'miniGrantsReapplication', enabled: false }] })
+    try {
+      const { id } = await store.startGrant(declined.id, builder)
+      const planAnswers = { intakeVersion: 3 as const, amountMinor: 12500, summary: 'Synthetic prototype quickstart', milestones: [
+        { source: 'application' as const, title: 'Publish the quickstart', due: fields().terms.due, evidence: 'Independent replay verifies the output' },
+      ] }
+      await store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers }, builder)
+      await store.mutateGrant(id, 1, { kind: 'decline_application', rationale: 'Staff-only fixture', publicNote: 'The application was declined.' }, reviewer)
+      await store.startGrant(active.id, builder)
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
+
+      const create = (p: typeof declined, submit: boolean) => actions.createApplication({ projectId: p.id, roundId,
+        answers: { ...fields(), projectMilestoneId: p.milestoneId }, submit, confirm: submit })
+      expect.soft(await create(declined, false)).toMatchObject({ ok: false, error: expect.stringContaining('continuous Mini Grants') })
+      expect.soft(await create(unverified, true)).toMatchObject({ ok: false, error: expect.stringContaining('could not be verified') })
+      expect.soft(await create(active, false)).toMatchObject({ ok: false, error: expect.stringContaining('existing grant') })
+      expect(await db.grantApplication.count({ where: { projectId: { in: [declined.id, unverified.id, active.id] }, roundId } })).toBe(0)
+      expect(await db.grantRevision.findFirst({ where: { applicationId: id, number: 2 } }))
+        .toMatchObject({ kind: 'record_decision', state: { status: 'not_selected' } })
+      const edited = await store.mutateGrant(saved.id, 0, { kind: 'save_application', answers: legacyAnswers }, builder)
+      await expect(store.mutateGrant(saved.id, edited.revision, { kind: 'submit_application', confirm: true }, builder))
+        .resolves.toMatchObject({ id: saved.id, revision: 2 })
+    } finally {
+      await db.featureFlag.deleteMany({ where: { key: { in: ['miniGrantsIntake', 'miniGrantsReapplication'] } } })
+    }
+  })
+
+  it('US-2 blocks a new legacy round submission for an existing same-project award with both flags off', async () => {
+    const session = await import('@/lib/session')
+    vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+    const awarded = await acceptedGrant()
+    // Use a roundless historical award so the same-round uniqueness check cannot mask eligibility.
+    await db.grantApplication.update({ where: { id: awarded.id }, data: { roundId: null } })
+    const milestone = await db.projectMilestone.findFirstOrThrow({ where: { projectId: awarded.projectId } })
+    const input = { projectId: awarded.projectId, roundId, answers: { ...fields(), projectMilestoneId: milestone.id }, submit: true, confirm: true }
+    expect(await actions.createApplication(input)).toMatchObject({ ok: false, error: expect.stringContaining('existing grant') })
+    expect(await db.grantApplication.count({ where: { projectId: awarded.projectId } })).toBe(1)
   })
   it('Grants v1 US-3 validates one to three milestones and pins terms despite later roadmap changes', async () => {
     const session = await import('@/lib/session')

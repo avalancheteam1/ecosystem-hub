@@ -10,16 +10,7 @@ import { createGrant, mutateGrant, startGrant } from './store'
 
 export const startApplication = action({ schema: startSchema, permission: 'user' }, async ({ projectId }, user) => {
   const { id, created } = await startGrant(projectId, user)
-  if (created) {
-    await recordAudit({
-      actorId: user.id,
-      action: 'grant.create',
-      entityType: 'GrantApplication',
-      entityId: id,
-      after: { projectId, roundId: null, submitted: false, revision: 0 },
-    })
-    revalidatePath('/grants/applications')
-  }
+  if (created) revalidatePath('/grants/applications')
   return { id }
 })
 

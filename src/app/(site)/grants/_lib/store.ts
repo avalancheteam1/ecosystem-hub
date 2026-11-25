@@ -152,6 +152,13 @@ export async function startGrant(projectId: string, user: CurrentUser) {
         }
         const state = initialState({ intakeVersion: 3, amountMinor: null, summary: '', milestones: [] })
         const row = await insertGrant(tx, projectId, project.currentVersionId, null, state, user.id)
+        await writeAudit(tx, {
+          actorId: user.id,
+          action: 'grant.create',
+          entityType: 'GrantApplication',
+          entityId: row.id,
+          after: { projectId, roundId: null, submitted: false, revision: 0 },
+        })
         return { id: row.id, created: true }
       })
     } catch (error) {
@@ -170,9 +177,9 @@ export async function createGrant(projectId: string, roundId: string, answers: E
     if (!project?.currentVersionId || project.archivedAt) throw new ActionError('Choose an active project with a saved version')
     if (await grantFlagOn(tx, 'miniGrantsIntake')) throw new ActionError('Start a new application through continuous Mini Grants intake.')
     const history = await grantIntakeHistory(tx, projectId)
-    if (history.active.some(({ roundId }) => roundId === null)) throw new ActionError(existingGrant)
-    if (await grantFlagOn(tx, 'miniGrantsReapplication') && (history.latest || history.unverified || history.award))
-      throw new ActionError('Reapplication for this project uses continuous Mini Grants intake.')
+    if (history.award || history.active.some(({ roundId }) => roundId === null)) throw new ActionError(existingGrant)
+    if (history.unverified) throw new ActionError(priorDecisionUnverified)
+    if (history.latest) throw new ActionError('Reapplication for this project uses continuous Mini Grants intake.')
     const round = await tx.grantRound.findFirst({ where: { id: roundId, published: true }, select: { id: true } })
     if (!round) throw new ActionError(roundNotAccepting)
     const initial = initialState(await resolveMilestone(tx, projectId, answers, submit))
