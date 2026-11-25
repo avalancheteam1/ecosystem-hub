@@ -3,9 +3,9 @@ import type { Prisma } from '@prisma/client'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { Permission } from '@/lib/permissions'
 import type { CurrentUser } from '@/lib/session'
-import { initialState, transition } from '@/app/(site)/grants/_lib/rules'
-import { clearanceIds, criterionIds, draftAnswers, shortSubmission } from '@/app/(site)/grants/_lib/schemas'
-import { parseReviewQueue } from '@/app/(site)/grants/_lib/review-queue'
+import { initialState, planAwardScope, transition } from '@/app/(site)/grants/_lib/rules'
+import { clearanceIds, criterionIds, draftAnswers, planSubmission, shortSubmission, type GrantState } from '@/app/(site)/grants/_lib/schemas'
+import { parseReviewQueue, type ReviewQueueAction } from '@/app/(site)/grants/_lib/review-queue'
 
 const database = process.env.GRANTS_TEST_DATABASE_URL
 if (database) {
@@ -92,7 +92,7 @@ describe.skipIf(!database)('US-5 AC8 review queue on isolated Postgres', () => {
   afterAll(async () => {
     if (!db) return
     await db.$transaction([
-      db.grantApplication.deleteMany({ where: { roundId } }),
+      db.grantApplication.deleteMany({ where: { project: { ownerId } } }),
       db.grantRound.deleteMany({ where: { id: roundId } }),
       db.project.deleteMany({ where: { ownerId } }),
       db.user.deleteMany({ where: { id: { in: [reviewer.id, ownerId] } } }),
@@ -184,5 +184,83 @@ describe.skipIf(!database)('US-5 AC8 review queue on isolated Postgres', () => {
     const result = await read({ ...query, action: 'operations' })
     expect(result.rows).toMatchObject([{ id: oldId }])
     expect(JSON.stringify(result)).not.toContain('Private budget reference')
+  })
+
+  it('filters older roundless plans by their latest pinned milestone attempts before pagination', async () => {
+    getAuthState.mockResolvedValue({ status: 'signed-in', user: reviewer })
+    const planAnswers = planSubmission.parse({
+      intakeVersion: 3, amountMinor: terms.amountMinor, summary: 'Ship two synthetic deliverables',
+      milestones: ['Quickstart', 'Replay'].map((title) => ({ source: 'application', title, due: terms.due, evidence: terms.acceptance })),
+    })
+    const submittedPlan = apply(initialState(planAnswers), { kind: 'submit_application', confirm: true, planAnswers })
+    if (submittedPlan.version !== 4) throw new Error('Expected a v4 milestone plan')
+    const plan = submittedPlan.applications[0]
+    const [first, second] = plan.answers.milestones
+    const planId = plan.id
+    const query = { q: `${prefix.toUpperCase()} synthetic`, page: 1 }
+    const persist = (state: GrantState) => db.grantApplication.update({
+      where: { id: oldId },
+      data: { state: state as Prisma.InputJsonValue, status: state.status, roundId: null, updatedAt: new Date(date.getTime() - 1) },
+    })
+    const expectLane = async (state: GrantState, action: ReviewQueueAction) => {
+      await persist(state)
+      expect((await read({ q: `${query.q} Waiting`, page: 1, action })).rows)
+        .toMatchObject([{ id: oldId, nextAction: action, round: null }])
+    }
+
+    // A newer roundless application remains unapproved and must never fill the verification lane.
+    const otherId = `${prefix}-00`
+    const otherPlan = transition(initialState(planAnswers), { kind: 'submit_application', confirm: true, planAnswers },
+      { id: randomUUID(), actorId: ownerId, now: date.toISOString(), projectVersionId: otherId })
+    await db.grantApplication.update({ where: { id: otherId }, data: { roundId: null, state: otherPlan as Prisma.InputJsonValue } })
+    await expectLane(submittedPlan, 'review')
+    const approved = apply(submittedPlan, { kind: 'clear_milestone', confirm: true, planId })
+
+    const deliver = (milestoneId: string, previousAttemptId: string | null = null) => ({
+      kind: 'submit_delivery', planId, milestoneId, previousAttemptId,
+      release: 'https://example.test/release', reproduction: 'https://example.test/demo', note: 'Synthetic evidence',
+    } as const)
+    const inspect = (milestoneId: string, deliveryId: string, outcome: 'accepted' | 'changes_requested') => ({
+      kind: 'review_delivery', planId, milestoneId, deliveryId, outcome, inspected: true, reproduced: true, matches: true,
+      note: 'Private synthetic proof review', evidence: 'Synthetic inspection',
+    } as const)
+    const mixed = apply(approved, deliver(first.milestoneId))
+    await persist(mixed)
+    expect((await read(query)).rows.some(({ id }) => id === oldId)).toBe(false)
+    expect((await read({ ...query, page: 2 })).rows).toContainEqual(expect.objectContaining({ id: oldId, round: null }))
+    const filtered = await read({ ...query, action: 'verification' })
+    expect(filtered.rows.map(({ id }) => id)).toEqual([oldId])
+    expect(filtered.hasMore).toBe(false)
+    expect((await read({ ...query, action: 'applicant' })).rows).toHaveLength(0)
+    await expectLane(approved, 'applicant')
+
+    const openRequest = apply(mixed, { kind: 'request_evidence', title: 'Explain the result', body: 'Private synthetic note' })
+    await expectLane(openRequest, 'applicant')
+    await expectLane({ ...openRequest, closedAt: date.toISOString() }, 'inactive')
+
+    const firstAttempt = mixed.deliveries[0]
+    const returned = apply(mixed, inspect(first.milestoneId, firstAttempt.id, 'changes_requested'))
+    await expectLane(returned, 'applicant')
+    const resubmitted = apply(returned, deliver(first.milestoneId, firstAttempt.id))
+    await expectLane(resubmitted, 'verification')
+    const firstAccepted = apply(resubmitted, inspect(first.milestoneId, resubmitted.deliveries.at(-1)!.id, 'accepted'))
+    if (firstAccepted.version !== 4) throw new Error('Expected v4 delivery attempts')
+    const foreignAttempt = { ...firstAccepted.deliveries[0], id: randomUUID(), planId: randomUUID(), state: 'submitted', review: null } as const
+    await expectLane({ ...firstAccepted, deliveries: [...firstAccepted.deliveries, foreignAttempt] }, 'applicant')
+
+    const bothDelivered = apply(firstAccepted, deliver(second.milestoneId))
+    const bothAccepted = apply(bothDelivered, inspect(second.milestoneId, bothDelivered.deliveries.at(-1)!.id, 'accepted'))
+    if (bothAccepted.version !== 4) throw new Error('Expected v4 delivery attempts')
+    await expectLane({ ...bothAccepted, deliveries: [...bothAccepted.deliveries, foreignAttempt] }, 'decision')
+    expect(JSON.stringify(await read({ ...query, action: 'decision' }))).not.toContain('Private synthetic proof review')
+
+    const assessment = structuredClone(bothAccepted.assessment)
+    for (const id of criterionIds) assessment.criteria[id] = { score: '2', basis: 'E', source: 'Synthetic evidence', rationale: 'Supported scope' }
+    for (const id of clearanceIds) assessment.clearances[id] = { state: 'pass', evidence: 'Verified synthetic readiness' }
+    const assessed = apply(bothAccepted, { kind: 'save_assessment', assessment })
+    await expectLane(apply(assessed, {
+      kind: 'record_decision', outcome: 'approved', terms: { ...terms, ...planAwardScope(plan.answers.milestones) },
+      rationale: 'Supported', publicNote: 'Agreed', ownerId: reviewer.id, budget: 'Synthetic budget', authority: 'Synthetic committee',
+    }), 'operations')
   })
 })

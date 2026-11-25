@@ -18,6 +18,34 @@ type QueueRecord = {
   state: unknown
 }
 
+// Match milestonePlan and the pinned version guard. Ordinality preserves the append order when
+// attempts share a timestamp. A milestone with no attempt still counts towards completion.
+const milestonePlanAction = Prisma.sql`(
+  SELECT CASE
+    WHEN g.state #>> '{planApproval,planId}' = pinned.plan->>'id'
+      AND g.state #>> '{planApproval,projectVersionId}' = g."projectVersionId"
+      AND pinned.plan->>'projectVersionId' = g."projectVersionId"
+    THEN (
+      SELECT CASE
+        WHEN bool_or(latest.state = 'submitted') THEN 'verification'
+        WHEN bool_and(COALESCE(latest.state = 'accepted', false)) THEN 'decision'
+        ELSE 'applicant'
+      END
+      FROM jsonb_array_elements(pinned.plan #> '{answers,milestones}') AS item(milestone)
+      LEFT JOIN LATERAL (
+        SELECT attempt.delivery->>'state' AS state
+        FROM jsonb_array_elements(g.state->'deliveries') WITH ORDINALITY AS attempt(delivery, position)
+        WHERE attempt.delivery->>'planId' = pinned.plan->>'id'
+          AND attempt.delivery->>'milestoneId' = item.milestone->>'milestoneId'
+        ORDER BY attempt.position DESC
+        LIMIT 1
+      ) latest ON true
+    )
+    ELSE 'review'
+  END
+  FROM (SELECT g.state->'applications'->-1 AS plan) pinned
+)`
+
 // These lanes describe the current workflow, independent of the viewer's write permissions.
 // Extend this classification and its persisted transition tests together as the lifecycle changes.
 // A published recommendation alone does not make a case ready for a decision.
@@ -25,13 +53,14 @@ const nextAction = Prisma.sql`CASE
   WHEN g.state->>'closedAt' IS NOT NULL OR g.status IN ('deferred', 'not_selected', 'withdrawn') THEN 'inactive'
   WHEN g.status = 'submitted' THEN CASE
     WHEN jsonb_path_exists(g.state, '$.requests[*] ? (@.answeredAt == null)') THEN 'applicant'
+    WHEN g.state->>'version' = '4' THEN ${milestonePlanAction}
     WHEN g.state->>'version' <> '3' OR g.state->>'milestoneClearance' IS NULL THEN 'review'
     WHEN g.state->'deliveries'->-1->>'state' = 'submitted' THEN 'verification'
     WHEN g.state->'deliveries'->-1->>'state' = 'accepted' THEN 'decision'
     ELSE 'applicant'
   END
   WHEN g.status = 'approved' THEN CASE
-    WHEN g.state->>'version' = '3' THEN 'operations'
+    WHEN g.state->>'version' IN ('3', '4') THEN 'operations'
     WHEN NOT jsonb_path_exists(g.state, '$.terms[*] ? (@.confirmedAt != null)') THEN 'applicant'
     WHEN jsonb_path_exists(g.state, '$.amendments[*] ? (@.state == "approved" || @.state == "changes_requested")') THEN 'applicant'
     WHEN jsonb_path_exists(g.state, '$.amendments[*] ? (@.state == "submitted")') THEN 'review'
