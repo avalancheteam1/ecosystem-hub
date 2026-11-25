@@ -39,7 +39,8 @@ export const createApplication = action({ schema: createSchema, permission: 'use
 
 export const changeApplication = action({ schema: mutationSchema, permission: 'user' }, async (input, user) => {
   const result = await mutateGrant(input.applicationId, input.revision, input.command, user)
-  await recordAudit({
+  // Issue award writes its audit entry in the same transaction as the award.
+  if (input.command.kind !== 'issue_award') await recordAudit({
     actorId: user.id,
     action: `grant.${input.command.kind}`,
     entityType: 'GrantApplication',
@@ -47,6 +48,8 @@ export const changeApplication = action({ schema: mutationSchema, permission: 'u
     before: { revision: input.revision },
     after: {
       revision: result.revision,
+      ...(input.command.kind === 'hold_application' ? { outcome: 'deferred' } : {}),
+      ...(input.command.kind === 'decline_application' ? { outcome: 'not_selected' } : {}),
       ...(input.command.kind === 'release_review_status' ? { applicantStatus: input.command.status } : {}),
       ...('planId' in input.command && input.command.planId ? { planId: input.command.planId } : {}),
       ...('milestoneId' in input.command && input.command.milestoneId ? { milestoneId: input.command.milestoneId } : {}),

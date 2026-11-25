@@ -1,13 +1,15 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '@prisma/client'
+import { z } from 'zod'
 import { prisma } from '@/lib/db'
+import { writeAudit } from '@/lib/audit'
 import { ActionError, ForbiddenError } from '@/lib/action-error'
 import type { CurrentUser } from '@/lib/session'
 import { FLAGS, type Flag } from '@/lib/flags'
 import { recordProjectActivity, type ProjectActivityEvent } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
-import { continuousIntakePaused, hasDemoProof, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, type IntakeAnswers, type PlanIntake, type Command, type GrantState } from './schemas'
+import { continuousIntakePaused, hasDemoProof, id, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState } from './schemas'
 import { milestoneFirstEnabled, shortIntakeEnabled } from './config'
 import { assertReviewer } from './staff'
 import { commandPermission, initialState, mayCommand, transition } from './rules'
@@ -194,7 +196,23 @@ export async function createGrant(projectId: string, roundId: string, answers: E
   })
 }
 
-export async function mutateGrant(applicationId: string, revision: number, command: Command, user: CurrentUser) {
+const awardAuthorizationSchema = z.object({
+  applicationId: id, revision: z.number().int().nonnegative(), planId: id, actorId: id,
+  budget: text.max(2000), authority: text, terms,
+})
+const planActivity: Partial<Record<Command['kind'], ProjectActivityEvent>> = {
+  clear_milestone: 'grant_plan_approved',
+  submit_delivery: 'grant_evidence_submitted',
+  hold_application: 'grant_held',
+  decline_application: 'grant_declined',
+  reopen_application: 'grant_reopened',
+  issue_award: 'grant_award_issued',
+}
+
+// Only a server-side caller can supply authorization. The public action has no
+// approved source for it yet. Bind any receipt to the exact assessed case.
+export async function mutateGrant(applicationId: string, revision: number, command: Command, user: CurrentUser,
+  authorization?: z.input<typeof awardAuthorizationSchema>) {
   try {
     return await transaction(async (tx) => {
       const row = await tx.grantApplication.findUnique({
@@ -247,7 +265,14 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       const effectiveCommand = command.kind === 'save_application'
         ? { ...command, answers: await resolveMilestone(tx, row.projectId, command.answers, false) }
         : command
-      const next = transition(state, effectiveCommand, { id: randomUUID(), actorId: user.id, now: now.toISOString(), projectVersionId, milestoneFirst: milestoneFirstEnabled() })
+      const approval = command.kind === 'issue_award' && state.version === 4
+        ? awardAuthorizationSchema.safeParse(authorization).data : undefined
+      const awardAuthorization = approval?.applicationId === row.id && approval.revision === row.revision &&
+        approval.planId === state.applications.at(-1)?.id && approval.actorId === user.id ? approval : undefined
+      const eventId = randomUUID()
+      const next = transition(state, effectiveCommand, {
+        id: eventId, actorId: user.id, now: now.toISOString(), projectVersionId, milestoneFirst: milestoneFirstEnabled(), awardAuthorization,
+      })
       if (previousScope && !hasChangedRoadmapScope(previousScope.milestones, next.answers) &&
         !hasChangedDemo(previousScope.demoLinks, await demoLinksForVersion(tx, row.projectId, projectVersionId)))
         throw new ActionError(missingScopeChange)
@@ -261,15 +286,18 @@ export async function mutateGrant(applicationId: string, revision: number, comma
         data: { state: json(next), status: next.status, projectVersionId, revision: { increment: 1 } },
       })
       if (result.count !== 1) throw conflict()
+      // Reapplication reads this immutable decision kind and its resulting status.
+      const kind = command.kind === 'hold_application' || command.kind === 'decline_application' ? 'record_decision' : command.kind
       await tx.grantRevision.create({
-        data: { applicationId, number: revision + 1, actorId: user.id, kind: command.kind, state: json(next) },
+        data: { applicationId, number: revision + 1, actorId: user.id, kind, state: json(next) },
       })
-      const event: ProjectActivityEvent | null = continuous && command.kind === 'submit_application' ? 'submitted'
-        : next.version !== 4 ? null
-          : command.kind === 'clear_milestone' ? 'grant_plan_approved'
-            : command.kind === 'submit_delivery' ? 'grant_evidence_submitted'
-              : command.kind === 'review_delivery' ? (command.outcome === 'accepted' ? 'grant_milestone_verified' : 'grant_evidence_returned')
-                : null
+      if (command.kind === 'issue_award') await writeAudit(tx, {
+        actorId: user.id, action: 'grant.issue_award', entityType: 'GrantApplication', entityId: applicationId,
+        before: { revision }, after: { revision: revision + 1, decisionId: eventId, planId: awardAuthorization?.planId },
+      })
+      const event = continuous && command.kind === 'submit_application' ? 'submitted' : next.version !== 4 ? undefined
+        : command.kind === 'review_delivery' ? command.outcome === 'accepted' ? 'grant_milestone_verified' : 'grant_evidence_returned'
+          : planActivity[command.kind]
       if (event) {
         await recordProjectActivity(tx, [{
           projectId: row.projectId, versionId: projectVersionId, program: 'grants',

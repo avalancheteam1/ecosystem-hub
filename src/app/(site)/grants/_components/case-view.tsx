@@ -7,9 +7,10 @@ import { EmptyState } from '@/components/empty-state'
 import { StatusPill } from '@/components/status-pill'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { ProjectVersionView } from '@/components/project-version-view'
+import { Button } from '@/components/ui/button'
 import type { readApplication } from '../_lib/queries'
-import { activeTerms, addDays, applicationStatus, applicationStatusCopy, deliveryAcceptedAt, milestonePlan, planAwardScope, readiness, score, statusLabel, totals } from '../_lib/rules'
-import { reviewStatus, type Command, type Terms } from '../_lib/schemas'
+import { activeTerms, addDays, applicationStatus, applicationStatusCopy, applicationStatusText, clearanceNames, criterionNames, deliveryAcceptedAt, milestonePlan, readiness, score, statusLabel, totals } from '../_lib/rules'
+import { clearanceIds, criterionIds, reviewStatus, type Command, type Terms } from '../_lib/schemas'
 import { GrantCommandForm, type GrantField, type GrantRepeater } from './command-form'
 import { applicationFields, assessmentFields, costRepeater, metricRepeater, options, termsFields } from './fields'
 import { shortIntakeEnabled } from '../_lib/config'
@@ -63,6 +64,9 @@ const recentActivityLabels = new Map([
   ['submit_delivery', 'Milestone evidence submitted'],
   ['review_delivery', 'Milestone evidence reviewed'],
   ['record_decision', 'Decision recorded'],
+  ['hold_application', 'Application put on hold'],
+  ['decline_application', 'Application declined'],
+  ['issue_award', 'Award issued'],
   ['confirm_terms', 'Terms confirmed'],
   ['report_payment', 'Payment reported'],
   ['reconcile_payment', 'Payment status updated'],
@@ -91,6 +95,7 @@ export function GrantCaseView({
     capabilities = data.staff ? data.capabilities : null
   const short = s.answers.intakeVersion === 2 ? s.answers : null
   const planAnswers = s.answers.intakeVersion === 3 ? s.answers : null
+  const committee = planAnswers !== null
   const originalApplication = !data.staff && planAnswers ? s.applications[0] : null
   const submittedPlan = originalApplication?.answers.intakeVersion === 3 ? originalApplication.answers : null
   const shortAnswers = short ?? planAnswers
@@ -153,7 +158,7 @@ export function GrantCaseView({
       : data.state.totals
   const ownerField: GrantField = { path: 'ownerId', label: 'Action owner', type: 'select', options: data.staff ? data.owners : [] }
   const publicStatus = data.staff ? applicationStatus(data.state) : data.state.applicantStatus
-  const statusCopy = applicationStatusCopy[publicStatus.status]
+  const statusCopy = applicationStatusText(publicStatus.status, committee)
   const maturity = PROJECT_MATURITY[data.projectVersion.maturity as ProjectMaturity]
   const workflowLabel = milestoneStage ?? statusLabel(s, data.staff)
   const workflowTone = s.closedAt
@@ -187,10 +192,11 @@ export function GrantCaseView({
       roadmaps={!data.staff && kind === 'save_application' ? [{ id: data.projectId, slug: data.projectSlug, milestones: data.milestones }] : undefined}
       roundOpen={data.roundOpen}
       triggerAriaLabel={triggerAriaLabel}
+      plainAssessment={committee && kind === 'save_assessment'}
       recoverUnknownResult={(applicantOverview && (kind === 'answer_request' || kind === 'confirm_terms')) ||
         (!data.staff && milestoneFirst && kind === 'submit_delivery') ||
-        (data.staff && milestoneFirst && kind === 'record_decision')}
-      secondaryTrigger={kind === 'withdraw_application' || (staffMilestoneDecision && kind === 'record_decision')}
+        (data.staff && milestoneFirst && ['record_decision', 'hold_application', 'decline_application'].includes(kind))}
+      secondaryTrigger={['withdraw_application', 'hold_application', 'decline_application'].includes(kind) || (staffMilestoneDecision && kind === 'record_decision')}
       outcomeSubmitLabels={staffMilestoneDecision && kind === 'record_decision'
         ? { not_selected: 'Record rejection', deferred: 'Defer application' } : undefined}
     />
@@ -364,7 +370,7 @@ export function GrantCaseView({
     const award = s.status === 'approved' ? active ?? t : undefined
     const pendingAward = !milestoneFirst && award && !award.confirmedAt && !s.closedAt
     const decision = s.decisions.findLast((item) => item.outcome === s.status)
-    const statusDetail = s.status === 'deferred'
+    const statusDetail = committee ? statusCopy.detail : s.status === 'deferred'
       ? 'The grant team put the decision on hold.'
       : s.status === 'not_selected' ? 'This application was not selected.' : statusCopy.detail
     const pendingAmendment = s.amendments.findLast((item) => ['submitted', 'changes_requested', 'approved'].includes(item.state))
@@ -435,10 +441,14 @@ export function GrantCaseView({
             </div>
           )}
           {milestoneFirst && (plan ? planVerified : delivery?.state === 'accepted') && s.status === 'submitted' &&
-            <p className="text-fg-muted">The grant team verified the evidence. A separate award decision is pending.</p>}
-          {!publicStatus.updateRequested && !nextAction && <p>No action is needed right now.</p>}
+            <p className="text-fg-muted">{committee ? 'Your milestones are verified. The Grants Committee will review the award separately.'
+              : 'The grant team verified the evidence. A separate award decision is pending.'}</p>}
+          {!publicStatus.updateRequested && !nextAction && !(committee && ['deferred', 'not_selected'].includes(s.status)) && <p>No action is needed right now.</p>}
           {s.closedAt && <p className="text-fg-muted">This grant is complete.</p>}
           {decision?.publicNote && <p className="wrap-anywhere whitespace-pre-wrap">{decision.publicNote}</p>}
+          {decision && 'nextStep' in decision && decision.nextStep && (
+            <div><p className="font-medium">Next step</p><p className="wrap-anywhere whitespace-pre-wrap">{decision.nextStep}</p></div>
+          )}
           {award && !milestoneFirst && <ApplicantReceipt key={award.number} recorded={!!award.confirmedAt}>Award confirmation recorded</ApplicantReceipt>}
         </SectionCard>
         {(requests.length > 0 || nextAction) && <SectionCard title={publicStatus.updateRequested || nextAction ? 'What happens next' : 'Saved responses'} className="space-y-4">
@@ -585,6 +595,16 @@ export function GrantCaseView({
   if ((tab === 'Evaluation' || oneCase) && internal) {
     const result = score(internal.assessment),
       holds = readiness(internal, requestedRoute)
+    const holdMessages = committee ? holds.map((message) => {
+      const [key, detail] = message.split(': ')
+      const criterion = criterionNames[criterionIds.findIndex((id) => id === key)]
+      const check = key === 'eligibility' ? 'Eligibility' : clearanceNames[clearanceIds.findIndex((id) => id === key)]
+      if (detail === 'source and rationale required') return `Add evidence and explain the score for ${criterion}.`
+      if (detail === 'at least 2E required') return `Record an evidence-supported score of at least 2 for ${criterion}.`
+      if (detail === 'zero score') return `Review the zero score for ${criterion}.`
+      if (detail === 'unresolved readiness') return `Record the check and evidence for ${check}.`
+      return message
+    }) : holds
     const assessment = (
       <div className="grid gap-10 xl:grid-cols-[0.9fr_1.1fr]">
         <section className="space-y-5">
@@ -595,36 +615,35 @@ export function GrantCaseView({
           </Link>
           <dl className="grid grid-cols-3 gap-3 border-y border-line py-4 text-sm">
             <div>
-              <dt>Provisional</dt>
-              <dd className="mt-1 text-xl">{result.total === null ? 'ND' : `${result.total.toFixed(1)} / 3`}</dd>
+              <dt>{committee ? 'Overall score' : 'Provisional'}</dt>
+              <dd className="mt-1 text-xl">{result.total === null ? committee ? 'Pending' : 'ND' : `${result.total.toFixed(1)} / 3`}</dd>
             </div>
             <div>
-              <dt>Evidence bounds</dt>
+              <dt>{committee ? 'Score range' : 'Evidence bounds'}</dt>
               <dd className="mt-1 text-xl">
                 {result.lower.toFixed(1)}-{result.upper.toFixed(1)}
               </dd>
             </div>
             <div>
-              <dt>E coverage</dt>
+              <dt>{committee ? 'Evidence coverage' : 'E coverage'}</dt>
               <dd className="mt-1 text-xl">{result.coverage}%</dd>
             </div>
           </dl>
           {holds.length > 0 && (
             <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-              <h3>Funding holds</h3>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                {holds.map((h) => (
-                  <li key={h}>{h}</li>
-                ))}
-              </ul>
+              <details open={!committee}>
+                <summary className="min-h-11 cursor-pointer py-3">{committee ? `Checks to resolve (${holds.length})` : 'Funding holds'}</summary>
+                <ul className="list-disc space-y-1 pl-5">{holdMessages.map((message) => <li key={message}>{message}</li>)}</ul>
+              </details>
             </div>
           )}
           {!oneCase && requestEvidence()}
         </section>
         <section>
-          <h2 className="mb-5 text-lg">Evaluation</h2>
+          <h2 className="mb-5 text-lg">{committee ? 'Assessment' : 'Evaluation'}</h2>
           <p className="mb-5 text-xs text-fg-muted">
-            Internal framework v2.0 proposal. E is evidence-supported; S is stated. ND is unassessed. Scores never grant funding authority.
+            {committee ? 'Open each criterion to record your score, evidence and reasoning using the Hub’s v2.0 rubric.'
+              : 'Internal framework v2.0 proposal. E is evidence-supported; S is stated. ND is unassessed. Scores never grant funding authority.'}
           </p>
           {capabilities?.review && s.status === 'submitted' ? (
             form(
@@ -633,7 +652,7 @@ export function GrantCaseView({
               {
                 assessment: internal.assessment,
               },
-              assessmentFields,
+              assessmentFields(committee),
             )
           ) : (
             <p>Assessment is read-only for this state or account.</p>
@@ -665,7 +684,7 @@ export function GrantCaseView({
   if (tab === 'Decision' && data.staff && (data.state.version === 3 || data.state.version === 4)) {
     const state = data.state
     const milestone = short?.milestone
-    const awardScope = plan ? planAwardScope(plan.milestones) : milestone && { title: milestone.title, due: milestone.due, acceptance: milestone.evidence }
+    const awardScope = milestone && { title: milestone.title, due: milestone.due, acceptance: milestone.evidence }
     const lastDecision = state.decisions.at(-1)
     const verified = plan ? planVerified : state.version === 3 && !!state.milestoneClearance && lastDelivery?.state === 'accepted'
     const openRequest = state.requests.some((request) => !request.answeredAt)
@@ -681,13 +700,13 @@ export function GrantCaseView({
       title: !oneCase ? 'Milestone verification required' : !clearedAt ? (plan ? 'Review the pinned plan' : 'Allow evidence submission')
         : (plan ? planPendingReview : lastDelivery?.state === 'submitted') ? 'Review submitted evidence'
           : lastDelivery?.state === 'changes_requested' ? 'Waiting for revised evidence' : 'Waiting for milestone evidence',
-      detail: !clearedAt ? (plan ? 'Staff with grant decision access can approve this plan for delivery.' : 'Staff with grant decision access must clear the pinned milestone.')
+      detail: !clearedAt ? (plan ? 'Review the submitted plan. Approval lets the applicant submit evidence for each milestone.' : 'Staff with grant decision access must clear the pinned milestone.')
         : (plan ? planPendingReview : lastDelivery?.state === 'submitted') ? 'The milestone verifier must review the submitted evidence.'
           : oneCase && lastDelivery?.state === 'changes_requested' ? 'The applicant needs to revise and resubmit their evidence.'
             : 'The applicant needs to submit the milestone evidence for the verifier.',
       tab: clearedAt ? 'Delivery' : undefined, link: oneCase ? 'Go to evidence' : 'Open delivery',
     } : assessmentHolds.length ? {
-      title: 'Assessment required', detail: 'The grant reviewer must address the readiness checks before the decision owner can issue.',
+      title: 'Assessment required', detail: committee ? 'Complete the assessment and resolve the readiness checks.' : 'The grant reviewer must address the readiness checks before the decision owner can issue.',
       tab: 'Evaluation', link: oneCase ? 'Go to assessment' : 'Open evaluation',
     } : !decide ? {
       title: 'Decision access required', detail: 'Staff with grant decision access can record an outcome.',
@@ -704,7 +723,7 @@ export function GrantCaseView({
             <p>{hold.detail}</p>
             {plan && !clearedAt && planCommitments}
             {hold.tab && <HoldLink href={staffSectionHref(hold.tab)} className={actionClass}>{hold.link}</HoldLink>}
-            {!oneCase && hold.tab === 'Evaluation' && (
+            {!committee && !oneCase && hold.tab === 'Evaluation' && (
               <details className="rounded-lg border border-line px-3">
                 <summary className="min-h-11 cursor-pointer py-3">Readiness checks</summary>
                 <ul className="list-disc space-y-2 pb-3 pl-5">{assessmentHolds.map((reason) => <li key={reason}>{reason}</li>)}</ul>
@@ -727,11 +746,13 @@ export function GrantCaseView({
                 <dl className="grid gap-3 sm:grid-cols-2">
                   {[
                     ['Decision owner', data.owners.find((owner) => owner.value === lastDecision.ownerId)?.label ?? 'Unavailable'],
-                    ['Funding route', award.route === 'bounded_pilot' ? 'Bounded pilot' : 'Established impact'],
-                    ['Budget authorization reference', lastDecision.budget],
-                    ['Approval reference', lastDecision.authority],
+                    ...(!committee && 'budget' in lastDecision ? [
+                      ['Funding route', award.route === 'bounded_pilot' ? 'Bounded pilot' : 'Established impact'],
+                      ['Budget authorization reference', lastDecision.budget],
+                      ['Approval reference', lastDecision.authority],
+                    ] : []),
                     ['Staff-only reason', lastDecision.rationale],
-                    ...(award.route === 'bounded_pilot' ? [['Pilot hypothesis', award.hypothesis], ['Pilot limits', award.limits]] : []),
+                    ...(!committee && award.route === 'bounded_pilot' ? [['Pilot hypothesis', award.hypothesis], ['Pilot limits', award.limits]] : []),
                   ].map(([label, value]) => (
                     <div key={label}><dt className="text-sm text-fg-muted">{label}</dt><dd className="wrap-anywhere whitespace-pre-wrap">{value}</dd></div>
                   ))}
@@ -750,7 +771,14 @@ export function GrantCaseView({
           </SectionCard>
         )}
         {!oneCase && plan && <SectionCard title="Pinned milestone plan">{planCommitments}</SectionCard>}
-        {canEnterAward && awardScope && (
+        {committee && canEnterAward && (
+          <SectionCard title="Award decision" className="space-y-3">
+            <p>The milestone plan is verified. Award issuance is unavailable until the Grants Committee and Finance confirm the approval process.</p>
+            {requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
+            <Button type="button" disabled>Issue award</Button>
+          </SectionCard>
+        )}
+        {!committee && canEnterAward && awardScope && (
           <SectionCard title="Award decision">
             <StaffAwardForm key={`${data.id}:${data.revision}`} applicationId={data.id} revision={data.revision}
               milestone={awardScope}
@@ -758,7 +786,23 @@ export function GrantCaseView({
               owners={data.owners} evaluationHref={staffSectionHref('Evaluation')} establishedHolds={readiness(state, 'established_impact')} />
           </SectionCard>
         )}
-        {decide && awaitingDecision && form(
+        {committee && decide && awaitingDecision && (
+          <SectionCard title="Grants Committee decision" className="space-y-3">
+            <p>Hold pauses review and keeps the case open. Decline closes this application and shares your feedback with the applicant.</p>
+            <div className="flex flex-wrap gap-3">
+              {form('hold_application', 'Hold', { publicNote: '', nextStep: '', rationale: '' }, [
+                { path: 'publicNote', label: 'Reason shared with the applicant', type: 'textarea' },
+                { path: 'nextStep', label: 'Next step for the applicant', type: 'textarea' },
+                { path: 'rationale', label: 'Staff-only reason', type: 'textarea' },
+              ], true)}
+              {form('decline_application', 'Decline', { publicNote: '', rationale: '' }, [
+                { path: 'publicNote', label: 'Feedback shared with the applicant', type: 'textarea' },
+                { path: 'rationale', label: 'Staff-only reason', type: 'textarea' },
+              ], true)}
+            </div>
+          </SectionCard>
+        )}
+        {!committee && decide && awaitingDecision && form(
           'record_decision', 'Reject or defer',
           { outcome: '', ownerId: data.userId, terms: null, authority: '', budget: '', rationale: '', publicNote: '' },
           [
@@ -773,8 +817,15 @@ export function GrantCaseView({
           <SectionCard title="Recorded outcomes" className="space-y-4">
             {state.decisions.filter((decision) => decision.outcome !== 'approved').map((decision) => (
               <section key={decision.id} className="space-y-2 border-b border-line pb-4">
-                <p>{applicationStatusCopy[decision.outcome].label} · <time dateTime={decision.at}>{decision.at.slice(0, 10)}</time> (UTC)</p>
+                <p>{applicationStatusText(decision.outcome, committee).label} · <time dateTime={decision.at}>{decision.at.slice(0, 10)}</time> (UTC)</p>
                 <p className="wrap-anywhere whitespace-pre-wrap">{decision.publicNote}</p>
+                {'nextStep' in decision && decision.nextStep && (
+                  <div><p className="font-medium">Next step</p><p className="wrap-anywhere whitespace-pre-wrap">{decision.nextStep}</p></div>
+                )}
+                {committee && <details className="rounded-lg border border-line px-3">
+                  <summary className="min-h-11 cursor-pointer py-3">Staff decision record</summary>
+                  <p className="wrap-anywhere whitespace-pre-wrap pb-3">{decision.rationale}</p>
+                </details>}
               </section>
             ))}
             {decide && state.status === 'deferred' && form(
@@ -828,9 +879,12 @@ export function GrantCaseView({
           {s.decisions.map((decision, index) => (
             <section key={index} className="space-y-2 border-b border-line pb-4">
               <p className="text-sm font-medium">
-                {applicationStatusCopy[decision.outcome].label} · <time dateTime={decision.at}>{decision.at.slice(0, 10)}</time>
+                {applicationStatusText(decision.outcome, committee).label} · <time dateTime={decision.at}>{decision.at.slice(0, 10)}</time>
               </p>
               <p className="whitespace-pre-wrap">{decision.publicNote}</p>
+              {'nextStep' in decision && decision.nextStep && (
+                <div><p className="font-medium">Next step</p><p className="wrap-anywhere whitespace-pre-wrap">{decision.nextStep}</p></div>
+              )}
             </section>
           ))}
           {capabilities?.decide && s.status === 'deferred' && form(
@@ -919,7 +973,7 @@ export function GrantCaseView({
     const delivery = (
       <div className="space-y-4">
         <h2 className="text-lg">Milestone evidence</h2>
-        {!plan.approvedAt && <p className="text-fg-muted">Evidence opens once the grant team approves the plan.</p>}
+        {!plan.approvedAt && <p className="text-fg-muted">Evidence opens when the Grants Committee approves the milestone plan.</p>}
         {plan.milestones.map((milestone) => {
           const attempts = s.deliveries.filter((delivery) => 'milestoneId' in delivery &&
             delivery.milestoneId === milestone.milestoneId && delivery.planId === plan.id)
@@ -1606,7 +1660,7 @@ export function GrantCaseView({
         ...(delivery.review ? [{ at: delivery.review.at, label: delivery.state === 'accepted' ? 'Milestone verified' : 'Evidence changes requested' }] : []),
       ]),
       ...s.decisions.map((decision) => ({
-        at: decision.at, label: milestoneFirst && decision.outcome === 'approved' ? 'Award issued' : applicationStatusCopy[decision.outcome].label,
+        at: decision.at, label: milestoneFirst && decision.outcome === 'approved' ? 'Award issued' : applicationStatusText(decision.outcome, committee).label,
       })),
       ...s.terms.flatMap((term) => term.confirmedAt ? [{ at: term.confirmedAt, label: 'Award terms confirmed' }] : []),
       ...s.amendments.map((amendment) => ({ at: amendment.at, label: 'Award terms change proposed' })),

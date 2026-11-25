@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { requirePermission } from '@/lib/guards'
 import { GRANT_PAGE_SIZE } from './queries'
-import { applicationStatus } from './rules'
+import { applicationStatus, applicationStatusText } from './rules'
 import { stateSchema } from './schemas'
 import type { ReviewQueueAction, ReviewQueueFilters } from './review-queue'
 
@@ -93,11 +93,13 @@ export async function readReviewQueue({ q, action, page }: ReviewQueueFilters) {
   `
 
   return {
-    rows: records.slice(0, GRANT_PAGE_SIZE).map(({ state, roundName, roundOpen, ...row }) => ({
-      ...row,
-      round: roundName === null ? null : { name: roundName, open: Boolean(roundOpen) },
-      status: applicationStatus(stateSchema.parse(state)).status,
-    })),
+    rows: records.slice(0, GRANT_PAGE_SIZE).map(({ state, roundName, roundOpen, ...row }) => {
+      const grant = stateSchema.parse(state)
+      const { status } = applicationStatus(grant)
+      return { ...row, status, statusLabel: applicationStatusText(status, grant.version === 4).label,
+        round: roundName === null ? null : { name: roundName, open: Boolean(roundOpen) },
+      }
+    }),
     hasMore: records.length > GRANT_PAGE_SIZE,
   }
 }

@@ -329,9 +329,12 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       expect(submissions.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
       expect(await db.grantRevision.count({ where: { applicationId: attempts[0].id } })).toBe(2)
       await store.mutateGrant(attempts[0].id, 1, {
-        kind: 'record_decision', outcome: 'not_selected', terms: null, rationale: 'Internal fixture',
-        publicNote: 'Updated Committee decision', ownerId: reviewer.id, budget: '', authority: 'Committee fixture',
+        kind: 'decline_application', rationale: 'Internal fixture', publicNote: 'Updated Committee decision',
       }, reviewer)
+      expect(await db.grantRevision.findFirst({ where: { applicationId: attempts[0].id, number: 2 } }))
+        .toMatchObject({ kind: 'record_decision', actorId: reviewer.id, state: { status: 'not_selected' } })
+      await expect(store.mutateGrant(attempts[0].id, 2, { kind: 'reopen_application', confirm: true }, reviewer))
+        .rejects.toThrow(/deferred/i)
       await expect(store.startGrant(p.id, builder)).rejects.toThrow('23 Feb 2027')
     } finally {
       vi.useRealTimers()
@@ -460,7 +463,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     }
   })
 
-  it('Grants v1 US-3 scopes returns and verification to the pinned milestone and rejects stale attempts and revisions', async () => {
+  it('Grants v1 US-3 and US-6 keep evidence independent and require verified, authorized, atomic award issuance', async () => {
     const session = await import('@/lib/session')
     const { stateSchema } = await import('@/app/(site)/grants/_lib/schemas')
     const { applicantProjection, milestonePlan, planAwardScope } = await import('@/app/(site)/grants/_lib/rules')
@@ -513,8 +516,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       expect(applicantProjection(await read())).toMatchObject({ milestonePlan: { milestones: [
         { milestoneId: a, status: 'accepted' }, { milestoneId: b, status: 'changes_requested' },
       ] } })
-      const award = { kind: 'record_decision', outcome: 'approved', terms: fields().terms, rationale: 'Supported',
-        publicNote: 'Agreed', ownerId: reviewer.id, budget: 'test-budget', authority: 'test-authority' }
+      const award = { kind: 'issue_award', rationale: 'Private award reason', publicNote: 'The Committee issued the award.' } as const
       expect(await change(award, reviewer)).toMatchObject({ ok: false, error: expect.stringContaining('every milestone') })
       expect(await change({ ...submit, milestoneId: b })).toMatchObject({ ok: false })
       expect(await change({ ...submit, milestoneId: b, previousAttemptId: second.id })).toMatchObject({ ok: true })
@@ -532,13 +534,65 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(revision + 1)
       expect(await db.auditLog.count({ where: { entityId: id, action: { in: ['grant.clear_milestone', 'grant.submit_delivery', 'grant.review_delivery'] } } })).toBe(7)
       expect(await db.projectActivity.count({ where: { targetId: id, versionId: p.versionId } })).toBe(8)
-      expect(await change(award, reviewer)).toMatchObject({ ok: false, error: expect.stringContaining('match the verified milestone plan') })
-      const awardTerms = { ...award.terms, ...planAwardScope(milestonePlan(final)!.milestones) }
-      expect(await change({ ...award, terms: awardTerms }, reviewer)).toMatchObject({
+      expect(await change(award, reviewer)).toMatchObject({
         ok: false, error: expect.stringContaining('current submitted project version'),
       })
-      expect((await read()).terms).toEqual([])
-      expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(revision + 1)
+
+      const hold = { kind: 'hold_application', rationale: 'Private hold reason', publicNote: 'We need more time.', nextStep: 'Check back next week.' }
+      expect(await change({ ...hold, nextStep: '' }, reviewer)).toMatchObject({ ok: false })
+      expect(await change(hold, user(reviewer.id, ['grants.review', 'grants.verify']))).toMatchObject({ ok: false })
+      expect(await change(hold, reviewer)).toMatchObject({ ok: true })
+      const held = await read()
+      expect(held).toMatchObject({ status: 'deferred', terms: [], payments: [], decisions: [{ actorId: reviewer.id, rationale: hold.rationale }] })
+      expect(applicantProjection(held).decisions).toEqual([{ outcome: 'deferred', publicNote: hold.publicNote, nextStep: hold.nextStep, at: expect.any(String) }])
+      expect(await change(award, reviewer)).toMatchObject({ ok: false })
+      const { grantIntakeHistory } = await import('@/app/(site)/grants/_lib/reapplication')
+      expect((await grantIntakeHistory(db, p.id)).active).toMatchObject([{ id, status: 'deferred' }])
+      expect(await change({ kind: 'reopen_application', confirm: true }, reviewer)).toMatchObject({ ok: true })
+
+      const assessment = structuredClone(final.assessment)
+      for (const criterion of criterionIds) assessment.criteria[criterion] = { source: 'Synthetic evidence', score: '2', basis: 'E', rationale: 'Supported' }
+      for (const clearance of clearanceIds) assessment.clearances[clearance] = { evidence: 'Synthetic evidence', state: 'pass' }
+      expect(await change({ kind: 'save_assessment', assessment }, user(reviewer.id, ['grants.review']))).toMatchObject({ ok: true })
+      const awardTerms = { ...fields().terms, ...planAwardScope(milestonePlan(final)!.milestones) }
+      const authorization = { applicationId: id, revision, planId: plan.id, actorId: reviewer.id,
+        budget: 'Synthetic budget approval', authority: 'Synthetic Committee approval', terms: awardTerms }
+      const issue = (source: typeof authorization = authorization, actor = reviewer, expected = revision) =>
+        store.mutateGrant(id, expected, award, actor, source)
+
+      expect(await change(award, reviewer)).toMatchObject({ ok: false, error: expect.stringContaining('approval can be verified') })
+      expect(await change({ ...award, authorization }, reviewer)).toMatchObject({ ok: false })
+      expect(await change({ ...award, ...authorization, kind: 'record_decision', outcome: 'approved', ownerId: reviewer.id }, reviewer))
+        .toMatchObject({ ok: false, error: expect.stringContaining('Grants Committee decision workflow') })
+      for (const receipt of [
+        { budget: '' }, { authority: '' }, { planId: 'foreign-plan' }, { applicationId: 'foreign-case' },
+        { actorId: stranger.id }, { revision: revision - 1 },
+      ]) await expect(issue({ ...authorization, ...receipt })).rejects.toThrow(/approval can be verified/i)
+      await expect(issue({ ...authorization, terms: { ...awardTerms, title: 'Unapproved change' } })).rejects.toThrow(/match the verified/i)
+      await expect(issue({ ...authorization, terms: { ...awardTerms, amountMinor: awardTerms.amountMinor + 1 } })).rejects.toThrow(/pinned request/i)
+      await expect(issue(authorization, user(reviewer.id, ['grants.review', 'grants.verify']))).rejects.toThrow(/cannot perform/i)
+      await expect(issue({ ...authorization, actorId: builder.id }, user(builder.id, ['grants.review', 'grants.decide'])))
+        .rejects.toThrow(/own grant/i)
+      expect(await db.auditLog.count({ where: { entityId: id, action: 'grant.issue_award' } })).toBe(0)
+
+      const results = await Promise.allSettled([issue(), issue()])
+      expect(results.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+      await expect(issue()).rejects.toThrow(/changed/i)
+      await expect(issue({ ...authorization, revision: revision + 1 }, reviewer, revision + 1)).rejects.toThrow(/not awaiting an award/i)
+      const issued = await read()
+      expect(issued.terms).toHaveLength(1)
+      expect(issued.payments).toEqual([])
+      expect(issued.decisions.at(-1)).toMatchObject({ actorId: reviewer.id, ownerId: reviewer.id, budget: authorization.budget,
+        authority: authorization.authority, terms: awardTerms, rationale: award.rationale })
+      expect(applicantProjection(issued)).toMatchObject({ status: 'approved', decisions: [expect.anything(), { publicNote: award.publicNote }],
+        terms: [{ terms: { title: awardTerms.title, amountMinor: awardTerms.amountMinor, acceptance: awardTerms.acceptance } }] })
+      expect(JSON.stringify(applicantProjection(issued))).not.toMatch(/Synthetic budget approval|Synthetic Committee approval|Private award reason|Private hold reason/)
+      const audit = await db.auditLog.findMany({ where: { entityId: id, action: 'grant.issue_award' } })
+      expect(audit).toMatchObject([{ actorId: reviewer.id, after: { revision: revision + 1, decisionId: issued.decisions.at(-1)?.id, planId: plan.id } }])
+      expect(await db.grantRevision.count({ where: { applicationId: id, kind: 'issue_award' } })).toBe(1)
+      expect(await db.projectActivity.findMany({ where: { targetId: id, event: 'grant_award_issued' } }))
+        .toMatchObject([{ actorId: reviewer.id, reason: null }])
+      expect(await db.grantPaymentReference.count({ where: { applicationId: id } })).toBe(0)
     } finally {
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
     }

@@ -60,6 +60,7 @@ export function GrantCommandForm({
   recoverUnknownResult = false,
   secondaryTrigger = false,
   outcomeSubmitLabels,
+  plainAssessment = false,
   projectOptions = [],
 }: {
   applicationId?: string
@@ -77,6 +78,7 @@ export function GrantCommandForm({
   recoverUnknownResult?: boolean
   secondaryTrigger?: boolean
   outcomeSubmitLabels?: Readonly<Partial<Record<string, string>>>
+  plainAssessment?: boolean
   projectOptions?: ProjectPickerOption[]
 }) {
   const uid = useId(),
@@ -378,6 +380,18 @@ export function GrantCommandForm({
         <>
           {assessmentIds.map((id, index) => {
             const row = visibleFields.filter((f) => f.path.startsWith(`assessment.criteria.${id}.`))
+            const score = row[0]
+            if (plainAssessment && score) return (
+              <details key={id} className="border-b border-line">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm">
+                  {score.label} <span className="text-fg-muted">· {score.options?.find(({ value }) => value === values[score.path])?.label}</span>
+                </summary>
+                <fieldset className="space-y-4 pb-4">
+                  <legend className="sr-only">{score.label}</legend>
+                  {row.map((f, i) => renderField(i === 0 ? { ...f, label: 'Score' } : f, index * 4 + i))}
+                </fieldset>
+              </details>
+            )
             return (
               <fieldset key={id} className="border-b border-line py-0.5">
                 <legend className="sr-only">{row[0]?.label}</legend>
@@ -409,7 +423,7 @@ export function GrantCommandForm({
             )
           })}
           <details>
-            <summary className="inline-flex min-h-11 cursor-pointer items-center">Other readiness conditions</summary>
+            <summary className="min-h-11 cursor-pointer py-3">{plainAssessment ? 'Readiness checks' : 'Other readiness conditions'}</summary>
             <div className="space-y-4 py-4">
               {visibleFields.filter((f) => f.path.includes('.clearances.')).map((f, i) => renderField(f, 200 + i))}
             </div>

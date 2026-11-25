@@ -3,7 +3,6 @@ import { DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/empty-state'
 import { StatusPill } from '@/components/status-pill'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
-import { applicationStatusCopy } from '../_lib/rules'
 import { RoundIntakeStatus } from './navigation'
 import type { listApplications } from '../_lib/queries'
 export function ApplicationList({ rows, staff }: { rows: Awaited<ReturnType<typeof listApplications>>; staff: boolean }) {
@@ -22,7 +21,7 @@ export function ApplicationList({ rows, staff }: { rows: Awaited<ReturnType<type
       status: (
         <div className="flex flex-wrap gap-2">
           <StatusPill className="text-fg-heading" tone={r.status === 'approved' ? 'success' : r.status === 'draft' ? 'neutral' : 'info'}>
-            {applicationStatusCopy[r.applicantStatus.status].label}
+            {r.statusLabel}
           </StatusPill>
           {r.applicantStatus.updateRequested && <StatusPill className="text-fg-heading" tone="warning">Update requested</StatusPill>}
         </div>

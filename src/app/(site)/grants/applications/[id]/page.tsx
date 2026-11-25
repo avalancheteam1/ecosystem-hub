@@ -54,7 +54,7 @@ export default async function ApplicantGrant({
                 <Link href={`/grants/applications/${notice.otherActiveId}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Open current application</Link>
               )}
               {notice.previousId && notice.previousId !== id && (
-                <Link href={`/grants/applications/${notice.previousId}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">View last rejection</Link>
+                <Link href={`/grants/applications/${notice.previousId}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">View latest decline</Link>
               )}
             </div>
           </SectionCard>

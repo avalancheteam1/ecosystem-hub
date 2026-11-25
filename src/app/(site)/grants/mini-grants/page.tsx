@@ -43,10 +43,14 @@ export default async function MiniGrantsPage() {
               ? 'A delivery date and the evidence you will provide on completion.'
               : 'A maintainer, delivery date and acceptance test.'}</li>
           </ul>
-          <p>Reuse your existing Hub project. Submission seals the project version, so later edits do not change what reviewers assess.</p>
-          <Link href={intakeOpen ? '/grants/mini-grants/apply' : '/grants/applications'} className={buttonVariants()}>
-            {intakeOpen ? 'Start application' : 'View my applications'}
-          </Link>
+          <p>{continuous ? 'The Grants Committee reviews the version you submit. Once it approves the plan, you can submit evidence for each milestone.'
+            : 'Reuse your existing Hub project. Submission seals the project version, so later edits do not change what reviewers assess.'}</p>
+          <div className="flex flex-wrap gap-3">
+            <Link href={intakeOpen ? '/grants/mini-grants/apply' : '/grants/applications'} className={buttonVariants()}>
+              {intakeOpen ? 'Start application' : 'View my applications'}
+            </Link>
+            {continuous && <Link href="/grants/applications" className={buttonVariants({ variant: 'secondary' })}>View previous applications</Link>}
+          </div>
         </section>
         {continuous ? (
           <SectionCard title="Apply anytime">

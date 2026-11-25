@@ -397,3 +397,20 @@ describe('Normal v3 staff case entry', () => {
     expect(renderStaffCase({ ...initialState(application), status: 'submitted' })).toContain('Record authorised decision')
   })
 })
+
+it('US-6 names the Committee, separates plan approval and case decisions, and omits authority inputs in v4', () => {
+  const planAnswers = {
+    intakeVersion: 3 as const, summary: 'Publish a reproducible demo', amountMinor: 500000,
+    milestones: [{ source: 'application' as const, title: 'Publish demo', due: '2026-12-01', evidence: 'Show it running' }],
+  }
+  const submitted = transition(initialState(planAnswers), { kind: 'submit_application', planAnswers, confirm: true }, {
+    id: 'plan-1', actorId: 'member-1', projectVersionId: 'version-1', now: date.toISOString(),
+  })
+  const staff = renderStaffCase(submitted)
+  expect(staff).toContain('Approve milestone plan')
+  expect(staff).toMatch(/>Hold<[^]*>Decline</)
+  expect(staff).toContain('Grants Committee')
+  expect(staff).not.toMatch(/Funding route|Approval reference|Budget authorization reference|c1\. Avalanche relevance/)
+  expect(renderStaffCase(submitted, false)).not.toMatch(/>Hold<|>Decline<|>Approve milestone plan</)
+  expect(renderCase(applicantProjection(submitted), true)).toContain('Grants Committee')
+})

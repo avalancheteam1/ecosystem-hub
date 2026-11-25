@@ -114,7 +114,7 @@ describe.skipIf(!database)('US-5 AC8 review queue on isolated Postgres', () => {
     const filtered = await read({ q: `${prefix.toUpperCase()} synthetic`, action: 'applicant', page: 1 })
     expect(filtered.rows.map((row) => row.id)).toEqual([oldId])
     expect(filtered.hasMore).toBe(false)
-    expect(Object.keys(filtered.rows[0]).sort()).toEqual(['id', 'maturity', 'name', 'nextAction', 'round', 'status', 'updatedAt'])
+    expect(Object.keys(filtered.rows[0]).sort()).toEqual(['id', 'maturity', 'name', 'nextAction', 'round', 'status', 'statusLabel', 'updatedAt'])
     expect(JSON.stringify(filtered)).not.toContain('Private synthetic note')
     expect(await read({ q: `${prefix} no matches`, action: 'applicant', page: 1 })).toEqual({ rows: [], hasMore: false })
   })
@@ -258,9 +258,18 @@ describe.skipIf(!database)('US-5 AC8 review queue on isolated Postgres', () => {
     for (const id of criterionIds) assessment.criteria[id] = { score: '2', basis: 'E', source: 'Synthetic evidence', rationale: 'Supported scope' }
     for (const id of clearanceIds) assessment.clearances[id] = { state: 'pass', evidence: 'Verified synthetic readiness' }
     const assessed = apply(bothAccepted, { kind: 'save_assessment', assessment })
-    await expectLane(apply(assessed, {
-      kind: 'record_decision', outcome: 'approved', terms: { ...terms, ...planAwardScope(plan.answers.milestones) },
-      rationale: 'Supported', publicNote: 'Agreed', ownerId: reviewer.id, budget: 'Synthetic budget', authority: 'Synthetic committee',
-    }), 'operations')
+    const held = apply(assessed, { kind: 'hold_application', rationale: 'Private hold reason', publicNote: 'Waiting for review', nextStep: 'Check back next week.' })
+    await expectLane(held, 'inactive')
+    expect((await read({ ...query, action: 'inactive' })).rows).toContainEqual(expect.objectContaining({ id: oldId, statusLabel: 'On hold' }))
+    const reopened = apply(held, { kind: 'reopen_application', confirm: true })
+    await expectLane(reopened, 'decision')
+    await expectLane(apply(reopened, { kind: 'decline_application', rationale: 'Private decline reason', publicNote: 'Declined' }), 'inactive')
+    expect((await read({ ...query, action: 'inactive' })).rows).toContainEqual(expect.objectContaining({ id: oldId, statusLabel: 'Declined' }))
+    const issued = transition(assessed, { kind: 'issue_award', rationale: 'Supported', publicNote: 'Agreed' }, {
+      id: randomUUID(), actorId: reviewer.id, now: date.toISOString(), projectVersionId: plan.projectVersionId,
+      awardAuthorization: { terms: { ...terms, ...planAwardScope(plan.answers.milestones) }, budget: 'Synthetic budget', authority: 'Synthetic committee' },
+    })
+    await expectLane(issued, 'operations')
+    expect((await read({ ...query, action: 'operations' })).rows).toContainEqual(expect.objectContaining({ id: oldId, statusLabel: 'Award issued' }))
   })
 })

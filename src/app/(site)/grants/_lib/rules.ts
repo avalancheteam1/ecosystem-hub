@@ -117,7 +117,8 @@ const applicantCommands: Command['kind'][] = [
 ]
 export function commandPermission(kind: Command['kind']): Permission | 'applicant' {
   if (applicantCommands.includes(kind)) return 'applicant'
-  if (['clear_milestone', 'record_decision', 'review_amendment', 'release_review_status', 'reopen_application'].includes(kind)) return 'grants.decide'
+  if (['clear_milestone', 'record_decision', 'hold_application', 'decline_application', 'issue_award',
+    'review_amendment', 'release_review_status', 'reopen_application'].includes(kind)) return 'grants.decide'
   if (kind === 'review_delivery') return 'grants.verify'
   if (['report_payment', 'reconcile_payment'].includes(kind)) return 'grants.payments'
   return 'grants.review'
@@ -212,7 +213,10 @@ export function deliveryAcceptedAt(deliveries: readonly { state: string; review:
 export function transition(
   previous: GrantState,
   command: Command,
-  context: { id: string; actorId: string; now: string; projectVersionId: string; milestoneFirst?: boolean },
+  context: {
+    id: string; actorId: string; now: string; projectVersionId: string; milestoneFirst?: boolean
+    awardAuthorization?: { terms: GrantState['terms'][number]['terms']; budget: string; authority: string }
+  },
 ) {
   const s = structuredClone(previous),
     c = command,
@@ -334,20 +338,49 @@ export function transition(
       s.milestoneClearance = { ...meta, applicationRevisionId: submitted!.id, projectVersionId }
       break
     }
+    case 'hold_application':
+    case 'decline_application': {
+      if (s.version !== 4) throw new ActionError('Use the original decision workflow for this application.')
+      need(s.status === 'submitted' && s.decisions.every((d) => d.outcome === 'deferred'), 'This application is not awaiting a decision')
+      const details = { ...meta, terms: null, rationale: c.rationale, publicNote: c.publicNote, ownerId: actorId }
+      const decision = c.kind === 'hold_application'
+        ? { ...details, outcome: 'deferred' as const, nextStep: c.nextStep }
+        : { ...details, outcome: 'not_selected' as const }
+      s.decisions.push(decision)
+      s.status = decision.outcome
+      break
+    }
+    case 'issue_award': {
+      if (s.version !== 4) throw new ActionError('Use the original decision workflow for this application.')
+      need(s.status === 'submitted' && !s.terms.length && s.decisions.every((d) => d.outcome === 'deferred'), 'This application is not awaiting an award')
+      const plan = approvedPlan(s, s.planApproval?.planId, projectVersionId)
+      need(allMilestonesVerified(s), 'Verify every milestone in the approved plan before issuing an award.')
+      need(!s.requests.some((r) => !r.answeredAt), 'Resolve open evidence requests first')
+      const authorization = context.awardAuthorization
+      const reasons = readiness(s, authorization?.terms.route)
+      need(!reasons.length, reasons.join('; '))
+      if (!authorization?.authority.trim() || !authorization.budget.trim())
+        throw new ActionError('Award issuance is unavailable until Committee and Finance approval can be verified.')
+      const { terms: award, budget, authority } = authorization
+      need(award.amountMinor <= (plan.answers.amountMinor ?? 0), 'The award cannot exceed the pinned request.')
+      const scope = planAwardScope(plan.answers.milestones)
+      need(scope && award.title === scope.title && award.acceptance === scope.acceptance && award.due === scope.due,
+        'Award terms must match the verified milestone plan.')
+      if (award.route === 'bounded_pilot')
+        need(award.hypothesis.trim() && award.limits.trim(), 'Record the pilot hypothesis and limits')
+      s.terms.push({ ...meta, number: 1, terms: award, confirmedAt: null, confirmedById: null })
+      s.decisions.push({ ...meta, outcome: 'approved', terms: award, rationale: c.rationale,
+        publicNote: c.publicNote, ownerId: actorId, budget, authority })
+      s.status = 'approved'
+      break
+    }
     case 'record_decision':
+      if (s.version === 4) throw new ActionError('Use the Grants Committee decision workflow for this application.')
       need(
         s.status === 'submitted' && s.decisions.every((d) => d.outcome === 'deferred'),
         'This application is not awaiting a decision',
       )
       if (c.outcome === 'approved') {
-        if (s.version === 4) {
-          const plan = approvedPlan(s, s.planApproval?.planId, projectVersionId)
-          need(allMilestonesVerified(s), 'Verify every milestone in the approved plan before issuing an award.')
-          need(c.terms && c.terms.amountMinor <= (plan.answers.amountMinor ?? 0), 'The award cannot exceed the pinned request.')
-          const scope = planAwardScope(plan.answers.milestones)
-          need(scope && c.terms?.title === scope.title && c.terms?.acceptance === scope.acceptance && c.terms?.due === scope.due,
-            'Award terms must match the verified milestone plan.')
-        }
         if (s.version === 3) {
           requirePinnedClearance(s, projectVersionId, 'Verify evidence for the cleared milestone before issuing an award')
           need(s.deliveries.at(-1)?.state === 'accepted', 'Verify evidence for the cleared milestone before issuing an award')
@@ -360,7 +393,7 @@ export function transition(
         need(!s.requests.some((r) => !r.answeredAt), 'Resolve open evidence requests first')
         const reasons = readiness(s, c.terms!.route)
         need(!reasons.length, reasons.join('; '))
-        need(s.version === 3 || s.version === 4 || c.terms!.due >= today, 'Target date must be today or later')
+        need(s.version === 3 || c.terms!.due >= today, 'Target date must be today or later')
         if (c.terms!.route === 'bounded_pilot')
           need(c.terms!.hypothesis.trim() && c.terms!.limits.trim(), 'Record the pilot hypothesis and limits')
         s.terms.push({ ...meta, number: 1, terms: c.terms!, confirmedAt: null, confirmedById: null })
@@ -623,6 +656,18 @@ export const applicationStatusCopy = {
   withdrawn: { label: 'Withdrawn', detail: 'Your team withdrew this application.' },
 }
 
+const committeeStatuses: Partial<Record<keyof typeof applicationStatusCopy, { label: string; detail: string }>> = {
+  submitted: { label: 'Submitted', detail: 'The Grants Committee will review your application.' },
+  in_review: { label: 'In review', detail: 'The Grants Committee is reviewing your application.' },
+  approved: { label: 'Award issued', detail: 'Review your award and the next steps.' },
+  deferred: { label: 'On hold', detail: 'The Grants Committee paused your application. See the reason and next step below.' },
+  not_selected: { label: 'Declined', detail: 'The Grants Committee declined this application. See the feedback and reapplication guidance.' },
+}
+
+export function applicationStatusText(status: keyof typeof applicationStatusCopy, committee: boolean) {
+  return (committee ? committeeStatuses[status] : undefined) ?? applicationStatusCopy[status]
+}
+
 export function applicationStatus(s: GrantState) {
   const release = s.statusReleases.at(-1)
   let status: keyof typeof applicationStatusCopy = s.status
@@ -679,7 +724,9 @@ export function applicantProjection(s: GrantState) {
     answers: applicantIntake(s.answers),
     applications: s.applications.map((a) => ({ id: a.id, at: a.at, projectVersionId: a.projectVersionId, answers: applicantIntake(a.answers) })),
     requests: s.requests.map((r) => ({ id: r.id, at: r.at, title: r.title, body: r.body, ...(r.due ? { due: r.due } : {}), reply: r.reply, answeredAt: r.answeredAt })),
-    decisions: s.decisions.map((d) => ({ outcome: d.outcome, publicNote: d.publicNote, at: d.at })),
+    decisions: s.decisions.map((d) => ({ outcome: d.outcome, publicNote: d.publicNote, at: d.at,
+      ...('nextStep' in d && d.nextStep ? { nextStep: d.nextStep } : {}),
+    })),
     terms: s.terms.map((t) => ({ number: t.number, terms: award(t.terms), confirmedAt: t.confirmedAt })),
     deliveries: s.deliveries.map((d) => ({
       id: d.id,

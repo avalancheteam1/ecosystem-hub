@@ -189,6 +189,16 @@ const impact = meta.extend({
   review: z.string().max(10000),
 })
 export const reviewStatus = z.enum(['in_review', 'shortlisted', 'approval_pending'])
+const decision = meta.extend({
+  outcome: z.enum(['approved', 'deferred', 'not_selected']),
+  terms: terms.nullable(),
+  rationale: text,
+  publicNote: text,
+  ownerId: id,
+  budget: z.string().max(2000),
+  authority: text,
+})
+const committeeDecision = decision.omit({ budget: true, authority: true }).extend({ terms: z.null() })
 const legacyState = z.object({
   version: z.literal(1),
   status: z.enum(['draft', 'submitted', 'approved', 'deferred', 'not_selected']),
@@ -197,17 +207,7 @@ const legacyState = z.object({
   assessmentVersionId: id.nullable().default(null),
   applications: z.array(meta.extend({ answers, projectVersionId: id })),
   requests: z.array(meta.extend({ title: text, body: text, reply: z.string().max(10000), answeredAt: z.iso.datetime().nullable() })),
-  decisions: z.array(
-    meta.extend({
-      outcome: z.enum(['approved', 'deferred', 'not_selected']),
-      terms: terms.nullable(),
-      rationale: text,
-      publicNote: text,
-      ownerId: id,
-      budget: z.string().max(2000),
-      authority: text,
-    }),
-  ),
+  decisions: z.array(decision),
   terms: z.array(
     meta.extend({ number: z.number().int().positive(), terms, confirmedAt: z.iso.datetime().nullable(), confirmedById: id.nullable() }),
   ),
@@ -257,6 +257,11 @@ const milestoneFirstState = currentState.extend({
 const multiMilestoneState = currentState.extend({
   version: z.literal(4),
   answers: planDraft,
+  decisions: z.array(z.union([
+    decision,
+    committeeDecision.extend({ outcome: z.literal('deferred'), nextStep: text }),
+    committeeDecision.extend({ outcome: z.literal('not_selected') }),
+  ])),
   applications: z.array(meta.extend({
     answers: shortDraft.omit({ milestone: true }).extend({
       intakeVersion: z.literal(3),
@@ -313,6 +318,9 @@ export const commandSchema = z.discriminatedUnion('kind', [
     budget: z.string().max(2000),
     authority: text,
   }),
+  z.strictObject({ kind: z.literal('hold_application'), rationale: text, publicNote: text, nextStep: text }),
+  z.strictObject({ kind: z.literal('decline_application'), rationale: text, publicNote: text }),
+  z.strictObject({ kind: z.literal('issue_award'), rationale: text, publicNote: text }),
   z.object({ kind: z.literal('clear_milestone'), confirm: z.literal(true), planId: id.optional() }),
   z.object({ kind: z.literal('confirm_terms'), confirm: z.literal(true) }),
   z.object({

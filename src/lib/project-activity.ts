@@ -30,6 +30,10 @@ export const PROJECT_ACTIVITY_EVENTS = {
   grant_evidence_submitted: 'Milestone evidence submitted',
   grant_milestone_verified: 'Milestone verified',
   grant_evidence_returned: 'Milestone evidence returned',
+  grant_held: 'Application put on hold',
+  grant_declined: 'Application declined',
+  grant_reopened: 'Application reopened',
+  grant_award_issued: 'Award issued',
 } as const
 export type ProjectActivityEvent = keyof typeof PROJECT_ACTIVITY_EVENTS
 

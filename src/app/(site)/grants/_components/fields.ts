@@ -28,27 +28,30 @@ export const applicationFields: GrantField[] = [
   { path: 'answers.maintenance', label: 'Maintenance and measurement', type: 'textarea' },
   { path: 'answers.risks', label: 'Risks and dependencies', type: 'textarea' },
 ]
-export const assessmentFields: GrantField[] = [
+export const assessmentFields = (plain: boolean): GrantField[] => [
   ...criterionIds.flatMap((id, i): GrantField[] => [
     {
       path: `assessment.criteria.${id}.score`,
-      label: `${id}. ${criterionNames[i]}`,
+      label: plain ? criterionNames[i] : `${id}. ${criterionNames[i]}`,
       type: 'select',
-      options: options('ND', '0', '1', '2', '3'),
+      options: plain ? [
+        { value: 'ND', label: 'Unassessed' }, { value: '0', label: '0 · Absent' },
+        { value: '1', label: '1 · Weak' }, { value: '2', label: '2 · Sufficient' }, { value: '3', label: '3 · Strong' },
+      ] : options('ND', '0', '1', '2', '3'),
     },
     {
       path: `assessment.criteria.${id}.basis`,
-      label: `${id} evidence basis`,
+      label: plain ? 'How was this verified?' : `${id} evidence basis`,
       type: 'select',
       options: [
-        { value: 'E', label: 'E - supported by evidence' },
-        { value: 'S', label: 'S - stated, not corroborated' },
+        { value: 'E', label: plain ? 'Supported by evidence' : 'E - supported by evidence' },
+        { value: 'S', label: plain ? 'Stated only' : 'S - stated, not corroborated' },
       ],
     },
-    { path: `assessment.criteria.${id}.source`, label: `${id} source`, optional: true },
+    { path: `assessment.criteria.${id}.source`, label: plain ? 'Evidence link or reference' : `${id} source`, optional: true, maxLength: 2000 },
     {
       path: `assessment.criteria.${id}.rationale`,
-      label: `${id} rationale`,
+      label: plain ? 'Why this score?' : `${id} rationale`,
       type: 'textarea',
       optional: true,
       hint: anchors[i].map((anchor, score) => `${score}: ${anchor}`).join(' / '),
@@ -57,11 +60,13 @@ export const assessmentFields: GrantField[] = [
   ...clearanceIds.flatMap((id, i): GrantField[] => [
     {
       path: `assessment.clearances.${id}.state`,
-      label: clearanceNames[i],
+      label: plain && id === 'eligibility' ? 'Eligibility' : clearanceNames[i],
       type: 'select',
-      options: options('unresolved', 'pass', 'not_applicable'),
+      options: plain ? [
+        { value: 'unresolved', label: 'Needs review' }, { value: 'pass', label: 'Checked' }, { value: 'not_applicable', label: 'Does not apply' },
+      ] : options('unresolved', 'pass', 'not_applicable'),
     },
-    { path: `assessment.clearances.${id}.evidence`, label: `${clearanceNames[i]} evidence`, optional: true },
+    { path: `assessment.clearances.${id}.evidence`, label: `${plain && id === 'eligibility' ? 'Eligibility' : clearanceNames[i]} evidence`, optional: true, maxLength: 2000 },
   ]),
   { path: 'assessment.note', label: 'Internal reviewer note', type: 'textarea', optional: true },
 ]

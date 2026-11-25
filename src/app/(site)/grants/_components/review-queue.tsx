@@ -8,7 +8,6 @@ import { StatusPill } from '@/components/status-pill'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { REVIEW_QUEUE_ACTIONS, type ReviewQueueLocation } from '../_lib/review-queue'
 import type { ReviewQueuePage } from '../_lib/review-queue-queries'
-import { applicationStatusCopy } from '../_lib/rules'
 import { RoundIntakeStatus } from './navigation'
 
 type Row = ReviewQueuePage['rows'][number]
@@ -39,8 +38,8 @@ function ProjectMetadata({ row }: { row: Row }) {
   )
 }
 
-function ReleasedStatus({ status }: { status: Row['status'] }) {
-  return <StatusPill tone={status === 'approved' ? 'success' : 'neutral'}>{applicationStatusCopy[status].label}</StatusPill>
+function ReleasedStatus({ row }: { row: Row }) {
+  return <StatusPill tone={row.status === 'approved' ? 'success' : 'neutral'}>{row.statusLabel}</StatusPill>
 }
 
 function QueueCards({ rows, showAction }: { rows: Row[]; showAction?: boolean }) {
@@ -53,7 +52,7 @@ function QueueCards({ rows, showAction }: { rows: Row[]; showAction?: boolean })
             <p className="wrap-anywhere font-medium">{row.name}</p>
             <ProjectMetadata row={row} />
             <div className="flex flex-wrap gap-2">
-              <ReleasedStatus status={row.status} />
+              <ReleasedStatus row={row} />
               {showAction && <StatusPill tone="info">{actionLabels[row.nextAction]}</StatusPill>}
             </div>
           </Link>
@@ -82,7 +81,7 @@ function QueueTable({ rows }: { rows: Row[] }) {
             <RoundIntakeStatus open={row.round.open} />
           </div>
         ),
-        status: <ReleasedStatus status={row.status} />,
+        status: <ReleasedStatus row={row} />,
         updated: row.updatedAt.toISOString().slice(0, 10),
         action: <StatusPill tone="info">{actionLabels[row.nextAction]}</StatusPill>,
       } }))} />

@@ -8,7 +8,7 @@ import { isFlagOn } from '@/lib/flag-store'
 import { can } from '@/lib/permissions'
 import { hasDemoProof, stateSchema } from './schemas'
 import { reviewerOptions } from './reviewers'
-import { applicantProjection, applicationStatus } from './rules'
+import { applicantProjection, applicationStatus, applicationStatusText } from './rules'
 import { grantIntakeHistory, reapplicationEligibility } from './reapplication'
 
 export const publishedRounds = () =>
@@ -64,7 +64,11 @@ export async function listApplications(staff: boolean, search = '', page = 1) {
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     ...grantPage(page),
   })
-  return rows.map(({ state, ...row }) => ({ ...row, applicantStatus: applicationStatus(stateSchema.parse(state)) }))
+  return rows.map(({ state, ...row }) => {
+    const grant = stateSchema.parse(state)
+    const applicantStatus = applicationStatus(grant)
+    return { ...row, applicantStatus, statusLabel: applicationStatusText(applicantStatus.status, grant.version === 4).label }
+  })
 }
 
 export async function readApplication(id: string, staff: boolean) {
