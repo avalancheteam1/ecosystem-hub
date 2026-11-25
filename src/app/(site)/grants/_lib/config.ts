@@ -9,3 +9,10 @@ export function shortIntakeEnabled() {
 export function milestoneFirstEnabled() {
   return process.env.GRANTS_MILESTONE_FIRST_ENABLED === 'true'
 }
+
+export function syntheticPayoutEnabled() {
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') return false
+  if (process.env.GRANTS_SYNTHETIC_PAYOUT_ENABLED !== 'true') return false
+  const database = URL.parse(process.env.DATABASE_URL ?? '')
+  return !!database && ['127.0.0.1', 'localhost', '[::1]'].includes(database.hostname)
+}

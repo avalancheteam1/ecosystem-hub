@@ -93,6 +93,16 @@ export function initialState(answers: IntakeAnswers): GrantState {
     events: [],
   })
 }
+export function issuedPayoutAward(state: GrantState, projectVersionId: string) {
+  if (state.version !== 4 || state.status !== 'approved' || state.applications[0]?.projectVersionId !== projectVersionId) return null
+  const award = state.decisions.at(-1)
+  return award?.outcome === 'approved' && award.terms && state.terms[0]?.id === award.id ? award : null
+}
+
+export function payoutConfirmationClosed(state: GrantState) {
+  return !!state.closedAt || state.payments.length > 0
+}
+
 export const activeTerms = (s: GrantState) => s.version === 3 || s.version === 4
   ? (s.status === 'approved' ? s.terms.at(-1) : undefined)
   : s.terms.findLast((t) => t.confirmedAt !== null)

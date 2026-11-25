@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SectionCard } from '@/components/section-card'
 import { requireUser } from '@/lib/guards'
-import { readApplication, readReapplicationNotice } from '../../_lib/queries'
+import { readApplication, readPayoutDestination, readReapplicationNotice } from '../../_lib/queries'
 import { formatReapplicationDate, priorDecisionUnverified } from '../../_lib/reapplication'
 import { GrantCaseView } from '../../_components/case-view'
 
@@ -18,6 +18,8 @@ export default async function ApplicantGrant({
   await requireUser()
   const [{ id }, query] = await Promise.all([params, searchParams])
   const data = await readApplication(id, false)
+  const payout = data.writer && data.state.status === 'approved' && (!query.tab || query.tab === 'Overview')
+    ? await readPayoutDestination(id, false) : null
   const declined = data.state.status === 'not_selected'
   const notice = declined || (data.continuous && data.state.status === 'draft')
     ? await readReapplicationNotice(data.projectId, id)
@@ -60,7 +62,7 @@ export default async function ApplicantGrant({
           </SectionCard>
         </aside>
       )}
-      <GrantCaseView data={data} requestedTab={query.tab} checkpoint={query.day} />
+      <GrantCaseView data={data} requestedTab={query.tab} checkpoint={query.day} payout={payout} />
     </>
   )
 }

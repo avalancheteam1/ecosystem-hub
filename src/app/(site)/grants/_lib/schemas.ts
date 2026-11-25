@@ -286,6 +286,23 @@ export type GrantState = z.infer<typeof stateSchema>
 export type Answers = z.infer<typeof answers>
 export type Assessment = z.infer<typeof assessment>
 export type Terms = z.infer<typeof terms>
+
+export const syntheticPayout = {
+  network: 'synthetic-evm',
+  networkLabel: 'Synthetic EVM network',
+  asset: 'Synthetic test token',
+} as const
+
+export const payoutDestinationSchema = z.object({
+  applicationId: id,
+  revision: z.number().int().nonnegative(),
+  awardId: id,
+  network: z.literal(syntheticPayout.network, 'Select the synthetic payout network.'),
+  address: z.string().trim().regex(/^0x[0-9a-fA-F]{40}$/, 'Enter a 0x address with 40 hexadecimal characters.')
+    .refine((address) => address !== '0x' + '0'.repeat(40), 'Enter a destination other than the zero address.'),
+  confirm: z.literal(true, 'Confirm that you checked the test network and address.'),
+}).strict()
+
 export const createSchema = z
   .object({ projectId: id, roundId: id, answers: legacyIntake, submit: z.boolean().default(false), confirm: z.boolean().default(false) })
   .superRefine((input, ctx) => {

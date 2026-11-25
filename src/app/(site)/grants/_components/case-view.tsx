@@ -8,9 +8,9 @@ import { StatusPill } from '@/components/status-pill'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { ProjectVersionView } from '@/components/project-version-view'
 import { Button } from '@/components/ui/button'
-import type { readApplication } from '../_lib/queries'
+import type { readApplication, readPayoutDestination } from '../_lib/queries'
 import { activeTerms, addDays, applicationStatus, applicationStatusCopy, applicationStatusText, clearanceNames, criterionNames, deliveryAcceptedAt, milestonePlan, readiness, score, statusLabel, totals } from '../_lib/rules'
-import { clearanceIds, criterionIds, reviewStatus, type Command, type Terms } from '../_lib/schemas'
+import { clearanceIds, criterionIds, reviewStatus, syntheticPayout, type Command, type Terms } from '../_lib/schemas'
 import { GrantCommandForm, type GrantField, type GrantRepeater } from './command-form'
 import { applicationFields, assessmentFields, costRepeater, metricRepeater, options, termsFields } from './fields'
 import { shortIntakeEnabled } from '../_lib/config'
@@ -20,6 +20,7 @@ import { GrantTabs, RoundIntakeStatus } from './navigation'
 import { ApplicantReceipt } from './applicant-receipt'
 import { StaffAwardForm } from './staff-award-form'
 import { StaffCaseTabs } from './staff-case-tabs'
+import { PayoutDestinationForm } from './payout-destination-form'
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -85,10 +86,12 @@ export function GrantCaseView({
   data,
   requestedTab,
   checkpoint = '30',
+  payout,
 }: {
   data: Awaited<ReturnType<typeof readApplication>>
   requestedTab?: string
   checkpoint?: string
+  payout?: Awaited<ReturnType<typeof readPayoutDestination>>
 }) {
   const s = data.state,
     internal = data.staff ? data.state : null,
@@ -105,6 +108,23 @@ export function GrantCaseView({
   const requestedAmount = shortAnswers?.amountMinor ?? legacy?.terms.amountMinor
   const requestedRoute = internal?.answers.intakeVersion === undefined ? internal?.answers.terms.route : undefined
   const base = `${data.staff ? '/admin' : ''}/grants/applications/${data.id}`
+  const payoutCard = payout && (
+    <SectionCard title="Test payout destination" className="space-y-3">
+      {payout.destination ? (
+        <>
+          <p>Address confirmed on <time dateTime={payout.destination.confirmedAt.toISOString()}>
+            {payout.destination.confirmedAt.toISOString().slice(0, 10)}
+          </time> (UTC).</p>
+          <p className="text-sm text-fg-muted">{syntheticPayout.networkLabel} · {syntheticPayout.asset}</p>
+          <code className="block wrap-anywhere text-sm text-fg-heading">{payout.destination.address}</code>
+        </>
+      ) : payout.canConfirm ? (
+        <PayoutDestinationForm applicationId={data.id} revision={payout.revision} awardId={payout.awardId} />
+      ) : (
+        <p className="text-fg-muted">{data.staff ? 'The applicant has yet to confirm a test payout address.' : 'Payout address confirmation has closed for this grant.'}</p>
+      )}
+    </SectionCard>
+  )
   const plan = data.staff ? milestonePlan(data.state) : data.state.milestonePlan
   const milestoneFirst = data.staff ? data.state.version === 3 || data.state.version === 4 : data.state.milestoneFirst
   const clearedAt = plan ? plan.approvedAt : data.staff ? data.state.version === 3 ? data.state.milestoneClearance?.at : null : data.state.clearedAt
@@ -443,7 +463,7 @@ export function GrantCaseView({
           {milestoneFirst && (plan ? planVerified : delivery?.state === 'accepted') && s.status === 'submitted' &&
             <p className="text-fg-muted">{committee ? 'Your milestones are verified. The Grants Committee will review the award separately.'
               : 'The grant team verified the evidence. A separate award decision is pending.'}</p>}
-          {!publicStatus.updateRequested && !nextAction && !(committee && ['deferred', 'not_selected'].includes(s.status)) && <p>No action is needed right now.</p>}
+          {!publicStatus.updateRequested && !nextAction && !payout?.canConfirm && !(committee && ['deferred', 'not_selected'].includes(s.status)) && <p>No action is needed right now.</p>}
           {s.closedAt && <p className="text-fg-muted">This grant is complete.</p>}
           {decision?.publicNote && <p className="wrap-anywhere whitespace-pre-wrap">{decision.publicNote}</p>}
           {decision && 'nextStep' in decision && decision.nextStep && (
@@ -464,6 +484,7 @@ export function GrantCaseView({
             <p className="wrap-anywhere whitespace-pre-wrap">{award.terms.acceptance}</p>
           </SectionCard>
         )}
+        {payoutCard}
         {submittedReceipt ?? <SectionCard title={award ? 'Original request' : 'What you requested'} className="space-y-3">
           {requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
           <p className="wrap-anywhere whitespace-pre-wrap">{shortAnswers?.summary ?? legacy?.outcome}</p>
@@ -1103,6 +1124,7 @@ export function GrantCaseView({
   } else if (tab === 'Payments')
     content = (
       <div className="space-y-6">
+        {data.staff && payoutCard}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg">Track external payments.</h2>

@@ -6,10 +6,11 @@ import { requirePermission, requireUser, denyAccess, denyContext } from '@/lib/g
 import { canEditProject, missingForSubmission, TEAM_ROLES } from '@/lib/project-submission'
 import { isFlagOn } from '@/lib/flag-store'
 import { can } from '@/lib/permissions'
-import { hasDemoProof, stateSchema } from './schemas'
+import { hasDemoProof, stateSchema, syntheticPayout } from './schemas'
 import { reviewerOptions } from './reviewers'
-import { applicantProjection, applicationStatus, applicationStatusText } from './rules'
+import { applicantProjection, applicationStatus, applicationStatusText, issuedPayoutAward, payoutConfirmationClosed } from './rules'
 import { grantIntakeHistory, reapplicationEligibility } from './reapplication'
+import { syntheticPayoutEnabled } from './config'
 
 export const publishedRounds = () =>
   prisma.grantRound.findMany({ where: { published: true }, select: { id: true, name: true }, orderBy: { createdAt: 'desc' }, take: 50 })
@@ -146,6 +147,36 @@ export async function readApplication(id: string, staff: boolean) {
       payments: !role && can(user, 'grants.payments'),
       manage: can(user, 'grants.manage'),
     },
+  }
+}
+
+export async function readPayoutDestination(id: string, staff: boolean) {
+  if (!syntheticPayoutEnabled()) return null
+  const user = await requireUser()
+  if (staff && (!can(user, 'grants.review') || !can(user, 'grants.payments'))) return null
+  const row = await prisma.grantApplication.findFirst({
+    where: {
+      id, status: 'approved',
+      project: { members: staff ? { none: { userId: user.id } } : { some: { userId: user.id, role: { in: TEAM_ROLES } } } },
+    },
+    select: {
+      revision: true, state: true, projectVersionId: true,
+      project: { select: { archivedAt: true } },
+      payoutDestination: { select: { awardId: true, address: true, network: true, asset: true, confirmedAt: true } },
+    },
+  })
+  if (!row) return null
+  const state = stateSchema.parse(row.state)
+  const award = issuedPayoutAward(state, row.projectVersionId)
+  if (!award) return null
+  const receipt = row.payoutDestination
+  if (receipt && (receipt.awardId !== award.id || receipt.network !== syntheticPayout.network || receipt.asset !== syntheticPayout.asset))
+    return null
+  return {
+    revision: row.revision,
+    awardId: award.id,
+    canConfirm: !staff && !receipt && !row.project.archivedAt && !payoutConfirmationClosed(state),
+    destination: receipt && { address: receipt.address, confirmedAt: receipt.confirmedAt },
   }
 }
 

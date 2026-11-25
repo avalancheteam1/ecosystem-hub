@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
   // Standalone build: minimal Node server for the Railway Docker image.
   output: 'standalone',
   poweredByHeader: false,
+  // Development logs otherwise print Server Function arguments, including private payout input.
+  logging: { serverFunctions: false },
   // Image uploads go through a server action (FormData); covers are up to 2 MB.
   experimental: { serverActions: { bodySizeLimit: '3mb' } },
   serverExternalPackages: ['@prisma/client', 'pg-boss'],

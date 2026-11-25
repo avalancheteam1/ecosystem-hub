@@ -677,6 +677,114 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
     }
   })
+  it('US-7 confirms one private destination for the exact issued v4 award with zero settlement', async () => {
+    const { getCurrentUser } = await import('@/lib/session')
+    const { listApplications, readApplication, readPayoutDestination } = await import('@/app/(site)/grants/_lib/queries')
+    const { planAwardScope } = await import('@/app/(site)/grants/_lib/rules')
+    const { stateSchema } = await import('@/app/(site)/grants/_lib/schemas')
+    const p = await project()
+    const planAnswers: PlanIntake = {
+      intakeVersion: 3, amountMinor: 100, summary: 'Ship a synthetic test fixture',
+      milestones: [{ source: 'application', title: 'Quickstart', due: fields().terms.due, evidence: 'Independent reproduction' }],
+    }
+    const submitted = transition(initialState(planAnswers), { kind: 'submit_application', planAnswers, confirm: true },
+      { id: randomUUID(), actorId: builder.id, now: now(), projectVersionId: p.versionId })
+    if (submitted.version !== 4) throw new Error('Expected a version 4 plan')
+    const plan = submitted.applications[0]
+    const milestoneId = plan.answers.milestones[0].milestoneId
+    const apply = (state: GrantState, command: Command, actorId = reviewer.id) =>
+      transition(state, command, { id: randomUUID(), actorId, now: now(), projectVersionId: p.versionId })
+    const cleared = apply(submitted, { kind: 'clear_milestone', confirm: true, planId: plan.id })
+    const delivered = apply(cleared, {
+      kind: 'submit_delivery', planId: plan.id, milestoneId, previousAttemptId: null,
+      release: 'https://example.test/release', reproduction: 'https://example.test/replay', note: 'Synthetic evidence',
+    }, builder.id)
+    const verified = apply(delivered, {
+      kind: 'review_delivery', planId: plan.id, milestoneId, deliveryId: delivered.deliveries[0].id,
+      outcome: 'accepted', inspected: true, reproduced: true, matches: true, note: 'Verified', evidence: 'Synthetic review',
+    })
+    for (const id of criterionIds)
+      verified.assessment.criteria[id] = { score: '2', basis: 'E', source: 'Inspected artifact', rationale: 'Supported scope' }
+    for (const id of clearanceIds) verified.assessment.clearances[id] = { state: 'pass', evidence: 'Verified readiness' }
+    const assessed = apply(verified, { kind: 'save_assessment', assessment: verified.assessment })
+    const row = await db.grantApplication.create({
+      data: { projectId: p.id, projectVersionId: p.versionId, status: assessed.status, state: store.json(assessed) },
+    })
+    applications.push(row.id)
+    const address = '0x' + 'ab'.repeat(20)
+    const input = { applicationId: row.id, revision: 0, awardId: randomUUID(),
+      network: 'synthetic-evm', address, confirm: true } as const
+    vi.mocked(getCurrentUser).mockResolvedValue(builder)
+    vi.stubEnv('GRANTS_SYNTHETIC_PAYOUT_ENABLED', 'true')
+    expect(await readPayoutDestination(row.id, false)).toBeNull()
+    expect(await actions.confirmPayoutDestination(input)).toMatchObject({ ok: false, error: expect.stringContaining('issued award') })
+    const { revision } = await store.mutateGrant(row.id, 0, { kind: 'issue_award', rationale: 'Fixture', publicNote: 'Award issued' },
+      reviewer, {
+        applicationId: row.id, revision: 0, planId: plan.id, actorId: reviewer.id, budget: 'Synthetic budget', authority: 'Synthetic authority',
+        terms: { ...fields().terms, ...planAwardScope(plan.answers.milestones)!, amountMinor: 100 },
+      })
+    const awarded = await db.grantApplication.findUniqueOrThrow({ where: { id: row.id } })
+    const applicant = await readPayoutDestination(row.id, false)
+    expect(applicant).toMatchObject({ revision, destination: null })
+    const bound = { ...input, revision, awardId: applicant!.awardId }
+    vi.stubEnv('GRANTS_SYNTHETIC_PAYOUT_ENABLED', 'false')
+    expect(await actions.confirmPayoutDestination(bound)).toMatchObject({ ok: false, error: expect.stringContaining('unavailable') })
+    vi.stubEnv('GRANTS_SYNTHETIC_PAYOUT_ENABLED', 'true')
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(await readPayoutDestination(row.id, false)).toBeNull()
+    expect(await actions.confirmPayoutDestination(bound)).toMatchObject({ ok: false, error: expect.stringContaining('unavailable') })
+    vi.stubEnv('NODE_ENV', 'test')
+    expect(await actions.confirmPayoutDestination({ ...bound, revision: 0 })).toMatchObject({ ok: false, error: expect.stringContaining('changed') })
+    expect(await actions.confirmPayoutDestination({ ...bound, awardId: input.awardId })).toMatchObject({ ok: false, error: expect.stringContaining('changed') })
+    for (const invalid of [
+      { address: '0xinvalid' }, { address: '0x' + '0'.repeat(40) },
+      { network: 'foreign-network' }, { confirm: false },
+    ]) {
+      expect(await actions.confirmPayoutDestination({ ...bound, ...invalid } as typeof input)).toMatchObject({ ok: false })
+    }
+    const closed = stateSchema.parse(awarded.state)
+    closed.closedAt = now()
+    await db.grantApplication.update({ where: { id: row.id }, data: { state: store.json(closed) } })
+    expect(await readPayoutDestination(row.id, false)).toMatchObject({ canConfirm: false })
+    expect(await actions.confirmPayoutDestination(bound)).toMatchObject({ ok: false, error: expect.stringContaining('closed') })
+    const beforeConfirmation = await db.grantApplication.update({ where: { id: row.id }, data: { state: store.json(awarded.state) } })
+    await db.projectMember.create({ data: { userId: stranger.id, projectId: p.id, role: 'reader' } })
+    for (const unauthorized of [stranger, reviewer]) {
+      vi.mocked(getCurrentUser).mockResolvedValue(unauthorized)
+      expect(await actions.confirmPayoutDestination(bound)).toMatchObject({ ok: false, error: expect.stringContaining('grant') })
+    }
+    vi.mocked(getCurrentUser).mockResolvedValue(builder)
+    const alternate = '0x' + 'cd'.repeat(20)
+    const writes = await Promise.all([actions.confirmPayoutDestination(bound),
+      actions.confirmPayoutDestination({ ...bound, address: alternate })])
+    expect(writes.filter(({ ok }) => ok)).toHaveLength(1)
+    const recorded = writes[0].ok ? address : alternate
+    expect(await actions.confirmPayoutDestination({ ...bound, address: alternate }))
+      .toMatchObject({ ok: false, error: expect.stringContaining('already confirmed') })
+    expect(await readPayoutDestination(row.id, false)).toMatchObject({ destination: { address: recorded } })
+    expect(JSON.stringify(await readApplication(row.id, false))).not.toContain(recorded)
+    vi.mocked(getCurrentUser).mockResolvedValue(stranger)
+    expect(await readPayoutDestination(row.id, false)).toBeNull()
+    vi.mocked(getCurrentUser).mockResolvedValue(user(stranger.id, ['grants.review', 'grants.payments']))
+    expect(await readPayoutDestination(row.id, true)).toBeNull()
+    vi.mocked(getCurrentUser).mockResolvedValue(user(reviewer.id, ['grants.review']))
+    expect(await readPayoutDestination(row.id, true)).toBeNull()
+    vi.mocked(getCurrentUser).mockResolvedValue(reviewer)
+    expect(await readPayoutDestination(row.id, true)).toMatchObject({ destination: { address: recorded } })
+    expect(JSON.stringify(await readApplication(row.id, true))).not.toContain(recorded)
+    expect(JSON.stringify(await listApplications(true))).not.toContain(recorded)
+    expect(await db.grantApplication.findUniqueOrThrow({ where: { id: row.id } })).toEqual(beforeConfirmation)
+    expect(await db.grantPayoutDestination.findMany({ where: { applicationId: row.id } }))
+      .toMatchObject([{ awardId: bound.awardId, network: 'synthetic-evm', asset: 'Synthetic test token', address: recorded }])
+    expect(await db.grantRevision.findMany({ where: { applicationId: row.id }, select: { kind: true } }))
+      .toEqual([{ kind: 'issue_award' }])
+    expect(await db.projectActivity.findMany({ where: { targetId: row.id }, select: { event: true } }))
+      .toEqual([{ event: 'grant_award_issued' }])
+    expect(await db.grantPaymentReference.count({ where: { applicationId: row.id } })).toBe(0)
+    const audit = await db.auditLog.findMany({ where: { entityId: row.id, action: 'grant.confirm_payout_destination' } })
+    expect(audit).toMatchObject([{ actorId: builder.id, after: { awardId: bound.awardId, confirmed: true } }])
+    expect(JSON.stringify(audit)).not.toContain(recorded)
+  }, 20_000)
   it('seals and pins the real project version atomically on submission', async () => {
     const p = await project(),
       created = await store.createGrant(p.id, roundId, { ...fields(), projectMilestoneId: p.milestoneId }, builder)

@@ -29,11 +29,25 @@ model GrantApplication {
   updatedAt        DateTime       @updatedAt
   revisions        GrantRevision[]
   paymentReferences GrantPaymentReference[]
+  payoutDestination GrantPayoutDestination?
 
   @@unique([roundId, projectId])
   @@index([projectId])
   @@index([roundId, status])
   @@map("grant_applications")
+}
+
+// Private receipt for the issued award. Kept outside append-only state and activity.
+model GrantPayoutDestination {
+  applicationId String           @id
+  application   GrantApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  awardId       String
+  network       String
+  asset         String
+  address       String
+  confirmedAt   DateTime         @default(now())
+
+  @@map("grant_payout_destinations")
 }
 
 // Append-only authoritative revision receipt, in the same transaction as the head.

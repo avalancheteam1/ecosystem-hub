@@ -5,8 +5,14 @@ import { action } from '@/lib/action'
 import { ActionError } from '@/lib/action-error'
 import { recordAudit } from '@/lib/audit'
 import { shortIntakeEnabled } from './config'
-import { createSchema, mutationSchema, startSchema } from './schemas'
-import { createGrant, mutateGrant, startGrant } from './store'
+import { createSchema, mutationSchema, payoutDestinationSchema, startSchema } from './schemas'
+import { confirmGrantPayoutDestination, createGrant, mutateGrant, startGrant } from './store'
+
+export const confirmPayoutDestination = action({ schema: payoutDestinationSchema, permission: 'user' }, async (input, user) => {
+  await confirmGrantPayoutDestination(input, user)
+  revalidatePath(`/grants/applications/${input.applicationId}`)
+  revalidatePath(`/admin/grants/applications/${input.applicationId}`)
+})
 
 export const startApplication = action({ schema: startSchema, permission: 'user' }, async ({ projectId }, user) => {
   const { id, created } = await startGrant(projectId, user)

@@ -1,5 +1,5 @@
 import { requirePermission } from '@/lib/guards'
-import { readApplication } from '@/app/(site)/grants/_lib/queries'
+import { readApplication, readPayoutDestination } from '@/app/(site)/grants/_lib/queries'
 import { GrantCaseView } from '@/app/(site)/grants/_components/case-view'
 
 export default async function ReviewerGrant({
@@ -12,5 +12,6 @@ export default async function ReviewerGrant({
   await requirePermission('grants.review')
   const [{ id }, query] = await Promise.all([params, searchParams])
   const data = await readApplication(id, true)
-  return <GrantCaseView data={data} requestedTab={query.tab} checkpoint={query.day} />
+  const payout = data.staff && data.capabilities.payments && query.tab === 'Payments' ? await readPayoutDestination(id, true) : null
+  return <GrantCaseView data={data} requestedTab={query.tab} checkpoint={query.day} payout={payout} />
 }

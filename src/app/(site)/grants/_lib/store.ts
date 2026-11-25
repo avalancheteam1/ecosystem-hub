@@ -9,10 +9,10 @@ import type { CurrentUser } from '@/lib/session'
 import { FLAGS, type Flag } from '@/lib/flags'
 import { recordProjectActivity, type ProjectActivityEvent } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
-import { continuousIntakePaused, hasDemoProof, id, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState } from './schemas'
-import { milestoneFirstEnabled, shortIntakeEnabled } from './config'
+import { continuousIntakePaused, hasDemoProof, id, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, syntheticPayout, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState, type payoutDestinationSchema } from './schemas'
+import { milestoneFirstEnabled, shortIntakeEnabled, syntheticPayoutEnabled } from './config'
 import { assertReviewer } from './staff'
-import { commandPermission, initialState, mayCommand, transition } from './rules'
+import { commandPermission, initialState, issuedPayoutAward, mayCommand, payoutConfirmationClosed, transition } from './rules'
 import {
   existingGrant, formatReapplicationDate, grantIntakeHistory, hasChangedDemo, hasChangedRoadmapScope,
   hasDifferentRoadmapDeliverable, missingScopeChange, priorDecisionUnverified, priorScope, reapplicationEligibility,
@@ -37,6 +37,52 @@ async function projectAccess(tx: Prisma.TransactionClient, projectId: string, us
     select: { archivedAt: true, currentVersionId: true, members: { where: { userId: user.id }, select: { role: true } } },
   })
   return { project, role: project?.members[0]?.role ?? null }
+}
+
+export async function confirmGrantPayoutDestination(input: z.infer<typeof payoutDestinationSchema>, user: CurrentUser) {
+  if (!syntheticPayoutEnabled()) throw new ActionError('Payout destination confirmation is unavailable.')
+  const { applicationId, revision, awardId, address } = input
+  const alreadyConfirmed = () => new ActionError('The test payout address is already confirmed and cannot be replaced.')
+  try {
+    await transaction(async (tx) => {
+      const row = await tx.grantApplication.findUnique({
+        where: { id: applicationId },
+        select: { projectId: true, projectVersionId: true, revision: true, state: true },
+      })
+      if (!row) throw new ForbiddenError('Grant access denied')
+      const { project, role } = await projectAccess(tx, row.projectId, user)
+      if (!canEditProject(role ?? '')) throw new ForbiddenError('Only a grant project owner or writer can confirm its payout address.')
+      if (!project || project.archivedAt) throw new ActionError('This project is archived or unavailable.')
+      if (row.revision !== revision) throw conflict()
+      const state = stateSchema.parse(row.state)
+      const award = issuedPayoutAward(state, row.projectVersionId)
+      if (!award) throw new ActionError('An issued award is required before confirming a payout address.')
+      if (award.id !== awardId) throw conflict()
+      if (payoutConfirmationClosed(state)) throw new ActionError('Payout address confirmation has closed for this grant.')
+
+      // Coordinate with aggregate writes without putting the private receipt in the aggregate.
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM grant_applications WHERE id = ${applicationId} AND revision = ${revision} FOR NO KEY UPDATE
+      `
+      if (!locked.length) throw conflict()
+      if (await tx.grantPayoutDestination.findUnique({ where: { applicationId }, select: { applicationId: true } }))
+        throw alreadyConfirmed()
+      await tx.grantPayoutDestination.create({
+        data: { applicationId, awardId, network: syntheticPayout.network, asset: syntheticPayout.asset, address },
+        select: { applicationId: true },
+      })
+      await writeAudit(tx, {
+        actorId: user.id, action: 'grant.confirm_payout_destination', entityType: 'GrantApplication', entityId: applicationId,
+        after: { awardId, confirmed: true },
+      })
+    })
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    if (isWriteConflict(error)) throw conflict()
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw alreadyConfirmed()
+    // Prisma and driver error details may include the address. The action logs only this message.
+    throw new Error('Grant payout destination confirmation failed')
+  }
 }
 
 async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versionId: string, requireDemo = false) {
