@@ -57,7 +57,7 @@ export default async function RoundsPage({
           id: a.id,
           name: a.projectVersion.name,
           assessment: state.assessment,
-          holds: readiness(state, state.answers.intakeVersion === 2 ? undefined : state.answers.terms.route),
+          holds: readiness(state, state.answers.intakeVersion === undefined ? state.answers.terms.route : undefined),
         }
       })
   const owners = await reviewerOptions(user)

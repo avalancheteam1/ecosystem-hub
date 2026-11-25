@@ -48,6 +48,8 @@ export const changeApplication = action({ schema: mutationSchema, permission: 'u
     after: {
       revision: result.revision,
       ...(input.command.kind === 'release_review_status' ? { applicantStatus: input.command.status } : {}),
+      ...('planId' in input.command && input.command.planId ? { planId: input.command.planId } : {}),
+      ...('milestoneId' in input.command && input.command.milestoneId ? { milestoneId: input.command.milestoneId } : {}),
     },
   })
   revalidatePath('/grants', 'layout')

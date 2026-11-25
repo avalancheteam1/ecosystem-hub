@@ -26,11 +26,15 @@ export const PROJECT_ACTIVITY_EVENTS = {
   unadvanced: 'Advance taken back',
   disqualified: 'Disqualified',
   reinstated: 'Reinstated',
+  grant_plan_approved: 'Milestone plan approved',
+  grant_evidence_submitted: 'Milestone evidence submitted',
+  grant_milestone_verified: 'Milestone verified',
+  grant_evidence_returned: 'Milestone evidence returned',
 } as const
 export type ProjectActivityEvent = keyof typeof PROJECT_ACTIVITY_EVENTS
 
 /** Done by the team itself (their name is shown); `replaced` follows from another event (no one shown); the rest is the program's staff. */
-const TEAM_EVENTS: ReadonlySet<string> = new Set<ProjectActivityEvent>(['submitted', 'withdrawn', 'unlisted'])
+const TEAM_EVENTS: ReadonlySet<string> = new Set<ProjectActivityEvent>(['submitted', 'withdrawn', 'unlisted', 'grant_evidence_submitted'])
 const NO_ACTOR: ReadonlySet<string> = new Set<ProjectActivityEvent>(['replaced'])
 
 export type ProjectActivityInput = {

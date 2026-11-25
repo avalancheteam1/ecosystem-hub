@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { PrismaClient } from '@prisma/client'
 import type { CurrentUser } from '@/lib/session'
 import type { Permission } from '@/lib/permissions'
-import { answers, criterionIds, clearanceIds, type GrantState } from '@/app/(site)/grants/_lib/schemas'
+import { answers, criterionIds, clearanceIds, type Command, type GrantState, type PlanIntake } from '@/app/(site)/grants/_lib/schemas'
 import { addDays, initialState, transition } from '@/app/(site)/grants/_lib/rules'
 
 // Explicitly opt in; the default Hub suite remains DB-less. Refuse production URLs.
@@ -218,13 +218,13 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     const legacyProject = await project()
     const legacy = await store.createGrant(legacyProject.id, roundId, { ...fields(), projectMilestoneId: legacyProject.milestoneId }, builder)
     applications.push(legacy.id)
-    const shortAnswers = {
-      intakeVersion: 2 as const,
+    const planAnswers = {
+      intakeVersion: 3 as const,
       amountMinor: 10000,
       summary: 'Finish the prototype quickstart',
-      milestone: { source: 'application' as const, title: 'Publish quickstart', due: fields().terms.due, evidence: 'Replay results' },
+      milestones: [{ source: 'application' as const, title: 'Publish quickstart', due: fields().terms.due, evidence: 'Replay results' }],
     }
-    const submit = { kind: 'submit_application' as const, confirm: true as const, shortAnswers }
+    const submit = { kind: 'submit_application' as const, confirm: true as const, planAnswers }
     vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
     await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
     try {
@@ -236,9 +236,9 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.projectVersion.update({
         where: { id: p.versionId }, data: { demoLinks: [], websiteUrl: 'https://example.test/about' },
       })
-      const saved = await store.mutateGrant(id, 0, { kind: 'save_application', answers: shortAnswers }, builder)
+      const saved = await store.mutateGrant(id, 0, { kind: 'save_application', answers: planAnswers }, builder)
       await expect(store.mutateGrant(id, saved.revision, submit, builder)).rejects.toThrow('demo link')
-      expect(await readApplication(id, false)).toMatchObject({ revision: 1, state: { status: 'draft', answers: shortAnswers } })
+      expect(await readApplication(id, false)).toMatchObject({ revision: 1, state: { status: 'draft', answers: planAnswers } })
       expect((await db.projectVersion.findUniqueOrThrow({ where: { id: p.versionId } })).sealedAt).toBeNull()
       await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
       await expect(store.mutateGrant(id, saved.revision, submit, builder)).rejects.toThrow('paused')
@@ -256,6 +256,132 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       })
       expect(await db.projectActivity.count({ where: { targetId: id, versionId: p.versionId, event: 'submitted' } })).toBe(1)
       expect(await readApplication(legacy.id, true)).toMatchObject({ round: prefix, state: { status: 'submitted' } })
+    } finally {
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
+  it('Grants v1 US-3 validates one to three milestones and pins terms despite later roadmap changes', async () => {
+    const session = await import('@/lib/session')
+    const p = await project(), foreign = await project(), one = await project()
+    const due = fields().terms.due
+    const roadmap = { source: 'roadmap' as const, id: p.milestoneId, title: 'Quickstart', due, evidence: 'A passing quickstart' }
+    const a = { source: 'application' as const, title: 'Ship a test harness', due, evidence: 'Reproducible test run' }
+    const b = { ...a, title: 'Publish sample data', evidence: 'Checksums and dataset' }
+    const injected = { ...a, milestoneId: 'injected-id' }
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+      const started = await actions.startApplication({ projectId: p.id })
+      if (!started.ok) throw new Error(started.error)
+      const { id } = started.data
+      applications.push(id)
+      const submit = (milestones: PlanIntake['milestones']) => actions.changeApplication({
+        applicationId: id, revision: 0, command: { kind: 'submit_application', confirm: true,
+          planAnswers: { intakeVersion: 3, amountMinor: 25000, summary: 'Complete open-source tooling', milestones } },
+      })
+      for (const milestones of [[], [roadmap, a, b, a], [roadmap, roadmap], [{ ...roadmap, id: foreign.milestoneId }], [injected], [{ ...a, evidence: '' }]]) {
+        expect(await submit(milestones)).toMatchObject({ ok: false })
+        expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(1)
+      }
+      await db.projectMilestone.update({ where: { id: p.milestoneId }, data: { title: 'Changed quickstart' } })
+      expect(await submit([roadmap, a, b])).toMatchObject({ ok: false, error: expect.stringContaining('roadmap milestone changed') })
+      expect((await db.projectVersion.findUniqueOrThrow({ where: { id: p.versionId } })).sealedAt).toBeNull()
+      const pinned = { ...roadmap, title: 'Changed quickstart' }
+      expect(await submit([pinned, a, b])).toMatchObject({ ok: true, data: { revision: 1 } })
+      await db.projectMilestone.delete({ where: { id: p.milestoneId } })
+      const row = await db.grantApplication.findUniqueOrThrow({ where: { id } })
+      expect(row.state).toMatchObject({ version: 4, applications: [{ projectVersionId: p.versionId,
+        answers: { milestones: [pinned, a, b].map((m) => ({ ...m, milestoneId: expect.any(String) })) },
+      }] })
+      const single = await store.startGrant(one.id, builder)
+      applications.push(single.id)
+      expect(await actions.changeApplication({ applicationId: single.id, revision: 0,
+        command: { kind: 'submit_application', confirm: true, planAnswers: { intakeVersion: 3, amountMinor: 100, summary: 'Ship one item', milestones: [a] } },
+      })).toMatchObject({ ok: true })
+    } finally {
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
+
+  it('Grants v1 US-3 scopes returns and verification to the pinned milestone and rejects stale attempts and revisions', async () => {
+    const session = await import('@/lib/session')
+    const { stateSchema } = await import('@/app/(site)/grants/_lib/schemas')
+    const { applicantProjection, milestonePlan, planAwardScope } = await import('@/app/(site)/grants/_lib/rules')
+    const p = await project()
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      const { id } = await store.startGrant(p.id, builder)
+      applications.push(id)
+      let revision = 0
+      async function change(command: object, actor = builder, expected = revision) {
+        vi.mocked(session.getCurrentUser).mockResolvedValue(actor)
+        const result = await actions.changeApplication({ applicationId: id, revision: expected, command: command as Command })
+        if (result.ok) revision = result.data.revision
+        return result
+      }
+      const read = async () => stateSchema.parse((await db.grantApplication.findUniqueOrThrow({ where: { id } })).state)
+      const milestones = ['Quickstart', 'Automated checks'].map((title) => ({
+        source: 'application', title, due: fields().terms.due, evidence: `Independent reproduction of ${title}`,
+      }))
+      expect(await change({ kind: 'submit_application', confirm: true,
+        planAnswers: { intakeVersion: 3, amountMinor: 500000, summary: 'Ship tooling', milestones },
+      })).toMatchObject({ ok: true })
+      const submitted = await read()
+      if (submitted.version !== 4) throw new Error('Expected a version 4 plan')
+      const plan = submitted.applications[0]
+      const [a, b] = plan.answers.milestones.map(({ milestoneId }) => milestoneId)
+      expect(a).not.toBe(b)
+      const approval = { kind: 'clear_milestone', confirm: true, planId: plan.id }
+      const submit = { kind: 'submit_delivery', planId: plan.id, milestoneId: a, previousAttemptId: null,
+        release: 'https://example.test/release', reproduction: 'https://example.test/replay', note: 'Ready for verification' }
+      const review = { kind: 'review_delivery', planId: plan.id, milestoneId: a, outcome: 'accepted',
+        inspected: true, reproduced: true, matches: true, note: 'Applicant-facing note', evidence: 'Private verification reference' }
+      expect(await change(submit)).toMatchObject({ ok: false })
+      expect(await change({ ...approval, planId: 'foreign-plan' }, reviewer)).toMatchObject({ ok: false })
+      expect(await change(approval, builder)).toMatchObject({ ok: false })
+      expect(await change(approval, user(builder.id, ['grants.review', 'grants.decide']))).toMatchObject({ ok: false })
+      expect(await change(approval, reviewer)).toMatchObject({ ok: true })
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
+      expect(await change({ ...submit, milestoneId: 'foreign-milestone' })).toMatchObject({ ok: false })
+      expect(await change(submit, stranger)).toMatchObject({ ok: false })
+      const oldRevision = revision
+      expect(await change(submit)).toMatchObject({ ok: true })
+      expect(await change({ ...submit, milestoneId: b }, builder, oldRevision)).toMatchObject({ ok: false })
+      expect(await change({ ...submit, milestoneId: b })).toMatchObject({ ok: true })
+      const [first, second] = (await read()).deliveries
+      expect(await change({ ...review, deliveryId: second.id }, reviewer)).toMatchObject({ ok: false })
+      expect(await change({ ...review, deliveryId: first.id }, user(reviewer.id, ['grants.review']))).toMatchObject({ ok: false })
+      expect(await change({ ...review, deliveryId: first.id }, reviewer)).toMatchObject({ ok: true })
+      expect(await change({ ...review, milestoneId: b, deliveryId: second.id, outcome: 'changes_requested' }, reviewer)).toMatchObject({ ok: true })
+      expect(applicantProjection(await read())).toMatchObject({ milestonePlan: { milestones: [
+        { milestoneId: a, status: 'accepted' }, { milestoneId: b, status: 'changes_requested' },
+      ] } })
+      const award = { kind: 'record_decision', outcome: 'approved', terms: fields().terms, rationale: 'Supported',
+        publicNote: 'Agreed', ownerId: reviewer.id, budget: 'test-budget', authority: 'test-authority' }
+      expect(await change(award, reviewer)).toMatchObject({ ok: false, error: expect.stringContaining('every milestone') })
+      expect(await change({ ...submit, milestoneId: b })).toMatchObject({ ok: false })
+      expect(await change({ ...submit, milestoneId: b, previousAttemptId: second.id })).toMatchObject({ ok: true })
+      expect(await change({ ...review, milestoneId: b, deliveryId: second.id }, reviewer)).toMatchObject({ ok: false })
+      const latest = (await read()).deliveries.at(-1)!
+      expect(await change({ ...review, milestoneId: b, deliveryId: latest.id, planId: 'foreign-plan' }, reviewer)).toMatchObject({ ok: false })
+      expect(await change({ ...review, milestoneId: b, deliveryId: latest.id }, reviewer)).toMatchObject({ ok: true })
+      const final = await read()
+      expect(final).toMatchObject({ decisions: [], terms: [], payments: [], deliveries: [
+        { id: first.id, state: 'accepted' },
+        { id: second.id, state: 'changes_requested' },
+        { id: latest.id, state: 'accepted' },
+      ] })
+      expect(JSON.stringify(applicantProjection(final))).not.toContain('Private verification reference')
+      expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(revision + 1)
+      expect(await db.auditLog.count({ where: { entityId: id, action: { in: ['grant.clear_milestone', 'grant.submit_delivery', 'grant.review_delivery'] } } })).toBe(7)
+      expect(await db.projectActivity.count({ where: { targetId: id, versionId: p.versionId } })).toBe(8)
+      expect(await change(award, reviewer)).toMatchObject({ ok: false, error: expect.stringContaining('match the verified milestone plan') })
+      const awardTerms = { ...award.terms, ...planAwardScope(milestonePlan(final)!.milestones) }
+      expect(await change({ ...award, terms: awardTerms }, reviewer)).toMatchObject({
+        ok: false, error: expect.stringContaining('current submitted project version'),
+      })
+      expect((await read()).terms).toEqual([])
+      expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(revision + 1)
     } finally {
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
     }

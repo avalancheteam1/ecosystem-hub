@@ -8,7 +8,7 @@ import { StatusPill } from '@/components/status-pill'
 import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { ProjectVersionView } from '@/components/project-version-view'
 import type { readApplication } from '../_lib/queries'
-import { activeTerms, addDays, applicationStatus, applicationStatusCopy, readiness, score, statusLabel, totals } from '../_lib/rules'
+import { activeTerms, addDays, applicationStatus, applicationStatusCopy, deliveryAcceptedAt, milestonePlan, planAwardScope, readiness, score, statusLabel, totals } from '../_lib/rules'
 import { reviewStatus, type Command, type Terms } from '../_lib/schemas'
 import { GrantCommandForm, type GrantField, type GrantRepeater } from './command-form'
 import { applicationFields, assessmentFields, costRepeater, metricRepeater, options, termsFields } from './fields'
@@ -31,6 +31,22 @@ const note: GrantField = {
 const evidence: GrantField = {
   path: 'evidence',
   label: 'Evidence reference',
+}
+const verificationFields: GrantField[] = [
+  { path: 'outcome', label: 'Outcome', type: 'select', options: [
+    { value: 'accepted', label: 'Verify evidence' }, { value: 'changes_requested', label: 'Return for changes' },
+  ] },
+  note,
+  evidence,
+  { path: 'inspected', label: 'Agreed output inspected', type: 'checkbox' },
+  { path: 'reproduced', label: 'Acceptance test reproduced', type: 'checkbox' },
+  { path: 'matches', label: 'Scope and version match', type: 'checkbox' },
+]
+const milestoneStatus = {
+  awaiting_evidence: 'Awaiting evidence',
+  submitted: 'Evidence under review',
+  changes_requested: 'Evidence returned',
+  accepted: 'Verified',
 }
 const recentActivityLabels = new Map([
   ['create', 'Application created'],
@@ -73,18 +89,25 @@ export function GrantCaseView({
     internal = data.staff ? data.state : null,
     capabilities = data.staff ? data.capabilities : null
   const short = s.answers.intakeVersion === 2 ? s.answers : null
-  const editShortDraft = !data.staff && data.writer && s.status === 'draft' && short !== null && (data.continuous || shortIntakeEnabled())
-  const legacy = s.answers.intakeVersion !== 2 ? s.answers : null
-  const requestedAmount = short ? short.amountMinor : legacy?.terms.amountMinor
-  const requestedRoute = internal?.answers.intakeVersion === 2 ? undefined : internal?.answers.terms.route
+  const planAnswers = s.answers.intakeVersion === 3 ? s.answers : null
+  const shortAnswers = short ?? planAnswers
+  const editShortDraft = !data.staff && data.writer && s.status === 'draft' && shortAnswers && (data.continuous || shortIntakeEnabled())
+  const legacy = s.answers.intakeVersion === undefined ? s.answers : null
+  const requestedAmount = shortAnswers?.amountMinor ?? legacy?.terms.amountMinor
+  const requestedRoute = internal?.answers.intakeVersion === undefined ? internal?.answers.terms.route : undefined
   const base = `${data.staff ? '/admin' : ''}/grants/applications/${data.id}`
-  const milestoneFirst = data.staff ? data.state.version === 3 : data.state.milestoneFirst
-  const clearedAt = data.staff ? data.state.version === 3 ? data.state.milestoneClearance?.at : null : data.state.clearedAt
+  const plan = data.staff ? milestonePlan(data.state) : data.state.milestonePlan
+  const milestoneFirst = data.staff ? data.state.version === 3 || data.state.version === 4 : data.state.milestoneFirst
+  const clearedAt = plan ? plan.approvedAt : data.staff ? data.state.version === 3 ? data.state.milestoneClearance?.at : null : data.state.clearedAt
+  const planVerified = !!plan?.approvedAt && plan.milestones.every((m) => m.status === 'accepted')
+  const planPendingReview = plan?.milestones.some((m) => m.status === 'submitted')
+  const planNeedsEvidence = !!plan?.approvedAt && plan.milestones.some((m) => m.status === 'awaiting_evidence' || m.status === 'changes_requested')
   const lastDelivery = s.deliveries.at(-1)
-  const canSubmitMilestone = milestoneFirst && !!clearedAt && s.status === 'submitted' && !s.closedAt &&
+  const canSubmitMilestone = !plan && milestoneFirst && !!clearedAt && s.status === 'submitted' && !s.closedAt &&
     (!lastDelivery || lastDelivery.state === 'changes_requested')
   const milestoneStage = !milestoneFirst ? null : s.status === 'approved' ? 'Award issued'
     : s.status !== 'submitted' || !clearedAt ? null
+      : plan ? planVerified ? 'Milestone plan verified' : planPendingReview ? 'Evidence under review' : 'Awaiting milestone evidence'
       : lastDelivery?.state === 'accepted' ? 'Milestone verified'
         : lastDelivery?.state === 'submitted' ? 'Evidence under review'
           : lastDelivery?.state === 'changes_requested' ? 'Evidence changes requested' : 'Milestone cleared'
@@ -146,7 +169,7 @@ export function GrantCaseView({
     triggerAriaLabel?: string,
   ) => (
     <GrantCommandForm
-      key={`${data.id}:${data.revision}:${kind}`}
+      key={`${data.id}:${data.revision}:${kind}:${defaults.milestoneId ?? ''}`}
       applicationId={data.id}
       revision={data.revision}
       label={label}
@@ -202,6 +225,17 @@ export function GrantCaseView({
       </dl>}
     </SectionCard>
   )
+  const planCommitments = plan && <ol className="space-y-4">
+    {plan.milestones.map((milestone) => <li key={milestone.milestoneId} className="space-y-1">
+      <p className="wrap-anywhere"><strong>{milestone.title}</strong> · <time dateTime={milestone.due}>{milestone.due}</time> (UTC)</p>
+      <p className="wrap-anywhere whitespace-pre-wrap text-fg-muted">{milestone.evidence}</p>
+    </li>)}
+  </ol>
+  const planRequest = planAnswers && <SectionCard title="Milestone plan" className="space-y-3">
+    {requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
+    <p className="wrap-anywhere whitespace-pre-wrap">{planAnswers.summary}</p>
+    {planCommitments}
+  </SectionCard>
   const applicantEvidenceLabels = milestoneFirst && !data.staff ? {
     release: 'Link to what you built',
     reproduction: 'Link showing how it works',
@@ -214,10 +248,10 @@ export function GrantCaseView({
         className="inline-flex min-h-11 items-center underline underline-offset-4">{applicantEvidenceLabels?.reproduction ?? 'Reproduction evidence'}</a>
     </div>
   )
-  const milestoneEvidenceForm = (label: string) => form(
+  const milestoneEvidenceForm = (label: string, target?: { planId: string; milestoneId: string; previousAttemptId: string | null }) => form(
     'submit_delivery',
     label,
-    { release: '', reproduction: '', note: '' },
+    { release: '', reproduction: '', note: '', ...target },
     [
       { path: 'release', label: applicantEvidenceLabels?.release ?? 'Release and output URL' },
       { path: 'reproduction', label: applicantEvidenceLabels?.reproduction ?? 'Reproduction evidence URL' },
@@ -326,7 +360,7 @@ export function GrantCaseView({
     const pendingAmendment = s.amendments.findLast((item) => ['submitted', 'changes_requested', 'approved'].includes(item.state))
     const delivery = s.deliveries.at(-1)
     const today = new Date().toISOString().slice(0, 10)
-    const acceptedAt = delivery?.state === 'accepted' ? delivery.review?.at : undefined
+    const acceptedAt = plan ? deliveryAcceptedAt(s.deliveries, true) : delivery?.state === 'accepted' ? delivery.review?.at : undefined
     const dueCheckpoint = s.impactPlan && acceptedAt && ['30', '90', '180'].find((d) =>
       addDays(acceptedAt.slice(0, 10), Number(d)) <= today &&
       !['submitted', 'reviewed'].includes(s.impact.findLast((item) => item.day === d)?.state ?? ''),
@@ -344,6 +378,8 @@ export function GrantCaseView({
           <Link href={`${base}?tab=Decision`} className={actionLink}>Review award terms</Link>
         </>}
       </>
+    ) : planNeedsEvidence && s.status === 'submitted' ? (
+      <Link href={`${base}?tab=Delivery`} className={actionLink}>Open milestone evidence</Link>
     ) : canSubmitMilestone ? (
       <>
         <p>{delivery?.state === 'changes_requested' ? 'Update your evidence using the reviewer’s feedback.' : 'Share evidence that you completed the cleared milestone.'}</p>
@@ -378,15 +414,17 @@ export function GrantCaseView({
               <StatusPill className="text-fg-heading">{statusCopy.label}</StatusPill>}
           </div>
           {s.status !== 'approved' && !milestoneStage && <p className="text-fg-muted">{statusDetail}</p>}
-          {milestoneFirst && <ApplicantReceipt recorded={delivery?.state === 'submitted'}>Evidence submitted</ApplicantReceipt>}
-          {milestoneFirst && delivery?.state === 'submitted' && (
+          {plan ? <ApplicantReceipt recorded={!!plan.approvedAt}>Milestone plan approved</ApplicantReceipt>
+            : milestoneFirst && <ApplicantReceipt recorded={delivery?.state === 'submitted'}>Evidence submitted</ApplicantReceipt>}
+          {planPendingReview && <Link href={`${base}?tab=Delivery`} className={actionLink}>View submitted evidence</Link>}
+          {milestoneFirst && !plan && delivery?.state === 'submitted' && (
             <div className="space-y-2">
               <p className="text-sm text-fg-muted">Submitted <time dateTime={delivery.at}>{delivery.at.slice(0, 10)}</time> (UTC)</p>
               {deliveryLinks(delivery)}
               <p className="wrap-anywhere whitespace-pre-wrap">{delivery.note}</p>
             </div>
           )}
-          {milestoneFirst && delivery?.state === 'accepted' && s.status === 'submitted' &&
+          {milestoneFirst && (plan ? planVerified : delivery?.state === 'accepted') && s.status === 'submitted' &&
             <p className="text-fg-muted">The grant team verified the evidence. A separate award decision is pending.</p>}
           {!publicStatus.updateRequested && !nextAction && <p>No action is needed right now.</p>}
           {s.closedAt && <p className="text-fg-muted">This grant is complete.</p>}
@@ -401,14 +439,15 @@ export function GrantCaseView({
           <SectionCard title={milestoneFirst ? 'Award receipt' : 'What the grant covers'} className="space-y-3">
             <p><strong>{usd(award.terms.amountMinor)}</strong> awarded</p>
             {milestoneFirst && decision && <p>Issued <time dateTime={decision.at}>{decision.at.slice(0, 10)}</time> (UTC)</p>}
-            {milestoneFirst && <p className="text-sm text-fg-muted">Verified milestone</p>}
+            {milestoneFirst && <p className="text-sm text-fg-muted">{plan ? 'Verified plan' : 'Verified milestone'}</p>}
             <p>{award.terms.title} · <time dateTime={award.terms.due}>{award.terms.due}</time> (UTC)</p>
             <p className="wrap-anywhere whitespace-pre-wrap">{award.terms.acceptance}</p>
           </SectionCard>
         )}
         <SectionCard title={award ? 'Original request' : 'What you requested'} className="space-y-3">
           {requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
-          <p className="wrap-anywhere whitespace-pre-wrap">{short?.summary ?? legacy?.outcome}</p>
+          <p className="wrap-anywhere whitespace-pre-wrap">{shortAnswers?.summary ?? legacy?.outcome}</p>
+          {planCommitments}
           {short?.milestone && <>
             <p>{short.milestone.title} · <time dateTime={short.milestone.due}>{short.milestone.due}</time> (UTC)</p>
             <p className="wrap-anywhere whitespace-pre-wrap">{short.milestone.evidence}</p>
@@ -486,10 +525,10 @@ export function GrantCaseView({
         )}
         <section className={data.staff ? 'min-w-0 space-y-8 lg:col-start-1 lg:row-start-1' : 'min-w-0 space-y-8'}>
           <h2 className="text-lg">{data.staff ? 'Application' : s.status === 'draft' ? 'Your draft' : 'What you requested'}</h2>
-          {editShortDraft && short ? (
+          {editShortDraft && shortAnswers ? (
             <ShortGrantForm
               key={`${data.id}:${data.revision}`}
-              draft={{ id: data.id, revision: data.revision, projectName: data.name, roundName: data.round, answers: short }}
+              draft={{ id: data.id, revision: data.revision, projectName: data.name, roundName: data.round, answers: shortAnswers }}
               roadmaps={[{ id: data.projectId, slug: data.projectSlug, milestones: data.milestones }]}
               roundOpen={data.roundOpen}
               continuous={data.continuous}
@@ -516,6 +555,7 @@ export function GrantCaseView({
           ) : (
             <>
               {shortRequest}
+              {planRequest}
               {!data.staff && data.writer && s.status === 'draft' && short && (
                 <p className="text-sm text-fg-muted">Editing and submitting short drafts is temporarily unavailable. Your saved draft is unchanged.</p>
               )}
@@ -606,11 +646,12 @@ export function GrantCaseView({
     else content = requests
   }
 
-  if (tab === 'Decision' && data.staff && data.state.version === 3) {
+  if (tab === 'Decision' && data.staff && (data.state.version === 3 || data.state.version === 4)) {
     const state = data.state
-    const milestone = state.answers.milestone
+    const milestone = short?.milestone
+    const awardScope = plan ? planAwardScope(plan.milestones) : milestone && { title: milestone.title, due: milestone.due, acceptance: milestone.evidence }
     const lastDecision = state.decisions.at(-1)
-    const verified = !!state.milestoneClearance && lastDelivery?.state === 'accepted'
+    const verified = plan ? planVerified : state.version === 3 && !!state.milestoneClearance && lastDelivery?.state === 'accepted'
     const openRequest = state.requests.some((request) => !request.answeredAt)
     const assessmentHolds = verified ? readiness(state) : []
     const awaitingDecision = state.status === 'submitted' && state.decisions.every((decision) => decision.outcome === 'deferred')
@@ -621,11 +662,11 @@ export function GrantCaseView({
       title: 'Evidence request open', detail: 'The applicant needs to reply. The grant reviewer can check the request and reassess the application.',
       tab: 'Requests', link: 'Open requests',
     } : !verified ? {
-      title: !oneCase ? 'Milestone verification required' : !clearedAt ? 'Allow evidence submission'
-        : lastDelivery?.state === 'submitted' ? 'Review submitted evidence'
+      title: !oneCase ? 'Milestone verification required' : !clearedAt ? (plan ? 'Review the pinned plan' : 'Allow evidence submission')
+        : (plan ? planPendingReview : lastDelivery?.state === 'submitted') ? 'Review submitted evidence'
           : lastDelivery?.state === 'changes_requested' ? 'Waiting for revised evidence' : 'Waiting for milestone evidence',
-      detail: !clearedAt ? 'Staff with grant decision access must clear the pinned milestone.'
-        : lastDelivery?.state === 'submitted' ? 'The milestone verifier must review the submitted evidence.'
+      detail: !clearedAt ? (plan ? 'Staff with grant decision access can approve this plan for delivery.' : 'Staff with grant decision access must clear the pinned milestone.')
+        : (plan ? planPendingReview : lastDelivery?.state === 'submitted') ? 'The milestone verifier must review the submitted evidence.'
           : oneCase && lastDelivery?.state === 'changes_requested' ? 'The applicant needs to revise and resubmit their evidence.'
             : 'The applicant needs to submit the milestone evidence for the verifier.',
       tab: clearedAt ? 'Delivery' : undefined, link: oneCase ? 'Go to evidence' : 'Open delivery',
@@ -645,6 +686,7 @@ export function GrantCaseView({
         {awaitingDecision && hold && (
           <SectionCard title={hold.title} className="space-y-3">
             <p>{hold.detail}</p>
+            {plan && !clearedAt && planCommitments}
             {hold.tab && <HoldLink href={staffSectionHref(hold.tab)} className={actionClass}>{hold.link}</HoldLink>}
             {!oneCase && hold.tab === 'Evaluation' && (
               <details className="rounded-lg border border-line px-3">
@@ -653,8 +695,8 @@ export function GrantCaseView({
               </details>
             )}
             {decide && !clearedAt && !openRequest && !publicStatus.updateRequested && form(
-              'clear_milestone', 'Clear pinned milestone', { confirm: false },
-              [{ path: 'confirm', label: 'I reviewed the submitted milestone. Clearance does not issue an award or authorize payment.', type: 'checkbox' }], true,
+              'clear_milestone', plan ? 'Approve milestone plan' : 'Clear pinned milestone', { confirm: false, ...(plan ? { planId: plan.id } : {}) },
+              [{ path: 'confirm', label: plan ? 'I reviewed the pinned plan and approve evidence submission.' : 'I reviewed the submitted milestone. Clearance does not issue an award or authorize payment.', type: 'checkbox' }], true,
             )}
           </SectionCard>
         )}
@@ -691,10 +733,11 @@ export function GrantCaseView({
             <Link href={`${base}?tab=Application`} className={actionClass}>Read the full application</Link>
           </SectionCard>
         )}
-        {canEnterAward && milestone && (
+        {!oneCase && plan && <SectionCard title="Pinned milestone plan">{planCommitments}</SectionCard>}
+        {canEnterAward && awardScope && (
           <SectionCard title="Award decision">
             <StaffAwardForm key={`${data.id}:${data.revision}`} applicationId={data.id} revision={data.revision}
-              milestone={{ title: milestone.title, due: milestone.due, acceptance: milestone.evidence }}
+              milestone={awardScope}
               requested={requestedAmount == null ? undefined : usd(requestedAmount)}
               owners={data.owners} evaluationHref={staffSectionHref('Evaluation')} establishedHolds={readiness(state, 'established_impact')} />
           </SectionCard>
@@ -856,7 +899,48 @@ export function GrantCaseView({
     )
   }
 
-  if (tab === 'Delivery' || oneCase) {
+  if (plan && (tab === 'Delivery' || oneCase)) {
+    const delivery = (
+      <div className="space-y-4">
+        <h2 className="text-lg">Milestone evidence</h2>
+        {!plan.approvedAt && <p className="text-fg-muted">Evidence opens once the grant team approves the plan.</p>}
+        {plan.milestones.map((milestone) => {
+          const attempts = s.deliveries.filter((delivery) => 'milestoneId' in delivery &&
+            delivery.milestoneId === milestone.milestoneId && delivery.planId === plan.id)
+          const current = !s.closedAt && s.status === 'submitted' && !!plan.approvedAt
+          const target = { planId: plan.id, milestoneId: milestone.milestoneId }
+          return (
+            <SectionCard key={milestone.milestoneId} title={milestone.title} className="space-y-4">
+              {plan.approvedAt && <StatusPill className="text-fg-heading" tone={milestone.status === 'accepted' ? 'success' : 'info'}>
+                {milestoneStatus[milestone.status]}
+              </StatusPill>}
+              <p>Target date <time dateTime={milestone.due}>{milestone.due}</time> (UTC)</p>
+              <p className="wrap-anywhere whitespace-pre-wrap">{milestone.evidence}</p>
+              {attempts.map((attempt, index) => (
+                <div key={attempt.id} className="space-y-2 border-t border-line pt-3">
+                  <p className="font-medium">Evidence attempt {index + 1} · {milestoneStatus[attempt.state]}</p>
+                  {deliveryLinks(attempt)}
+                  <p className="wrap-anywhere whitespace-pre-wrap">{attempt.note}</p>
+                  {attempt.review && <p className="wrap-anywhere whitespace-pre-wrap text-fg-muted">{attempt.review.note}</p>}
+                </div>
+              ))}
+              {current && data.staff && capabilities?.verify && milestone.status === 'submitted' && form(
+                'review_delivery', 'Record verification',
+                { ...target, deliveryId: milestone.latestAttemptId, outcome: 'accepted', inspected: false, reproduced: false, matches: false, note: '', evidence: '' },
+                verificationFields,
+              )}
+              {current && !data.staff && data.writer && (milestone.status === 'awaiting_evidence' || milestone.status === 'changes_requested') &&
+                milestoneEvidenceForm(milestone.latestAttemptId ? 'Resubmit milestone evidence' : 'Submit milestone evidence', {
+                  ...target, previousAttemptId: milestone.latestAttemptId,
+                })}
+            </SectionCard>
+          )
+        })}
+      </div>
+    )
+    if (oneCase) caseEvidence = delivery
+    else content = delivery
+  } else if (tab === 'Delivery' || oneCase) {
     const last = s.deliveries.at(-1)
     const clearedRevision = internal?.version === 3 ? internal.milestoneClearance?.applicationRevisionId : undefined
     const pinnedAnswers = clearedRevision ? internal?.applications.find((application) => application.id === clearedRevision)?.answers : undefined
@@ -1303,7 +1387,7 @@ export function GrantCaseView({
     )
   else if (tab === 'Impact') {
     const report = s.impact.findLast((r) => r.day === day),
-      accepted = s.deliveries.findLast((d) => d.state === 'accepted')
+      acceptedAt = deliveryAcceptedAt(s.deliveries, !!plan)
     content = (
       <div className="space-y-8">
         <nav className="grid gap-3 sm:grid-cols-3" aria-label="Impact checkpoints">
@@ -1324,9 +1408,9 @@ export function GrantCaseView({
         <h2 className="text-lg">
           {data.staff ? 'Review' : 'Your'} {day}-day update.
         </h2>
-        {accepted?.review?.at && (
+        {acceptedAt && (
           <p className="text-sm text-fg-muted">
-            Due {addDays(accepted.review.at.slice(0, 10), Number(day))}. Checkpoints are anchored to accepted delivery, not award date.
+            Due {addDays(acceptedAt.slice(0, 10), Number(day))}. Checkpoints are anchored to accepted delivery.
           </p>
         )}
         {s.impactPlan ? (
@@ -1466,7 +1550,7 @@ export function GrantCaseView({
                 true,
               )}
           </>
-        ) : capabilities?.review && accepted && (!milestoneFirst || s.status === 'approved') ? (
+        ) : capabilities?.review && acceptedAt && (!milestoneFirst || s.status === 'approved') ? (
           form(
             'set_impact_plan',
             'Save monitoring plan',
@@ -1500,7 +1584,7 @@ export function GrantCaseView({
         { at: request.at, label: `Request received: ${request.title}` },
         ...(request.answeredAt ? [{ at: request.answeredAt, label: `Reply sent: ${request.title}` }] : []),
       ]),
-      ...(clearedAt ? [{ at: clearedAt, label: 'Milestone cleared' }] : []),
+      ...(clearedAt ? [{ at: clearedAt, label: plan ? 'Milestone plan approved' : 'Milestone cleared' }] : []),
       ...s.deliveries.flatMap((delivery) => [
         { at: delivery.at, label: 'Milestone evidence submitted' },
         ...(delivery.review ? [{ at: delivery.review.at, label: delivery.state === 'accepted' ? 'Milestone verified' : 'Evidence changes requested' }] : []),
@@ -1535,7 +1619,8 @@ export function GrantCaseView({
           <div key={a.id} className="border-b border-line py-4">
             <h3>Application v{i + 1}</h3>
             <p className="text-sm text-fg-muted">
-              {a.at.slice(0, 10)} · {(a.answers.intakeVersion === 2 ? a.answers.milestone?.title : a.answers.terms.title) || 'Project version captured'}
+              {a.at.slice(0, 10)} · {(a.answers.intakeVersion === 3 ? 'Milestone plan submitted'
+                : a.answers.intakeVersion === 2 ? a.answers.milestone?.title : a.answers.terms.title) || 'Project version captured'}
             </p>
           </div>
         ))}
@@ -1605,6 +1690,7 @@ export function GrantCaseView({
           'case-application': (
             <div className="max-w-4xl space-y-2">
               {shortRequest}
+              {planRequest}
               <Link href={`${base}?tab=Application`} className={jumpClass}>Read the full application</Link>
             </div>
           ),

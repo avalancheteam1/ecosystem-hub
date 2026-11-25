@@ -96,14 +96,14 @@ const shortMilestoneFields = {
   due: z.union([day, z.literal('')]),
   evidence: z.string().trim().max(500),
 }
+const roadmapMilestone = z.strictObject({ source: z.literal('roadmap'), id, ...shortMilestoneFields })
+const applicationMilestone = z.strictObject({ source: z.literal('application'), ...shortMilestoneFields })
+const milestoneInput = z.discriminatedUnion('source', [roadmapMilestone, applicationMilestone])
 export const shortDraft = z.object({
   intakeVersion: z.literal(2),
   amountMinor: z.number().int().min(100).max(1000000).multipleOf(100).nullable(),
   summary: z.string().trim().max(1000),
-  milestone: z.discriminatedUnion('source', [
-    z.strictObject({ source: z.literal('roadmap'), id, ...shortMilestoneFields }),
-    z.strictObject({ source: z.literal('application'), ...shortMilestoneFields }),
-  ]).nullable(),
+  milestone: milestoneInput.nullable(),
 }).strict()
 export const shortSubmission = shortDraft.superRefine((a, ctx) => {
   const issue = (path: string[], message: string) => ctx.addIssue({ code: 'custom', path, message })
@@ -117,8 +117,34 @@ export const shortSubmission = shortDraft.superRefine((a, ctx) => {
   if (!a.milestone.due) issue(['milestone', 'due'], 'Set a target date.')
   if (!a.milestone.evidence) issue(['milestone', 'evidence'], 'Describe what evidence will show completion.')
 })
-export const intakeAnswers = z.union([shortDraft, draftAnswers])
+export const MAX_PLAN_MILESTONES = 3
+export const planDraft = shortDraft.omit({ milestone: true }).extend({
+  intakeVersion: z.literal(3),
+  milestones: z.array(milestoneInput).max(MAX_PLAN_MILESTONES, 'Choose at most three milestones.'),
+}).superRefine(({ milestones }, ctx) => {
+  const seen = new Set<string>()
+  milestones.forEach((milestone, index) => {
+    if (milestone.source !== 'roadmap') return
+    if (seen.has(milestone.id))
+      ctx.addIssue({ code: 'custom', path: ['milestones', index, 'id'], message: 'Choose each roadmap milestone once.' })
+    seen.add(milestone.id)
+  })
+})
+export const planSubmission = planDraft.superRefine((value, ctx) => {
+  const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message })
+  if (value.amountMinor === null) issue(['amountMinor'], 'Enter a whole-dollar amount from $1 to $10,000.')
+  if (!value.summary) issue(['summary'], 'Summarize the work this grant will fund.')
+  if (!value.milestones.length) issue(['milestones'], 'Choose or add at least one milestone.')
+  value.milestones.forEach((milestone, index) => {
+    if (!milestone.title) issue(['milestones', index, 'title'], 'Enter the concrete deliverable.')
+    if (!milestone.due) issue(['milestones', index, 'due'], 'Set a target date.')
+    if (!milestone.evidence) issue(['milestones', index, 'evidence'], 'Describe what evidence will show completion.')
+  })
+})
+const legacyIntake = z.union([shortDraft, draftAnswers])
+export const intakeAnswers = z.union([planDraft, legacyIntake])
 export type ShortIntake = z.infer<typeof shortDraft>
+export type PlanIntake = z.infer<typeof planDraft>
 export type IntakeAnswers = z.infer<typeof intakeAnswers>
 
 const meta = z.object({ id, at: z.iso.datetime(), actorId: id })
@@ -216,7 +242,7 @@ const legacyState = z.object({
 })
 const currentState = legacyState.extend({
   version: z.literal(2),
-  answers: intakeAnswers,
+  answers: legacyIntake,
   applications: z.array(meta.extend({ answers: z.union([shortSubmission, answers]), projectVersionId: id })),
   status: z.enum([...legacyState.shape.status.options, 'withdrawn']),
   requests: z.array(legacyState.shape.requests.element.extend({ due: day.optional() })),
@@ -228,8 +254,25 @@ const milestoneFirstState = currentState.extend({
   milestoneClearance: meta.extend({ applicationRevisionId: id, projectVersionId: id }).nullable(),
   deliveries: z.array(submission.extend({ termsVersion: z.null() })),
 })
+const multiMilestoneState = currentState.extend({
+  version: z.literal(4),
+  answers: planDraft,
+  applications: z.array(meta.extend({
+    answers: shortDraft.omit({ milestone: true }).extend({
+      intakeVersion: z.literal(3),
+      milestones: z.array(z.discriminatedUnion('source', [
+        roadmapMilestone.extend({ milestoneId: id }),
+        applicationMilestone.extend({ milestoneId: id }),
+      ])).min(1).max(MAX_PLAN_MILESTONES),
+    }),
+    projectVersionId: id,
+  })).max(1),
+  planApproval: meta.extend({ planId: id, projectVersionId: id }).nullable(),
+  deliveries: z.array(submission.extend({ termsVersion: z.null(), planId: id, milestoneId: id })),
+})
 // Upgrade the live aggregate on its next write. Historical v1 receipts remain readable.
 export const stateSchema = z.union([
+  multiMilestoneState,
   milestoneFirstState,
   currentState,
   legacyState.transform((state) => currentState.parse({ ...state, version: 2, statusReleases: [] })),
@@ -239,7 +282,7 @@ export type Answers = z.infer<typeof answers>
 export type Assessment = z.infer<typeof assessment>
 export type Terms = z.infer<typeof terms>
 export const createSchema = z
-  .object({ projectId: id, roundId: id, answers: intakeAnswers, submit: z.boolean().default(false), confirm: z.boolean().default(false) })
+  .object({ projectId: id, roundId: id, answers: legacyIntake, submit: z.boolean().default(false), confirm: z.boolean().default(false) })
   .superRefine((input, ctx) => {
     if (input.submit) {
       if (!input.confirm) ctx.addIssue({ code: 'custom', path: ['confirm'], message: 'Confirm before submitting' })
@@ -253,7 +296,7 @@ export const createSchema = z
   })
 export const commandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('save_application'), answers: intakeAnswers }),
-  z.object({ kind: z.literal('submit_application'), confirm: z.literal(true), shortAnswers: shortSubmission.optional() }),
+  z.object({ kind: z.literal('submit_application'), confirm: z.literal(true), shortAnswers: shortSubmission.optional(), planAnswers: planSubmission.optional() }),
   z.object({ kind: z.literal('save_assessment'), assessment }),
   z.object({ kind: z.literal('release_review_status'), status: reviewStatus }),
   z.object({ kind: z.literal('reopen_application'), confirm: z.literal(true) }),
@@ -270,12 +313,17 @@ export const commandSchema = z.discriminatedUnion('kind', [
     budget: z.string().max(2000),
     authority: text,
   }),
-  z.object({ kind: z.literal('clear_milestone'), confirm: z.literal(true) }),
+  z.object({ kind: z.literal('clear_milestone'), confirm: z.literal(true), planId: id.optional() }),
   z.object({ kind: z.literal('confirm_terms'), confirm: z.literal(true) }),
-  z.object({ kind: z.literal('submit_delivery'), release: evidence, reproduction: evidence, note: text }),
+  z.object({
+    kind: z.literal('submit_delivery'), release: evidence, reproduction: evidence, note: text,
+    planId: id.optional(), milestoneId: id.optional(), previousAttemptId: id.nullable().optional(),
+  }),
   z.object({
     kind: z.literal('review_delivery'),
     deliveryId: id,
+    planId: id.optional(),
+    milestoneId: id.optional(),
     outcome: z.enum(['accepted', 'changes_requested']),
     inspected: z.boolean(),
     reproduced: z.boolean(),

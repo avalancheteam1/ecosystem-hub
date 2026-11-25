@@ -5,9 +5,9 @@ import { prisma } from '@/lib/db'
 import { ActionError, ForbiddenError } from '@/lib/action-error'
 import type { CurrentUser } from '@/lib/session'
 import { FLAGS } from '@/lib/flags'
-import { recordProjectActivity } from '@/lib/project-activity'
+import { recordProjectActivity, type ProjectActivityEvent } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
-import { continuousIntakePaused, hasDemoProof, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, type IntakeAnswers, type Command, type GrantState } from './schemas'
+import { continuousIntakePaused, hasDemoProof, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, type IntakeAnswers, type PlanIntake, type Command, type GrantState } from './schemas'
 import { milestoneFirstEnabled, shortIntakeEnabled } from './config'
 import { assertReviewer } from './staff'
 import { commandPermission, initialState, mayCommand, transition } from './rules'
@@ -16,6 +16,14 @@ export const json = (data: unknown) => JSON.parse(JSON.stringify(data)) as Prism
 const conflict = () => new ActionError('This record changed. Refresh and review the latest version before saving.')
 const transaction = <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) =>
   prisma.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
+const isWriteConflict = (error: unknown) => (
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034'
+) || (
+  // adapter-pg can expose a commit-time conflict before Prisma normalizes it.
+  error instanceof Error && error.name === 'DriverAdapterError' &&
+  typeof error.cause === 'object' && error.cause !== null &&
+  'kind' in error.cause && error.cause.kind === 'TransactionWriteConflict'
+)
 
 async function projectAccess(tx: Prisma.TransactionClient, projectId: string, user: CurrentUser) {
   const project = await tx.project.findUnique({
@@ -41,18 +49,19 @@ async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versi
 
 // The live roadmap supplies the selection. The submitted terms retain the title
 // and date even when the project team later edits or removes its roadmap entry.
-async function resolveMilestone(tx: Prisma.TransactionClient, projectId: string, answers: IntakeAnswers, required: boolean): Promise<IntakeAnswers> {
-  if (answers.intakeVersion === 2) {
-    const milestone = answers.milestone
-    if (milestone?.source === 'roadmap') {
-      const live = await tx.projectMilestone.findFirst({
-        where: { id: milestone.id, projectId, status: { in: ['planned', 'in_progress'] } },
-        select: { title: true, targetDate: true },
-      })
-      if (!live || live.targetDate < new Date().toISOString().slice(0, 10) ||
-        live.title !== milestone.title || live.targetDate !== milestone.due) {
-        throw new ActionError('The roadmap milestone changed or is no longer eligible. Refresh the roadmap and review the updated commitment before continuing.')
-      }
+async function resolveMilestone<A extends IntakeAnswers>(tx: Prisma.TransactionClient, projectId: string, answers: A, required: boolean): Promise<A> {
+  if (answers.intakeVersion !== undefined) {
+    const milestones = answers.intakeVersion === 3 ? answers.milestones : answers.milestone ? [answers.milestone] : []
+    const roadmap = milestones.filter((m) => m.source === 'roadmap')
+    if (!roadmap.length) return answers
+    const live = await tx.projectMilestone.findMany({
+      where: { id: { in: roadmap.map((m) => m.id) }, projectId, status: { in: ['planned', 'in_progress'] } },
+      select: { id: true, title: true, targetDate: true },
+    })
+    const today = new Date().toISOString().slice(0, 10)
+    if (roadmap.some((m) => !live.some((item) => item.id === m.id &&
+      item.title === m.title && item.targetDate === m.due && item.targetDate >= today))) {
+      throw new ActionError('The roadmap milestone changed or is no longer eligible. Refresh the roadmap and review the updated commitment before continuing.')
     }
     return answers
   }
@@ -107,23 +116,18 @@ export async function startGrant(projectId: string, user: CurrentUser) {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         })
         if (existing) return { id: existing.id, created: false }
-        const state = initialState({ intakeVersion: 2, amountMinor: null, summary: '', milestone: null })
+        const state = initialState({ intakeVersion: 3, amountMinor: null, summary: '', milestones: [] })
         const row = await insertGrant(tx, projectId, project.currentVersionId, null, state, user.id)
         return { id: row.id, created: true }
       })
     } catch (error) {
-      // Prisma can expose a commit-time conflict directly from adapter-pg.
-      const prismaConflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034'
-      const adapterConflict = error instanceof Error && error.name === 'DriverAdapterError' &&
-        typeof error.cause === 'object' && error.cause !== null &&
-        'kind' in error.cause && error.cause.kind === 'TransactionWriteConflict'
-      if (!prismaConflict && !adapterConflict) throw error
+      if (!isWriteConflict(error)) throw error
     }
   }
   throw conflict()
 }
 
-export async function createGrant(projectId: string, roundId: string, answers: IntakeAnswers, user: CurrentUser, submit = false) {
+export async function createGrant(projectId: string, roundId: string, answers: Exclude<IntakeAnswers, PlanIntake>, user: CurrentUser, submit = false) {
   if (answers.intakeVersion === 2 && !shortIntakeEnabled())
     throw new ActionError('The short form is currently unavailable. Reload to start a new application.')
   return transaction(async (tx) => {
@@ -179,7 +183,7 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       }
 
       let projectVersionId = row.projectVersionId
-      const pinReply = command.kind === 'answer_request' && !(state.version === 3 && state.milestoneClearance)
+      const pinReply = command.kind === 'answer_request' && state.version !== 4 && !(state.version === 3 && state.milestoneClearance)
       if (command.kind === 'submit_application' || pinReply) {
         if (command.kind === 'submit_application') {
           if (row.round && !row.round.published) throw new ActionError(roundClosedForSubmission)
@@ -188,9 +192,13 @@ export async function mutateGrant(applicationId: string, revision: number, comma
         projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '', continuous)
       }
       if (command.kind === 'submit_application') {
-        if (command.shortAnswers && state.answers.intakeVersion !== 2) throw new ActionError('Continue using the original form for this draft.')
-        if (state.version === 3) throw new ActionError('This application was already submitted')
-        state.answers = await resolveMilestone(tx, row.projectId, command.shortAnswers ?? state.answers, true)
+        if (state.version === 4) {
+          if (command.planAnswers) await resolveMilestone(tx, row.projectId, command.planAnswers, true)
+        } else {
+          if (command.shortAnswers && state.answers.intakeVersion !== 2) throw new ActionError('Continue using the original form for this draft.')
+          if (state.version === 3) throw new ActionError('This application was already submitted')
+          state.answers = await resolveMilestone(tx, row.projectId, command.shortAnswers ?? state.answers, true)
+        }
       }
       const effectiveCommand = command.kind === 'save_application'
         ? { ...command, answers: await resolveMilestone(tx, row.projectId, command.answers, false) }
@@ -210,16 +218,22 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       await tx.grantRevision.create({
         data: { applicationId, number: revision + 1, actorId: user.id, kind: command.kind, state: json(next) },
       })
-      if (continuous && command.kind === 'submit_application') {
+      const event: ProjectActivityEvent | null = continuous && command.kind === 'submit_application' ? 'submitted'
+        : next.version !== 4 ? null
+          : command.kind === 'clear_milestone' ? 'grant_plan_approved'
+            : command.kind === 'submit_delivery' ? 'grant_evidence_submitted'
+              : command.kind === 'review_delivery' ? (command.outcome === 'accepted' ? 'grant_milestone_verified' : 'grant_evidence_returned')
+                : null
+      if (event) {
         await recordProjectActivity(tx, [{
           projectId: row.projectId, versionId: projectVersionId, program: 'grants',
-          targetId: applicationId, targetName: 'Mini Grants', event: 'submitted', actorId: user.id,
+          targetId: applicationId, targetName: 'Mini Grants', event, actorId: user.id,
         }])
       }
       return { id: applicationId, revision: revision + 1 }
     })
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') throw conflict()
+    if (isWriteConflict(error)) throw conflict()
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
       throw new ActionError('This project application or external payment reference is already recorded')
     throw error

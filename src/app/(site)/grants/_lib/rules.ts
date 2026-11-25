@@ -2,7 +2,7 @@ import { canEditProject } from '@/lib/project-submission'
 import { ActionError } from '@/lib/action-error'
 import type { Permission } from '@/lib/permissions'
 import { can, type AuthzUser } from '@/lib/permissions'
-import { stateSchema, answers, shortSubmission, publicAwardTerms, terms, type IntakeAnswers, type ShortIntake, criterionIds, clearanceIds, type Answers, type Assessment, type Command, type GrantState } from './schemas'
+import { stateSchema, answers, shortSubmission, planSubmission, publicAwardTerms, terms, type IntakeAnswers, type ShortIntake, criterionIds, clearanceIds, type Answers, type Assessment, type Command, type GrantState } from './schemas'
 
 export const criterionNames = [
   'Avalanche relevance',
@@ -70,7 +70,7 @@ export function initialState(answers: Answers): GrantState & { answers: Answers 
 export function initialState(answers: IntakeAnswers): GrantState
 export function initialState(answers: IntakeAnswers): GrantState {
   return stateSchema.parse({
-    version: 2,
+    ...(answers.intakeVersion === 3 ? { version: 4, planApproval: null } : { version: 2 }),
     statusReleases: [],
     status: 'draft',
     answers,
@@ -93,7 +93,7 @@ export function initialState(answers: IntakeAnswers): GrantState {
     events: [],
   })
 }
-export const activeTerms = (s: GrantState) => s.version === 3
+export const activeTerms = (s: GrantState) => s.version === 3 || s.version === 4
   ? (s.status === 'approved' ? s.terms.at(-1) : undefined)
   : s.terms.findLast((t) => t.confirmedAt !== null)
 export const pendingAmendment = (s: GrantState) =>
@@ -151,7 +151,8 @@ export function addDays(day: string, days: number) {
   return new Date(Date.parse(`${day}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10)
 }
 // The grant transaction appends events in revision order, even when their timestamps tie.
-function latestClearedReply(s: GrantState) {
+function latestReplyRequiringAssessment(s: GrantState) {
+  if (s.version === 4) return s.events.findLastIndex((event) => event.kind === 'answer_request')
   if (s.version !== 3 || !s.milestoneClearance) return -1
   const clearanceId = s.milestoneClearance.id
   const clearance = s.events.findIndex((event) => event.kind === 'clear_milestone' && event.id === clearanceId)
@@ -161,6 +162,51 @@ function latestClearedReply(s: GrantState) {
 
 function reassessedAfter(s: GrantState, reply: number, before = s.events.length) {
   return s.events.some((event, index) => index > reply && index < before && event.kind === 'save_assessment')
+}
+
+type MultiMilestoneState = Extract<GrantState, { version: 4 }>
+
+function approvedPlan(s: MultiMilestoneState, planId: string | undefined, projectVersionId: string) {
+  const plan = s.applications.at(-1)
+  if (!s.planApproval || !plan || planId !== plan.id || s.planApproval.planId !== plan.id ||
+    s.planApproval.projectVersionId !== projectVersionId || plan.projectVersionId !== projectVersionId)
+    throw new ActionError('Review the current approved milestone plan before continuing.')
+  return plan
+}
+
+export function milestonePlan(s: GrantState) {
+  if (s.version !== 4) return null
+  const plan = s.applications.at(-1)
+  if (!plan) return null
+  const approvedAt = s.planApproval?.planId === plan.id && s.planApproval.projectVersionId === plan.projectVersionId
+    ? s.planApproval.at : null
+  const milestones = plan.answers.milestones.map((milestone) => {
+    const latest = s.deliveries.findLast((d) => d.planId === plan.id && d.milestoneId === milestone.milestoneId)
+    return { ...milestone, status: latest?.state ?? 'awaiting_evidence' as const, latestAttemptId: latest?.id ?? null }
+  })
+  return { id: plan.id, approvedAt, milestones }
+}
+
+export function planAwardScope(milestones: readonly { title: string; due: string; evidence: string }[]) {
+  const [first] = milestones
+  if (!first) return null
+  return {
+    title: milestones.length === 1 ? first.title : 'Milestone plan',
+    due: milestones.reduce((due, milestone) => milestone.due > due ? milestone.due : due, first.due),
+    acceptance: milestones.length === 1 ? first.evidence
+      : milestones.map((milestone) => `${milestone.title}\n${milestone.evidence}`).join('\n\n'),
+  }
+}
+
+function allMilestonesVerified(s: MultiMilestoneState) {
+  const plan = milestonePlan(s)
+  return !!plan?.approvedAt && plan.milestones.every((milestone) => milestone.status === 'accepted')
+}
+
+export function deliveryAcceptedAt(deliveries: readonly { state: string; review: { at: string } | null }[], multi: boolean) {
+  if (!multi) return deliveries.findLast((d) => d.state === 'accepted')?.review?.at
+  // Review order can differ from evidence submission order with multiple milestones.
+  return deliveries.flatMap((d) => d.state === 'accepted' && d.review ? [d.review.at] : []).sort().at(-1)
 }
 
 export function transition(
@@ -177,13 +223,31 @@ export function transition(
   switch (c.kind) {
     case 'save_application':
       need(s.status === 'draft', 'Submitted applications are immutable; answer a request instead')
-      need(s.answers.intakeVersion === c.answers.intakeVersion, 'Continue using the original form for this draft')
       if (s.version === 3) throw new ActionError('This application was already submitted')
-      s.answers = c.answers
+      if (s.version === 4) {
+        if (c.answers.intakeVersion !== 3) throw new ActionError('Continue using the milestone plan for this draft.')
+        s.answers = c.answers
+      } else {
+        if (c.answers.intakeVersion === 3 || s.answers.intakeVersion !== c.answers.intakeVersion)
+          throw new ActionError('Continue using the original form for this draft')
+        s.answers = c.answers
+      }
       break
     case 'submit_application':
       if (s.version === 3 || s.status !== 'draft') throw new ActionError('This application was already submitted')
+      if (s.version === 4) {
+        if (!c.planAnswers || c.shortAnswers) throw new ActionError('Review the milestone plan before submitting.')
+        const result = planSubmission.safeParse(c.planAnswers)
+        if (!result.success) throw new ActionError(result.error.issues[0]?.message || 'Complete the milestone plan.')
+        need(result.data.milestones.every((milestone) => milestone.due >= today), 'Milestone target dates must be today or later.')
+        s.answers = result.data
+        const milestones = result.data.milestones.map((milestone, index) => ({ ...milestone, milestoneId: `${id}:${index + 1}` }))
+        s.applications.push({ ...meta, answers: { ...result.data, milestones }, projectVersionId })
+        s.status = 'submitted'
+        break
+      }
       {
+        need(!c.planAnswers, 'Continue using the original form for this draft')
         if (s.answers.intakeVersion === 2) {
           if (!c.shortAnswers) throw new ActionError('Review the short application and include the reviewed answers before submitting.')
           s.answers = c.shortAnswers
@@ -208,7 +272,7 @@ export function transition(
       const revision = s.applications.at(-1)
       need(revision, 'Submit the application before releasing a review status')
       if (c.status === 'approval_pending') {
-        const reply = latestClearedReply(s)
+        const reply = latestReplyRequiringAssessment(s)
         if (reply !== -1) {
           need(!s.requests.some((request) => !request.answeredAt), 'Resolve open evidence requests before releasing a new recommendation')
           need(s.assessmentVersionId === revision!.projectVersionId && reassessedAfter(s, reply),
@@ -248,11 +312,21 @@ export function transition(
       r!.answeredAt = now
       s.assessmentVersionId = null
       // A late reply is recorded on its request and in the grant revision. It is not a new scope snapshot.
-      if (!sameMilestone) s.applications.push({ ...meta, answers: structuredClone(s.answers), projectVersionId })
+      if (!sameMilestone && s.version !== 4) s.applications.push({ ...meta, answers: structuredClone(s.answers), projectVersionId })
       break
     }
     case 'clear_milestone': {
+      if (s.version === 4) {
+        const plan = s.applications.at(-1)
+        need(s.status === 'submitted' && plan && plan.id === c.planId && plan.projectVersionId === projectVersionId,
+          'Review the current pinned plan before approving it.')
+        need(!s.planApproval, 'The milestone plan is already approved.')
+        need(!s.requests.some((request) => !request.answeredAt), 'Resolve open evidence requests first')
+        s.planApproval = { ...meta, planId: plan!.id, projectVersionId }
+        break
+      }
       if (s.version !== 3) throw new ActionError('This application uses the previous grant workflow')
+      need(!c.planId, 'This application uses its original milestone clearance.')
       const submitted = s.applications.at(-1)
       need(s.status === 'submitted' && submitted?.projectVersionId === projectVersionId, 'Review the current pinned submission before clearing the milestone')
       need(!s.milestoneClearance, 'The milestone is already cleared')
@@ -266,6 +340,14 @@ export function transition(
         'This application is not awaiting a decision',
       )
       if (c.outcome === 'approved') {
+        if (s.version === 4) {
+          const plan = approvedPlan(s, s.planApproval?.planId, projectVersionId)
+          need(allMilestonesVerified(s), 'Verify every milestone in the approved plan before issuing an award.')
+          need(c.terms && c.terms.amountMinor <= (plan.answers.amountMinor ?? 0), 'The award cannot exceed the pinned request.')
+          const scope = planAwardScope(plan.answers.milestones)
+          need(scope && c.terms?.title === scope.title && c.terms?.acceptance === scope.acceptance && c.terms?.due === scope.due,
+            'Award terms must match the verified milestone plan.')
+        }
         if (s.version === 3) {
           requirePinnedClearance(s, projectVersionId, 'Verify evidence for the cleared milestone before issuing an award')
           need(s.deliveries.at(-1)?.state === 'accepted', 'Verify evidence for the cleared milestone before issuing an award')
@@ -278,7 +360,7 @@ export function transition(
         need(!s.requests.some((r) => !r.answeredAt), 'Resolve open evidence requests first')
         const reasons = readiness(s, c.terms!.route)
         need(!reasons.length, reasons.join('; '))
-        need(s.version === 3 || c.terms!.due >= today, 'Target date must be today or later')
+        need(s.version === 3 || s.version === 4 || c.terms!.due >= today, 'Target date must be today or later')
         if (c.terms!.route === 'bounded_pilot')
           need(c.terms!.hypothesis.trim() && c.terms!.limits.trim(), 'Record the pilot hypothesis and limits')
         s.terms.push({ ...meta, number: 1, terms: c.terms!, confirmedAt: null, confirmedById: null })
@@ -296,7 +378,7 @@ export function transition(
       s.status = c.outcome
       break
     case 'confirm_terms': {
-      need(s.version !== 3, 'This issued award requires no applicant confirmation')
+      need(s.version === 2, 'This issued award requires no applicant confirmation')
       const t = s.terms.at(-1)
       need(t && !t.confirmedAt && s.status === 'approved', 'No terms await confirmation')
       t!.confirmedAt = now
@@ -304,10 +386,22 @@ export function transition(
       break
     }
     case 'submit_delivery': {
-      need(!['submitted', 'accepted'].includes(s.deliveries.at(-1)?.state ?? ''), 'The current delivery is already submitted or accepted')
       const delivery = {
         ...meta, release: c.release, reproduction: c.reproduction, note: c.note, state: 'submitted' as const, review: null,
       }
+      if (s.version === 4) {
+        need(s.status === 'submitted', 'This application is no longer under review')
+        const plan = approvedPlan(s, c.planId, projectVersionId)
+        const milestone = plan.answers.milestones.find((item) => item.milestoneId === c.milestoneId)
+        if (!milestone) throw new ActionError('Choose a milestone from the current approved plan.')
+        const last = s.deliveries.findLast((d) => d.planId === plan.id && d.milestoneId === milestone.milestoneId)
+        need(c.previousAttemptId === (last?.id ?? null), 'Refresh the current evidence attempt before resubmitting.')
+        need(!last || last.state === 'changes_requested', 'The current milestone evidence is already submitted or verified.')
+        s.deliveries.push({ ...delivery, planId: plan.id, milestoneId: milestone.milestoneId, termsVersion: null })
+        break
+      }
+      need(!c.planId && !c.milestoneId && c.previousAttemptId === undefined, 'This application uses its original delivery workflow.')
+      need(!['submitted', 'accepted'].includes(s.deliveries.at(-1)?.state ?? ''), 'The current delivery is already submitted or accepted')
       if (s.version === 3) {
         need(s.status === 'submitted', 'This application is no longer under review')
         requirePinnedClearance(s, projectVersionId, 'Clear the current pinned milestone before submitting evidence')
@@ -320,12 +414,21 @@ export function transition(
       break
     }
     case 'review_delivery': {
-      const d = s.deliveries.at(-1)
+      let d
+      if (s.version === 4) {
+        need(s.status === 'submitted', 'This application is no longer under review')
+        const plan = approvedPlan(s, c.planId, projectVersionId)
+        need(plan.answers.milestones.some((item) => item.milestoneId === c.milestoneId), 'Choose a milestone from the current approved plan.')
+        d = s.deliveries.findLast((item) => item.planId === plan.id && item.milestoneId === c.milestoneId)
+      } else {
+        need(!c.planId && !c.milestoneId, 'This application uses its original delivery workflow.')
+        d = s.deliveries.at(-1)
+      }
       need(d?.id === c.deliveryId && d.state === 'submitted', 'Only the current submitted delivery can be reviewed')
       if (s.version === 3) {
         need(s.status === 'submitted', 'This application is no longer under review')
         requirePinnedClearance(s, projectVersionId, 'Evidence is not for the current cleared milestone')
-      } else {
+      } else if (s.version === 2) {
         need(d!.termsVersion === activeTerms(s)?.number && !pendingAmendment(s), 'Delivery terms are stale or amendment is pending')
       }
       if (c.outcome === 'accepted') need(c.inspected && c.reproduced && c.matches, 'All acceptance checks are required')
@@ -334,8 +437,8 @@ export function transition(
       break
     }
     case 'report_payment': {
-      need(s.version !== 3 || s.status === 'approved', 'Issue the award before recording a payment')
-      need(s.deliveries.at(-1)?.state === 'accepted', 'Accept the milestone before recording payment')
+      need(s.version === 2 || s.status === 'approved', 'Issue the award before recording a payment')
+      need(s.version === 4 ? allMilestonesVerified(s) : s.deliveries.at(-1)?.state === 'accepted', 'Accept the milestone before recording payment')
       const t = totals(s)
       need(c.amountMinor <= t.remaining - t.reserved, 'Amount exceeds the unreserved obligation')
       need(!s.payments.some((p) => p.reference === c.reference), 'This external reference is already recorded')
@@ -365,7 +468,7 @@ export function transition(
       break
     }
     case 'submit_amendment': {
-      need(s.version !== 3, 'Changes to a cleared milestone are not supported in this workflow')
+      need(s.version === 2, 'Changes to a cleared milestone are not supported in this workflow')
       const t = activeTerms(s)
       need(t && s.status === 'approved', 'Confirm original terms first')
       need(
@@ -445,13 +548,13 @@ export function transition(
       break
     }
     case 'set_impact_plan':
-      need(s.version !== 3 || s.status === 'approved', 'Issue the award before creating a monitoring plan')
-      need(s.deliveries.at(-1)?.state === 'accepted' && !s.impact.length, 'Record the plan after acceptance and before reporting')
+      need(s.version === 2 || s.status === 'approved', 'Issue the award before creating a monitoring plan')
+      need((s.version === 4 ? allMilestonesVerified(s) : s.deliveries.at(-1)?.state === 'accepted') && !s.impact.length, 'Record the plan after acceptance and before reporting')
       need(new Set(c.metrics.map((m) => m.id)).size === c.metrics.length, 'Metric identifiers must be unique')
       s.impactPlan = { metrics: c.metrics, ownerId: c.ownerId }
       break
     case 'save_impact': {
-      need(s.impactPlan && s.deliveries.at(-1)?.state === 'accepted', 'A monitoring plan and accepted delivery are required')
+      need(s.impactPlan && (s.version === 4 ? allMilestonesVerified(s) : s.deliveries.at(-1)?.state === 'accepted'), 'A monitoring plan and accepted delivery are required')
       const last = s.impact.findLast((r) => r.day === c.day)
       need(last?.state !== 'reviewed' && last?.state !== 'submitted', 'This update is already submitted or reviewed')
       const expected = s.impactPlan!.metrics.map((m) => m.id)
@@ -461,7 +564,7 @@ export function transition(
           c.observations.every((o) => expected.includes(o.metricId)),
         'Report each planned metric exactly once',
       )
-      if (c.submit) { const accepted = s.deliveries.findLast((d) => d.state === 'accepted'); need(accepted?.review?.at && today >= addDays(accepted.review.at.slice(0, 10), Number(c.day)), 'This checkpoint is not due yet. Save a draft instead.') }
+      if (c.submit) { const acceptedAt = deliveryAcceptedAt(s.deliveries, s.version === 4); need(acceptedAt && today >= addDays(acceptedAt.slice(0, 10), Number(c.day)), 'This checkpoint is not due yet. Save a draft instead.') }
       if (c.submit)
         need(
           c.observations.every((o) => o.value === null || (o.evidence.trim() && o.method.trim())),
@@ -503,7 +606,7 @@ export function transition(
       ? applicationStatusCopy[c.status].label
       : 'note' in c ? c.note : 'reason' in c ? c.reason : 'review' in c ? c.review : c.kind.replaceAll('_', ' '),
   })
-  return stateSchema.parse(c.kind === 'submit_application' && context.milestoneFirst && s.answers.intakeVersion === 2
+  return stateSchema.parse(c.kind === 'submit_application' && context.milestoneFirst && s.version === 2 && s.answers.intakeVersion === 2
     ? { ...s, version: 3, milestoneClearance: null }
     : s)
 }
@@ -526,7 +629,7 @@ export function applicationStatus(s: GrantState) {
   if (status === 'submitted' && release) {
     status = release.status
     if (release.status === 'approval_pending') {
-      const reply = latestClearedReply(s)
+      const reply = latestReplyRequiringAssessment(s)
       const releasedAt = reply === -1 ? -1
         : s.events.findIndex((event) => event.kind === 'release_review_status' && event.id === release.id)
       if (release.applicationRevisionId !== s.applications.at(-1)?.id ||
@@ -541,6 +644,13 @@ export function applicationStatus(s: GrantState) {
 
 /** Public projection is an allowlist. Internal notes, scores, authority and finance references never leave the server. */
 function applicantIntake(value: IntakeAnswers): IntakeAnswers {
+  if (value.intakeVersion === 3) return {
+    intakeVersion: 3, amountMinor: value.amountMinor, summary: value.summary,
+    milestones: value.milestones.map((milestone) => {
+      const commitment = { title: milestone.title, due: milestone.due, evidence: milestone.evidence }
+      return milestone.source === 'roadmap' ? { source: 'roadmap', id: milestone.id, ...commitment } : { source: 'application', ...commitment }
+    }),
+  }
   if (value.intakeVersion !== 2) return value
   const milestone = value.milestone
   const result: ShortIntake = {
@@ -557,11 +667,12 @@ function applicantIntake(value: IntakeAnswers): IntakeAnswers {
 
 export function applicantProjection(s: GrantState) {
   const award = (value: GrantState['terms'][number]['terms']) =>
-    s.answers.intakeVersion === 2 ? publicAwardTerms.parse(value) : value
+    s.answers.intakeVersion === undefined ? value : publicAwardTerms.parse(value)
   return {
     status: s.status,
-    milestoneFirst: s.version === 3,
-    clearedAt: s.version === 3 ? s.milestoneClearance?.at ?? null : null,
+    milestoneFirst: s.version === 3 || s.version === 4,
+    clearedAt: s.version === 3 ? s.milestoneClearance?.at ?? null : s.version === 4 ? s.planApproval?.at ?? null : null,
+    milestonePlan: milestonePlan(s),
     withdrawnAt: s.events.findLast((event) => event.kind === 'withdraw_application')?.at ?? null,
     applicantStatus: applicationStatus(s),
     statusReleases: s.statusReleases.map(({ id, at, status }) => ({ id, at, status })),
@@ -578,6 +689,7 @@ export function applicantProjection(s: GrantState) {
       reproduction: d.reproduction,
       note: d.note,
       state: d.state,
+      ...('milestoneId' in d ? { milestoneId: d.milestoneId, planId: d.planId } : {}),
       review: d.review ? { note: d.review.note, at: d.review.at } : null,
     })),
     payments: s.payments.map((p) => ({ id: p.id, date: p.date, amountMinor: p.amountMinor, state: p.state })),

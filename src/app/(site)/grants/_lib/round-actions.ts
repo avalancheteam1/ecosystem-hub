@@ -139,7 +139,7 @@ export const snapshotRound = action(
                   maturity: a.projectVersion.maturity,
                   assessment: s.assessment,
                   score: score(s.assessment),
-                  holds: readiness(s, s.answers.intakeVersion === 2 ? undefined : s.answers.terms.route),
+                  holds: readiness(s, s.answers.intakeVersion === undefined ? s.answers.terms.route : undefined),
                 }
               }),
             }),
