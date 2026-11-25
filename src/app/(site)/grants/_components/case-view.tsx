@@ -14,6 +14,7 @@ import { GrantCommandForm, type GrantField, type GrantRepeater } from './command
 import { applicationFields, assessmentFields, costRepeater, metricRepeater, options, termsFields } from './fields'
 import { shortIntakeEnabled } from '../_lib/config'
 import { ShortGrantForm } from './short-grant-form'
+import { GrantPlanSummary } from './grant-plan-summary'
 import { GrantTabs, RoundIntakeStatus } from './navigation'
 import { ApplicantReceipt } from './applicant-receipt'
 import { StaffAwardForm } from './staff-award-form'
@@ -90,8 +91,11 @@ export function GrantCaseView({
     capabilities = data.staff ? data.capabilities : null
   const short = s.answers.intakeVersion === 2 ? s.answers : null
   const planAnswers = s.answers.intakeVersion === 3 ? s.answers : null
+  const originalApplication = !data.staff && planAnswers ? s.applications[0] : null
+  const submittedPlan = originalApplication?.answers.intakeVersion === 3 ? originalApplication.answers : null
   const shortAnswers = short ?? planAnswers
   const editShortDraft = !data.staff && data.writer && s.status === 'draft' && shortAnswers && (data.continuous || shortIntakeEnabled())
+  const editPlanDraft = editShortDraft && planAnswers
   const legacy = s.answers.intakeVersion === undefined ? s.answers : null
   const requestedAmount = shortAnswers?.amountMinor ?? legacy?.terms.amountMinor
   const requestedRoute = internal?.answers.intakeVersion === undefined ? internal?.answers.terms.route : undefined
@@ -236,6 +240,12 @@ export function GrantCaseView({
     <p className="wrap-anywhere whitespace-pre-wrap">{planAnswers.summary}</p>
     {planCommitments}
   </SectionCard>
+  const submittedReceipt = originalApplication && submittedPlan && (
+    <SectionCard title="Application submitted" className="space-y-4 p-4 sm:p-6">
+      <p className="text-sm text-fg-muted">Received <time dateTime={originalApplication.at}>{originalApplication.at.slice(0, 10)}</time> (UTC)</p>
+      <GrantPlanSummary answers={submittedPlan} project={data.projectVersion} />
+    </SectionCard>
+  )
   const applicantEvidenceLabels = milestoneFirst && !data.staff ? {
     release: 'Link to what you built',
     reproduction: 'Link showing how it works',
@@ -444,7 +454,7 @@ export function GrantCaseView({
             <p className="wrap-anywhere whitespace-pre-wrap">{award.terms.acceptance}</p>
           </SectionCard>
         )}
-        <SectionCard title={award ? 'Original request' : 'What you requested'} className="space-y-3">
+        {submittedReceipt ?? <SectionCard title={award ? 'Original request' : 'What you requested'} className="space-y-3">
           {requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
           <p className="wrap-anywhere whitespace-pre-wrap">{shortAnswers?.summary ?? legacy?.outcome}</p>
           {planCommitments}
@@ -455,16 +465,16 @@ export function GrantCaseView({
           {legacy?.terms.title && (
             <p>{legacy.terms.title}{legacy.terms.due && <> · <time dateTime={legacy.terms.due}>{legacy.terms.due}</time> (UTC)</>}</p>
           )}
-        </SectionCard>
+        </SectionCard>}
       </div>
     )
   } else if (tab === 'Application details' && !data.staff) {
     const linkClass = 'inline-flex min-h-11 items-center underline underline-offset-4'
     content = (
       <div className="max-w-4xl space-y-5">
-        <SectionCard title={s.status === 'draft' ? 'Saved application details' : 'Submitted application'} className="space-y-4">
-          {legacyDetails ?? shortRequest}
-        </SectionCard>
+        {submittedReceipt ?? <SectionCard title={s.status === 'draft' ? 'Saved application details' : 'Submitted application'} className="space-y-4">
+          {planAnswers ? <GrantPlanSummary answers={planAnswers} project={data.draftProject ?? data.projectVersion} /> : legacyDetails ?? shortRequest}
+        </SectionCard>}
         {s.requests.length > 0 && <SectionCard title="Requests and replies" className="space-y-4">
           {s.requests.map((request) => requestCard(request, true, false))}
         </SectionCard>}
@@ -508,8 +518,8 @@ export function GrantCaseView({
       </SectionCard>
     )
     content = (
-      <div className={data.staff ? 'grid gap-10 lg:grid-cols-[2fr_1fr]' : 'max-w-4xl space-y-5'}>
-        {!data.staff && (
+      <div className={data.staff ? 'grid gap-10 lg:grid-cols-[2fr_1fr]' : editPlanDraft ? '' : 'max-w-4xl space-y-5'}>
+        {!data.staff && !editPlanDraft && (
           <div className="min-w-0 space-y-5">
             <SectionCard title="Application status" className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -523,16 +533,22 @@ export function GrantCaseView({
             </SectionCard>
           </div>
         )}
-        <section className={data.staff ? 'min-w-0 space-y-8 lg:col-start-1 lg:row-start-1' : 'min-w-0 space-y-8'}>
-          <h2 className="text-lg">{data.staff ? 'Application' : s.status === 'draft' ? 'Your draft' : 'What you requested'}</h2>
+        <section className={data.staff ? 'min-w-0 space-y-8 lg:col-start-1 lg:row-start-1' : editPlanDraft ? 'min-w-0 space-y-5' : 'min-w-0 space-y-8'}>
+          {editPlanDraft ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg">Your draft</h2>
+              <RoundIntakeStatus open={data.roundOpen} />
+            </div>
+          ) : <h2 className="text-lg">{data.staff ? 'Application' : s.status === 'draft' ? 'Your draft' : 'What you requested'}</h2>}
           {editShortDraft && shortAnswers ? (
             <ShortGrantForm
-              key={`${data.id}:${data.revision}`}
+              key={data.id}
               draft={{ id: data.id, revision: data.revision, projectName: data.name, roundName: data.round, answers: shortAnswers }}
               roadmaps={[{ id: data.projectId, slug: data.projectSlug, milestones: data.milestones }]}
               roundOpen={data.roundOpen}
               continuous={data.continuous}
               demoProofMissing={data.demoProofMissing}
+              draftProject={data.draftProject}
             />
           ) : data.writer && s.status === 'draft' && legacy ? (
             <>

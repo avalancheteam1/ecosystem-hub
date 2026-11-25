@@ -59,6 +59,7 @@ function applicantCase(state: ApplicantCase['state'], writer: boolean): Applican
     userId: 'member-1',
     writer,
     staff: false,
+    draftProject: null,
     state,
     milestones: [],
     projectVersion: {
@@ -92,6 +93,33 @@ function awarded(confirmedAt: string | null = null) {
 }
 
 describe('Applicant grants case', () => {
+  it('Grants v1 US-4 shows the pinned request, demo and commitments in the application receipt', () => {
+    const plan = {
+      intakeVersion: 3 as const, amountMinor: 480000, summary: 'Fund the synthetic replay feature',
+      milestones: [
+        { source: 'application' as const, title: 'Publish the replay sample', due: '2026-12-01', evidence: 'A replay recording' },
+        { source: 'application' as const, title: 'Publish the test cases', due: '2026-12-02', evidence: 'Passing test output' },
+      ],
+    }
+    const state = transition(initialState(plan), { kind: 'submit_application', confirm: true, planAnswers: plan }, {
+      id: 'private-plan-id', actorId: 'member-1', now: date.toISOString(), projectVersionId: 'version-1',
+    })
+    const data = applicantCase(applicantProjection(state), false)
+    data.continuous = true
+    data.projectVersion.demoLinks = ['https://example.test/pinned-demo']
+    const view = (requestedTab: string) => renderToStaticMarkup(createElement(GrantCaseView, { data, requestedTab }))
+
+    for (const tab of ['Overview', 'Application details']) {
+      const html = view(tab)
+      expect(html).toContain('Application submitted')
+      expect(html).toContain('Fund the synthetic replay feature')
+      expect(html).toContain('$4,800')
+      expect(html).toMatch(/Publish the replay sample[^]*2026-12-01[^]*A replay recording[^]*Publish the test cases[^]*2026-12-02[^]*Passing test output/)
+      expect(html).toContain('https://example.test/pinned-demo')
+      expect(html).not.toContain('private-plan-id')
+    }
+  })
+
   it('links readers to unconfirmed award terms and leaves the confirmation form writer-only', () => {
     const readerOverview = renderCase(awarded(), false)
     const writerOverview = renderCase(awarded(), true)

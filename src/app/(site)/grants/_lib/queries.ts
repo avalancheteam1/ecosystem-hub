@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { requirePermission, requireUser, denyAccess, denyContext } from '@/lib/guards'
-import { canEditProject, TEAM_ROLES } from '@/lib/project-submission'
+import { canEditProject, missingForSubmission, TEAM_ROLES } from '@/lib/project-submission'
 import { isFlagOn } from '@/lib/flag-store'
 import { can } from '@/lib/permissions'
 import { hasDemoProof, stateSchema } from './schemas'
@@ -83,7 +83,10 @@ export async function readApplication(id: string, staff: boolean) {
         select: {
           slug: true,
           members: { where: { userId: user.id }, select: { role: true } },
-          currentVersion: { select: { demoLinks: true } },
+          currentVersion: !staff && { select: {
+            name: true, number: true, demoLinks: true, maturity: true, fullDescription: true,
+            techDescription: true, techStack: true, githubRepos: true, websiteUrl: true,
+          } },
         },
       },
       round: { select: { name: true, published: true } },
@@ -118,7 +121,13 @@ export async function readApplication(id: string, staff: boolean) {
   const milestones = !staff && canEditProject(role ?? '') && row.status === 'draft'
     ? await prisma.projectMilestone.findMany({ ...roadmapMilestones(), where: { ...roadmapMilestones().where, projectId: row.projectId } })
     : []
-  if (!staff) return { ...common, staff: false as const, state: applicantProjection(state), projectVersion: row.projectVersion, milestones }
+  if (!staff) {
+    const current = row.round === null && row.status === 'draft' && common.writer ? row.project.currentVersion : null
+    const draftProject = current && {
+      name: current.name, number: current.number, demoLinks: current.demoLinks, missing: missingForSubmission(current),
+    }
+    return { ...common, staff: false as const, state: applicantProjection(state), projectVersion: row.projectVersion, draftProject, milestones }
+  }
   // The server component consumes this private state. Only the explicit view data goes to client forms.
   return {
     ...common,

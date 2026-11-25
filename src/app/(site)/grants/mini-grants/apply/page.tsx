@@ -27,7 +27,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   const [projects, rounds] = await Promise.all([myProjects(), continuous ? [] : publishedRounds()])
   const projectOptions = projects.flatMap(({ id, slug, currentVersion: v, _count }) => v ? [{
     id, slug, name: v.name, tagline: v.shortDescription, imageUrl: v.logoUrl ?? v.coverUrl, maturity: v.maturity,
-    versionNumber: v.number, sealed: !!v.sealedAt, members: _count.members, missing: missingForSubmission(v),
+    versionNumber: v.number, sealed: !!v.sealedAt, members: _count.members, missing: missingForSubmission(v), demoLinks: v.demoLinks,
   }] : [])
   return (
     <div className="container-page py-10">
@@ -58,11 +58,11 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
         >
           You need to be the owner or a writer on a saved Hub project.
         </EmptyState>
+      ) : continuous ? (
+        <StartMiniGrantForm projects={projectOptions} initialProject={projectOptions.find((project) => project.id === query.project)?.id} />
       ) : (
         <div className="grid gap-10 md:grid-cols-[2fr_1fr]">
-          {continuous ? (
-            <StartMiniGrantForm projects={projectOptions} initialProject={projectOptions.find((project) => project.id === query.project)?.id} />
-          ) : shortEnabled ? (
+          {shortEnabled ? (
             <ShortGrantForm
               projects={projectOptions}
               initialProject={projectOptions.find((project) => project.id === query.project)?.id}
@@ -135,10 +135,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
             />
           )}
           <SectionCard title="Before you apply" className="self-start">
-            {!continuous && !shortEnabled && <RoundIntakeStatus open />}
-            <p className="mt-4 text-sm text-fg-muted">{continuous
-              ? 'Add a demo link to your Hub project that shows it working. You can start a draft while you prepare your proof.'
-              : shortEnabled
+            {!shortEnabled && <RoundIntakeStatus open />}
+            <p className="mt-4 text-sm text-fg-muted">{shortEnabled
               ? 'Choose a planned or in-progress roadmap milestone, or add a dated deliverable for this application. Describe the evidence you will provide on completion.'
               : 'Choose a planned or in-progress milestone on your project roadmap. Define a measurable acceptance test and list the costs for the remaining work.'}</p>
             <p className="mt-4 text-sm text-fg-muted">Keep project links on your Hub project and contact details in <Link href="/profile" className="underline">your profile</Link>.</p>
