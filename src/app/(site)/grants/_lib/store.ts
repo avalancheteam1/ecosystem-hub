@@ -4,13 +4,17 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { ActionError, ForbiddenError } from '@/lib/action-error'
 import type { CurrentUser } from '@/lib/session'
-import { FLAGS } from '@/lib/flags'
+import { FLAGS, type Flag } from '@/lib/flags'
 import { recordProjectActivity, type ProjectActivityEvent } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
 import { continuousIntakePaused, hasDemoProof, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, type IntakeAnswers, type PlanIntake, type Command, type GrantState } from './schemas'
 import { milestoneFirstEnabled, shortIntakeEnabled } from './config'
 import { assertReviewer } from './staff'
 import { commandPermission, initialState, mayCommand, transition } from './rules'
+import {
+  existingGrant, formatReapplicationDate, grantIntakeHistory, hasChangedDemo, hasChangedRoadmapScope,
+  hasDifferentRoadmapDeliverable, missingScopeChange, priorDecisionUnverified, priorScope, reapplicationEligibility,
+} from './reapplication'
 
 export const json = (data: unknown) => JSON.parse(JSON.stringify(data)) as Prisma.InputJsonValue
 const conflict = () => new ActionError('This record changed. Refresh and review the latest version before saving.')
@@ -82,10 +86,25 @@ async function resolveMilestone<A extends IntakeAnswers>(tx: Prisma.TransactionC
   return { ...answers, terms: { ...answers.terms, title: milestone.title, due: milestone.targetDate } }
 }
 
-async function continuousIntakeOn(tx: Prisma.TransactionClient) {
+async function grantFlagOn(tx: Prisma.TransactionClient, key: Flag) {
   // Read the same flag as public discovery directly on writes to avoid a stale rollout decision.
-  const flag = await tx.featureFlag.findUnique({ where: { key: 'miniGrantsIntake' }, select: { enabled: true } })
-  return flag?.enabled ?? FLAGS.miniGrantsIntake.default
+  const flag = await tx.featureFlag.findUnique({ where: { key }, select: { enabled: true } })
+  return flag?.enabled ?? FLAGS[key].default
+}
+
+async function checkReapplication(tx: Prisma.TransactionClient, history: Awaited<ReturnType<typeof grantIntakeHistory>>, now: Date) {
+  if (history.unverified) throw new ActionError(priorDecisionUnverified)
+  if (!history.latest) return
+  if (!(await grantFlagOn(tx, 'miniGrantsReapplication'))) throw new ActionError('Mini Grants reapplication is paused.')
+  const eligibility = reapplicationEligibility(history.latest, now)
+  if (eligibility?.waiting)
+    throw new ActionError(`You can reapply from ${formatReapplicationDate(eligibility.eligibleAt)}.`)
+}
+
+async function demoLinksForVersion(tx: Prisma.TransactionClient, projectId: string, versionId: string) {
+  const version = await tx.projectVersion.findFirst({ where: { id: versionId, projectId }, select: { demoLinks: true } })
+  if (!version) throw new ActionError('Save a project version first')
+  return version.demoLinks
 }
 
 async function insertGrant(tx: Prisma.TransactionClient, projectId: string, projectVersionId: string, roundId: string | null, state: GrantState, actorId: string) {
@@ -106,16 +125,29 @@ export async function startGrant(projectId: string, user: CurrentUser) {
         const { project, role } = await projectAccess(tx, projectId, user)
         if (!canEditProject(role ?? '')) throw new ForbiddenError('Only this project owner or a writer may apply')
         if (!project?.currentVersionId || project.archivedAt) throw new ActionError('Choose an active project with a saved version')
-        if (!(await continuousIntakeOn(tx))) throw new ActionError(continuousIntakePaused)
-        // The predicate read and insert are one SERIALIZABLE operation. Concurrent
-        // misses cannot both commit. Reapplication will qualify eligible terminal
-        // cases here while keeping this check and the new insert in one transaction.
-        const existing = await tx.grantApplication.findFirst({
-          where: { projectId, roundId: null },
-          select: { id: true },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        })
+        if (!(await grantFlagOn(tx, 'miniGrantsIntake'))) throw new ActionError(continuousIntakePaused)
+        // A competing insert after the project-wide predicate read conflicts.
+        // Retrying in a fresh transaction finds the winning draft.
+        const now = new Date()
+        const history = await grantIntakeHistory(tx, projectId)
+        const existing = history.active.find(({ roundId }) => roundId === null)
+        if (existing && existing.status !== 'draft') return { id: existing.id, created: false }
+        if (history.award || history.active.some(({ id }) => id !== existing?.id)) throw new ActionError(existingGrant)
+        await checkReapplication(tx, history, now)
         if (existing) return { id: existing.id, created: false }
+        if (history.latest) {
+          const previous = await priorScope(tx, projectId, history.latest)
+          const candidateDemoLinks = await demoLinksForVersion(tx, projectId, project.currentVersionId)
+          if (!hasChangedDemo(previous.demoLinks, candidateDemoLinks)) {
+            const roadmap = await tx.projectMilestone.findMany({
+              where: { projectId, status: { in: ['planned', 'in_progress'] }, targetDate: { gte: now.toISOString().slice(0, 10) } },
+              select: { id: true, title: true },
+            })
+            if (!roadmap.some((item) => hasDifferentRoadmapDeliverable(previous.milestones, item))) throw new ActionError(missingScopeChange)
+          }
+        } else if (history.latestContinuous) {
+          return { id: history.latestContinuous.id, created: false }
+        }
         const state = initialState({ intakeVersion: 3, amountMinor: null, summary: '', milestones: [] })
         const row = await insertGrant(tx, projectId, project.currentVersionId, null, state, user.id)
         return { id: row.id, created: true }
@@ -134,7 +166,11 @@ export async function createGrant(projectId: string, roundId: string, answers: E
     const { project, role } = await projectAccess(tx, projectId, user)
     if (!canEditProject(role ?? '')) throw new ForbiddenError('Only this project owner or a writer may apply')
     if (!project?.currentVersionId || project.archivedAt) throw new ActionError('Choose an active project with a saved version')
-    if (await continuousIntakeOn(tx)) throw new ActionError('Start a new application through continuous Mini Grants intake.')
+    if (await grantFlagOn(tx, 'miniGrantsIntake')) throw new ActionError('Start a new application through continuous Mini Grants intake.')
+    const history = await grantIntakeHistory(tx, projectId)
+    if (history.active.some(({ roundId }) => roundId === null)) throw new ActionError(existingGrant)
+    if (await grantFlagOn(tx, 'miniGrantsReapplication') && (history.latest || history.unverified || history.award))
+      throw new ActionError('Reapplication for this project uses continuous Mini Grants intake.')
     const round = await tx.grantRound.findFirst({ where: { id: roundId, published: true }, select: { id: true } })
     if (!round) throw new ActionError(roundNotAccepting)
     const initial = initialState(await resolveMilestone(tx, projectId, answers, submit))
@@ -182,12 +218,20 @@ export async function mutateGrant(applicationId: string, revision: number, comma
           throw new ActionError('Review the short application and include the reviewed answers before submitting.')
       }
 
+      const now = new Date()
+      let previousScope: Awaited<ReturnType<typeof priorScope>> | undefined
       let projectVersionId = row.projectVersionId
       const pinReply = command.kind === 'answer_request' && state.version !== 4 && !(state.version === 3 && state.milestoneClearance)
       if (command.kind === 'submit_application' || pinReply) {
         if (command.kind === 'submit_application') {
           if (row.round && !row.round.published) throw new ActionError(roundClosedForSubmission)
-          if (continuous && !(await continuousIntakeOn(tx))) throw new ActionError(continuousIntakePaused)
+          if (continuous && !(await grantFlagOn(tx, 'miniGrantsIntake'))) throw new ActionError(continuousIntakePaused)
+          if (continuous && state.status === 'draft') {
+            const history = await grantIntakeHistory(tx, row.projectId, row.id)
+            if (history.award || history.active.length) throw new ActionError(existingGrant)
+            await checkReapplication(tx, history, now)
+            if (history.latest) previousScope = await priorScope(tx, row.projectId, history.latest)
+          }
         }
         projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '', continuous)
       }
@@ -203,8 +247,10 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       const effectiveCommand = command.kind === 'save_application'
         ? { ...command, answers: await resolveMilestone(tx, row.projectId, command.answers, false) }
         : command
-      const now = new Date().toISOString()
-      const next = transition(state, effectiveCommand, { id: randomUUID(), actorId: user.id, now, projectVersionId, milestoneFirst: milestoneFirstEnabled() })
+      const next = transition(state, effectiveCommand, { id: randomUUID(), actorId: user.id, now: now.toISOString(), projectVersionId, milestoneFirst: milestoneFirstEnabled() })
+      if (previousScope && !hasChangedRoadmapScope(previousScope.milestones, next.answers) &&
+        !hasChangedDemo(previousScope.demoLinks, await demoLinksForVersion(tx, row.projectId, projectVersionId)))
+        throw new ActionError(missingScopeChange)
       // Actor identities supplied as references must be real grant staff, not arbitrary strings.
       const assignee = 'ownerId' in command ? command.ownerId : null
       if (assignee) await assertReviewer(tx, assignee, user)

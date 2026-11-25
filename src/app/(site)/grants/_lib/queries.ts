@@ -9,6 +9,7 @@ import { can } from '@/lib/permissions'
 import { hasDemoProof, stateSchema } from './schemas'
 import { reviewerOptions } from './reviewers'
 import { applicantProjection, applicationStatus } from './rules'
+import { grantIntakeHistory, reapplicationEligibility } from './reapplication'
 
 export const publishedRounds = () =>
   prisma.grantRound.findMany({ where: { published: true }, select: { id: true, name: true }, orderBy: { createdAt: 'desc' }, take: 50 })
@@ -132,6 +133,26 @@ export async function readApplication(id: string, staff: boolean) {
       payments: !role && can(user, 'grants.payments'),
       manage: can(user, 'grants.manage'),
     },
+  }
+}
+
+export async function readReapplicationNotice(projectId: string, applicationId: string) {
+  if (!(await isFlagOn('miniGrantsIntake')) || !(await isFlagOn('miniGrantsReapplication'))) return null
+  const user = await requireUser()
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, members: { some: { userId: user.id } } },
+    select: { archivedAt: true, members: { where: { userId: user.id }, select: { role: true } } },
+  })
+  if (!project) denyAccess(user, await denyContext())
+  const history = await grantIntakeHistory(prisma, projectId)
+  if (!history.latest && !history.unverified) return null
+  return {
+    eligibility: reapplicationEligibility(history.latest, new Date()),
+    previousId: history.latest?.applicationId,
+    otherActiveId: history.active.find(({ id }) => id !== applicationId)?.id,
+    unverified: history.unverified,
+    award: history.award,
+    canStart: !project.archivedAt && canEditProject(project.members[0]?.role ?? ''),
   }
 }
 

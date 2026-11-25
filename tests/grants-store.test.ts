@@ -134,6 +134,31 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     })
     return { id: p.id, versionId: version.id, milestoneId: milestone.id }
   }
+  async function declinedGrant(p: Awaited<ReturnType<typeof project>>, rejectedAt: Date, round: string | null) {
+    const previous = { ...fields(), projectMilestoneId: p.milestoneId }
+    const initial = initialState(previous)
+    const submitted = transition(initial, { kind: 'submit_application', confirm: true }, {
+      id: randomUUID(), actorId: builder.id, now: new Date(+rejectedAt - 60_000).toISOString(), projectVersionId: p.versionId,
+    })
+    const rejected = transition(submitted, {
+      kind: 'record_decision', outcome: 'not_selected', terms: null, rationale: 'Internal fixture',
+      publicNote: 'Previous decision', ownerId: reviewer.id, budget: '', authority: 'Committee fixture',
+    }, { id: randomUUID(), actorId: reviewer.id, now: rejectedAt.toISOString(), projectVersionId: p.versionId })
+    await db.projectVersion.update({ where: { id: p.versionId }, data: { sealedAt: rejectedAt } })
+    const grant = await db.grantApplication.create({
+      data: {
+        roundId: round, projectId: p.id, projectVersionId: p.versionId, status: rejected.status,
+        state: store.json(rejected), revision: 2,
+        revisions: { create: [
+          { number: 0, actorId: builder.id, kind: 'create', state: store.json(initial) },
+          { number: 1, actorId: builder.id, kind: 'submit_application', state: store.json(submitted) },
+          { number: 2, actorId: reviewer.id, kind: 'record_decision', state: store.json(rejected) },
+        ] },
+      },
+    })
+    applications.push(grant.id)
+    return grant
+  }
   async function acceptedGrant() {
     const p = await project(),
       state = acceptedState(p.versionId)
@@ -164,6 +189,8 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
   afterEach(() => vi.unstubAllEnvs())
   afterAll(async () => {
     if (!db) return
+    const fixtureCases = await db.grantApplication.findMany({ where: { projectId: { in: projects } }, select: { id: true } })
+    applications.push(...fixtureCases.map(({ id }) => id))
     await db.auditLog.deleteMany({ where: { actorId: { in: userIds } } })
     await db.grantPaymentReference.deleteMany({ where: { applicationId: { in: applications } } })
     await db.grantRevision.deleteMany({ where: { applicationId: { in: applications } } })
@@ -258,6 +285,136 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       expect(await readApplication(legacy.id, true)).toMatchObject({ round: prefix, state: { status: 'submitted' } })
     } finally {
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
+  it('Grants v1 US-2 uses the latest immutable native decision across rounds and resumes one concurrent draft at the exact UTC boundary', async () => {
+    const p = await project()
+    const cutoff = new Date('2026-11-25T15:34:56.789Z')
+    const latest = await declinedGrant(p, new Date('2026-08-27T15:34:56.789Z'), roundId)
+    const older = await declinedGrant(p, new Date('2026-08-01T11:22:33.000Z'), null)
+    // Neither mutable case timestamps nor the time the fixture receipt was inserted decide eligibility.
+    await db.grantApplication.update({ where: { id: older.id }, data: { updatedAt: new Date() } })
+    const changed = await db.projectMilestone.create({
+      data: { projectId: p.id, title: 'A new supported roadmap', targetDate: '2027-08-15' },
+    })
+    await db.featureFlag.createMany({ data: [{ key: 'miniGrantsIntake', enabled: true }, { key: 'miniGrantsReapplication', enabled: true }] })
+    try {
+      vi.setSystemTime(+cutoff - 1)
+      const independent = await store.startGrant((await project()).id, builder)
+      applications.push(independent.id)
+      expect(independent.created).toBe(true)
+      await expect(store.startGrant(p.id, builder)).rejects.toThrow('25 Nov 2026')
+      await expect(store.startGrant(p.id, stranger)).rejects.toThrow('Only this project owner or a writer')
+      vi.setSystemTime(cutoff)
+      const attempts = await Promise.all(Array.from({ length: 8 }, () => store.startGrant(p.id, builder)))
+      applications.push(attempts[0].id)
+      expect(attempts.filter(({ created }) => created)).toHaveLength(1)
+      expect(new Set(attempts.map(({ id }) => id)).size).toBe(1)
+      expect(attempts[0].id).not.toBe(latest.id)
+      expect(attempts[0].id).not.toBe(older.id)
+      expect(await db.grantRevision.count({ where: { applicationId: attempts[0].id } })).toBe(1)
+      expect(await db.grantRevision.count({ where: { applicationId: latest.id } })).toBe(3)
+      expect(await db.grantRevision.count({ where: { applicationId: older.id } })).toBe(3)
+      expect((await db.grantApplication.findUniqueOrThrow({ where: { id: latest.id } })).state).toEqual(latest.state)
+      const submit = () => store.mutateGrant(attempts[0].id, 0, {
+        kind: 'submit_application', confirm: true,
+        planAnswers: { intakeVersion: 3, amountMinor: 12500, summary: 'New project work',
+          milestones: [{ source: 'roadmap', id: changed.id, title: changed.title, due: changed.targetDate, evidence: 'Publish signed build checksums' }],
+        },
+      }, builder)
+      vi.setSystemTime(+cutoff - 1)
+      await expect(submit()).rejects.toThrow('25 Nov 2026')
+      vi.setSystemTime(cutoff)
+      const submissions = await Promise.allSettled([submit(), submit()])
+      expect(submissions.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+      expect(await db.grantRevision.count({ where: { applicationId: attempts[0].id } })).toBe(2)
+      await store.mutateGrant(attempts[0].id, 1, {
+        kind: 'record_decision', outcome: 'not_selected', terms: null, rationale: 'Internal fixture',
+        publicNote: 'Updated Committee decision', ownerId: reviewer.id, budget: '', authority: 'Committee fixture',
+      }, reviewer)
+      await expect(store.startGrant(p.id, builder)).rejects.toThrow('23 Feb 2027')
+    } finally {
+      vi.useRealTimers()
+      await db.featureFlag.deleteMany({ where: { key: { in: ['miniGrantsIntake', 'miniGrantsReapplication'] } } })
+    }
+  })
+  it('Grants v1 US-2 checks changed roadmap scope on submission and retains drafts on refusal or when paused', async () => {
+    const p = await project()
+    const prior = await declinedGrant(p, new Date('2026-07-15T00:00:00Z'), roundId)
+    const due = '2027-08-15'
+    const copied = await db.projectMilestone.create({ data: { projectId: p.id, title: '  QUICKSTART!  ', targetDate: due } })
+    const newItem = await db.projectMilestone.create({ data: { projectId: p.id, title: 'Publish an offline indexer', targetDate: due } })
+    await db.featureFlag.createMany({ data: [{ key: 'miniGrantsIntake', enabled: true }, { key: 'miniGrantsReapplication', enabled: true }] })
+    const submit = (id: string, item: typeof newItem, evidence: string) => store.mutateGrant(id, 0, {
+      kind: 'submit_application', confirm: true,
+      planAnswers: { intakeVersion: 3, amountMinor: 12500, summary: 'A rewritten project pitch',
+        milestones: [{ source: 'roadmap', id: item.id, title: item.title, due, evidence }] },
+    }, builder)
+    try {
+      vi.setSystemTime(new Date('2026-11-25T00:00:00Z'))
+      const { id } = await store.startGrant(p.id, builder)
+      applications.push(id)
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
+      await expect(store.createGrant(p.id, roundId, fields(), builder)).rejects.toThrow('existing grant')
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: true } })
+      await expect(submit(id, copied, 'Matching offline data files')).rejects.toThrow('substantially different deliverable')
+      await expect(submit(id, newItem, 'INDEPENDENT reproduction.')).rejects.toThrow('substantially different deliverable')
+      vi.setSystemTime(new Date('2026-08-01T00:00:00Z'))
+      await expect(submit(id, newItem, 'Compare the output to the published sample block heights')).rejects.toThrow('13 Oct 2026')
+      vi.setSystemTime(new Date('2026-11-25T00:00:00Z'))
+      await db.featureFlag.update({ where: { key: 'miniGrantsReapplication' }, data: { enabled: false } })
+      await expect(submit(id, newItem, 'Compare the output to the published sample block heights')).rejects.toThrow('reapplication is paused')
+      expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(1)
+      await db.featureFlag.update({ where: { key: 'miniGrantsReapplication' }, data: { enabled: true } })
+      await expect(submit(id, newItem, 'Compare the output to the published sample block heights')).resolves.toEqual({ id, revision: 1 })
+      expect((await db.grantApplication.findUniqueOrThrow({ where: { id: prior.id } })).state).toEqual(prior.state)
+    } finally {
+      vi.useRealTimers()
+      await db.featureFlag.deleteMany({ where: { key: { in: ['miniGrantsIntake', 'miniGrantsReapplication'] } } })
+    }
+  })
+  it('Grants v1 US-2 checks proof against the sealed version and blocks active obligations and unknown decline history', async () => {
+    const p = await project()
+    const unknown = await project()
+    const awarded = await acceptedGrant()
+    const prior = await declinedGrant(p, new Date('2026-07-15T00:00:00Z'), roundId)
+    const unknownPrior = await declinedGrant(unknown, new Date('2026-07-15T00:00:00Z'), roundId)
+    await db.grantRevision.deleteMany({ where: { applicationId: unknownPrior.id, kind: 'record_decision' } })
+    const previous = await db.projectVersion.findUniqueOrThrow({
+      where: { id: p.versionId },
+      select: {
+        projectId: true, name: true, shortDescription: true, fullDescription: true, techDescription: true,
+        techStack: true, categories: true, maturity: true, githubRepos: true, createdById: true,
+      },
+    })
+    const candidate = await db.projectVersion.create({
+      data: { ...previous, number: 2, demoLinks: ['https://EXAMPLE.test/demo?revised=true#example'] },
+    })
+    await db.project.update({ where: { id: p.id }, data: { currentVersionId: candidate.id } })
+    await db.featureFlag.createMany({ data: [{ key: 'miniGrantsIntake', enabled: true }, { key: 'miniGrantsReapplication', enabled: true }] })
+    try {
+      vi.setSystemTime(new Date('2026-11-25T00:00:00Z'))
+      await expect(store.startGrant(awarded.projectId, builder)).rejects.toThrow('existing grant')
+      await expect(store.startGrant(unknown.id, builder)).rejects.toThrow('previous decision could not be verified')
+      await expect(store.startGrant(p.id, builder)).rejects.toThrow('substantially different deliverable')
+      await db.projectVersion.update({ where: { id: candidate.id }, data: { demoLinks: ['https://example.test/new-working-demo'] } })
+      const { id } = await store.startGrant(p.id, builder)
+      applications.push(id)
+      const submit = () => store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers: {
+        intakeVersion: 3, amountMinor: 12500, summary: 'Original scope with a new working demo',
+        milestones: [{ source: 'application', title: 'Quickstart', due: '2027-08-15', evidence: 'Independent reproduction' }],
+      } }, builder)
+      await db.projectVersion.update({ where: { id: candidate.id }, data: { demoLinks: ['HTTPS://example.test/demo/?copy=1#changed'] } })
+      await expect(submit()).rejects.toThrow('substantially different deliverable')
+      expect((await db.projectVersion.findUniqueOrThrow({ where: { id: candidate.id } })).sealedAt).toBeNull()
+      expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(1)
+      await db.projectVersion.update({ where: { id: candidate.id }, data: { demoLinks: ['https://example.test/new-working-demo'] } })
+      await submit()
+      expect(await db.grantApplication.findUniqueOrThrow({ where: { id } })).toMatchObject({ projectVersionId: candidate.id, status: 'submitted' })
+      expect((await db.grantApplication.findUniqueOrThrow({ where: { id: prior.id } })).projectVersionId).toBe(p.versionId)
+    } finally {
+      vi.useRealTimers()
+      await db.featureFlag.deleteMany({ where: { key: { in: ['miniGrantsIntake', 'miniGrantsReapplication'] } } })
     }
   })
   it('Grants v1 US-3 validates one to three milestones and pins terms despite later roadmap changes', async () => {

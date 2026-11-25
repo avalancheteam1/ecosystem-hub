@@ -22,6 +22,12 @@ export const FLAGS = {
     default: false,
     paths: [],
   },
+  miniGrantsReapplication: {
+    label: 'Mini Grants reapplication',
+    description: 'Allow a new application for a previously declined project after the waiting period and a qualifying change. Requires continuous intake.',
+    default: false,
+    paths: [],
+  },
   tooling: {
     label: 'Community Tools',
     description: 'The public list on /tooling (incl. tool pages and the submit page), its card and preview on /ecosystem and its sitemap entries. Review stays available at /admin/tooling.',
