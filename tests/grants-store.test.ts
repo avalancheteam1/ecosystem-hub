@@ -272,6 +272,61 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
     }
   })
+  it.each([
+    { command: { kind: 'hold_application' as const, rationale: 'Private fixture', publicNote: 'Review paused', nextStep: 'Check back later' },
+      outcome: 'deferred', event: 'grant_held' },
+    { command: { kind: 'decline_application' as const, rationale: 'Private fixture', publicNote: 'Application declined' },
+      outcome: 'not_selected', event: 'grant_declined' },
+  ])('US-6 rolls back $command.kind when its audit fails and commits each record once on retry', async ({ command, outcome, event }) => {
+    const { getCurrentUser } = await import('@/lib/session')
+    const p = await project()
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      const { id } = await store.startGrant(p.id, builder)
+      const planAnswers = { intakeVersion: 3 as const, amountMinor: 12500, summary: 'Publish synthetic tooling', milestones: [
+        { source: 'application' as const, title: 'Publish quickstart', due: fields().terms.due, evidence: 'Show independent reproduction' },
+      ] }
+      await store.mutateGrant(id, 0, { kind: 'submit_application', confirm: true, planAnswers }, builder)
+      const read = () => db.grantApplication.findUniqueOrThrow({ where: { id } })
+      const input = { applicationId: id, revision: 1, command }
+      const before = await read()
+      const auditWhere = { entityId: id, action: `grant.${command.kind}` }
+      const activityWhere = { targetId: id, event }
+      const unchanged = async () => {
+        expect(await read()).toEqual(before)
+        expect(await db.grantRevision.count({ where: { applicationId: id } })).toBe(2)
+        expect(await db.projectActivity.count({ where: activityWhere })).toBe(0)
+        expect(await db.auditLog.count({ where: auditWhere })).toBe(0)
+      }
+
+      vi.mocked(getCurrentUser).mockResolvedValue(user(reviewer.id, ['grants.review']))
+      expect(await actions.changeApplication(input)).toEqual({ ok: false, error: 'You cannot perform this grant action' })
+      vi.mocked(getCurrentUser).mockResolvedValue(user(builder.id, ['grants.review', 'grants.decide']))
+      expect(await actions.changeApplication(input)).toEqual({ ok: false, error: 'A project member cannot review their own grant' })
+      await unchanged()
+
+      vi.mocked(getCurrentUser).mockResolvedValue(reviewer)
+      await db.$executeRaw`ALTER TABLE audit_logs ADD CONSTRAINT test_grant_decision_audit CHECK (action NOT IN ('grant.hold_application', 'grant.decline_application')) NOT VALID`
+      try {
+        expect.soft(await actions.changeApplication(input)).toEqual({ ok: false, error: 'Something went wrong' })
+        await unchanged()
+      } finally {
+        await db.$executeRaw`ALTER TABLE audit_logs DROP CONSTRAINT test_grant_decision_audit`
+      }
+
+      expect(await actions.changeApplication(input)).toEqual({ ok: true, data: { id, revision: 2 } })
+      expect(await actions.changeApplication(input)).toMatchObject({ ok: false, error: expect.stringContaining('changed') })
+      expect(await read()).toMatchObject({ revision: 2, status: outcome })
+      expect(await db.grantRevision.findMany({ where: { applicationId: id, kind: 'record_decision' } }))
+        .toMatchObject([{ number: 2, actorId: reviewer.id, state: { status: outcome } }])
+      expect(await db.projectActivity.findMany({ where: activityWhere })).toMatchObject([{ actorId: reviewer.id, reason: null }])
+      const audits = await db.auditLog.findMany({ where: auditWhere })
+      expect(audits).toMatchObject([{ actorId: reviewer.id, entityType: 'GrantApplication', before: { revision: 1 } }])
+      expect(audits[0].after).toEqual({ revision: 2, outcome })
+    } finally {
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
   it('US-1 requires pinned demo proof only for continuous submissions and preserves the saved draft on refusal', async () => {
     const session = await import('@/lib/session')
     const { readApplication } = await import('@/app/(site)/grants/_lib/queries')
@@ -1072,6 +1127,41 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     state.assessment.criteria.c1.score = '0'
     await db.grantApplication.update({ where: { id: row.id }, data: { state: store.json(state) } })
     expect((await db.grantRoundSnapshot.findUniqueOrThrow({ where: { id: frozen.id } })).data).toEqual(frozen.data)
+  })
+  it('applies the round-wide draft membership conflict to legacy priority writes and their success audits', async () => {
+    const { getCurrentUser } = await import('@/lib/session')
+    const { roundComparison } = await import('@/app/(site)/grants/_lib/queries')
+    const { chooseForRound, snapshotRound } = await import('@/app/(site)/grants/_lib/round-actions')
+    const selected = await acceptedGrant(), ownProject = await project()
+    const draft = await store.createGrant(ownProject.id, roundId, { ...fields(), projectMilestoneId: ownProject.milestoneId }, builder)
+    const readRound = () => db.grantRound.findUniqueOrThrow({ where: { id: roundId } })
+    const before = await readRound()
+    const auditWhere = { entityId: roundId, actorId: reviewer.id, action: 'grant.round.choice' }
+    const auditCount = await db.auditLog.count({ where: auditWhere })
+    const input = { roundId, revision: before.revision, applicationId: selected.id,
+      choice: { disposition: 'call' as const, ownerId: reviewer.id, rationale: 'Independent priority choice' } }
+
+    vi.mocked(getCurrentUser).mockResolvedValue(user(reviewer.id, ['grants.manage']))
+    expect(await chooseForRound(input)).toEqual({ ok: false, error: 'Grant review access is also required' })
+    vi.mocked(getCurrentUser).mockResolvedValue(user(reviewer.id, ['grants.review']))
+    expect(await chooseForRound(input)).toEqual({ ok: false, error: 'Forbidden' })
+    vi.mocked(getCurrentUser).mockResolvedValue(reviewer)
+    await db.projectMember.create({ data: { projectId: ownProject.id, userId: reviewer.id, role: 'reader' } })
+    try {
+      await expect(roundComparison(roundId, undefined, 1, 1)).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404')
+      expect(await snapshotRound({ roundId, revision: before.revision, note: 'Freeze' })).toEqual({ ok: false, error: 'A project member cannot freeze their own review round' })
+      expect.soft(await chooseForRound(input)).toMatchObject({ ok: false, error: expect.stringContaining('review round') })
+      expect.soft(await db.auditLog.count({ where: auditWhere })).toBe(auditCount)
+      expect(await readRound()).toEqual(before)
+    } finally {
+      await db.projectMember.deleteMany({ where: { projectId: ownProject.id, userId: reviewer.id } })
+    }
+
+    expect(await chooseForRound({ ...input, applicationId: draft.id })).toEqual({ ok: false, error: 'Application is outside this review set' })
+    expect(await chooseForRound(input)).toMatchObject({ ok: true })
+    expect(await chooseForRound(input)).toEqual({ ok: false, error: 'Round changed. Refresh before saving.' })
+    expect(await readRound()).toMatchObject({ revision: before.revision + 1, choices: { [selected.id]: { ...input.choice, actorId: reviewer.id } } })
+    expect(await db.auditLog.count({ where: auditWhere })).toBe(auditCount + 1)
   })
   it('rejects unauthenticated direct action calls and uses the current effective permission set', async () => {
     const session = await import('@/lib/session')

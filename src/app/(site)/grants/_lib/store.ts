@@ -262,6 +262,10 @@ const planActivity: Partial<Record<Command['kind'], ProjectActivityEvent>> = {
   issue_award: 'grant_award_issued',
 }
 
+export function usesTransactionalDecisionAudit(kind: Command['kind']) {
+  return kind === 'hold_application' || kind === 'decline_application' || kind === 'issue_award'
+}
+
 // Only a server-side caller can supply authorization. The public action has no
 // approved source for it yet. Bind any receipt to the exact assessed case.
 export async function mutateGrant(applicationId: string, revision: number, command: Command, user: CurrentUser,
@@ -340,13 +344,10 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       })
       if (result.count !== 1) throw conflict()
       // Reapplication reads this immutable decision kind and its resulting status.
-      const kind = command.kind === 'hold_application' || command.kind === 'decline_application' ? 'record_decision' : command.kind
+      const transactionalDecision = usesTransactionalDecisionAudit(command.kind)
+      const receiptKind = transactionalDecision && command.kind !== 'issue_award' ? 'record_decision' : command.kind
       await tx.grantRevision.create({
-        data: { applicationId, number: revision + 1, actorId: user.id, kind, state: json(next) },
-      })
-      if (command.kind === 'issue_award') await writeAudit(tx, {
-        actorId: user.id, action: 'grant.issue_award', entityType: 'GrantApplication', entityId: applicationId,
-        before: { revision }, after: { revision: revision + 1, decisionId: eventId, planId: awardAuthorization?.planId },
+        data: { applicationId, number: revision + 1, actorId: user.id, kind: receiptKind, state: json(next) },
       })
       const event = continuous && command.kind === 'submit_application' ? 'submitted' : next.version !== 4 ? undefined
         : command.kind === 'review_delivery' ? command.outcome === 'accepted' ? 'grant_milestone_verified' : 'grant_evidence_returned'
@@ -357,6 +358,14 @@ export async function mutateGrant(applicationId: string, revision: number, comma
           targetId: applicationId, targetName: 'Mini Grants', event, actorId: user.id,
         }])
       }
+      if (transactionalDecision) await writeAudit(tx, {
+        actorId: user.id, action: `grant.${command.kind}`, entityType: 'GrantApplication', entityId: applicationId,
+        before: { revision },
+        after: {
+          revision: revision + 1,
+          ...(command.kind === 'issue_award' ? { decisionId: eventId, planId: awardAuthorization?.planId } : { outcome: next.status }),
+        },
+      })
       return { id: applicationId, revision: revision + 1 }
     })
   } catch (error) {

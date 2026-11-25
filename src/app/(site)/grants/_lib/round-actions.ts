@@ -9,7 +9,7 @@ import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { id, text, stateSchema, roundSchema, roundChoice, storedRoundChoice } from './schemas'
 import { json } from './store'
-import { assertReviewer } from './staff'
+import { assertReviewer, hasRoundConflict } from './staff'
 import { readiness, score } from './rules'
 
 export const createRound = action({ schema: roundSchema, permission: 'grants.manage' }, async (input, user) => {
@@ -60,10 +60,8 @@ export const chooseForRound = action(
           },
         })
         if (!row || !row.applications.length) throw new ActionError('Application is outside this review set')
-        const own = await tx.grantApplication.count({
-          where: { id: input.applicationId, project: { members: { some: { userId: user.id } } } },
-        })
-        if (own) throw new ForbiddenError('A project member cannot choose their own grant priority')
+        if (await hasRoundConflict(tx, row.id, user.id))
+          throw new ForbiddenError('A project member cannot choose grant priorities in their own review round')
         await assertReviewer(tx, input.choice.ownerId, user)
         const previous = z.record(z.string(), storedRoundChoice).parse(row.choices)
         const old = previous[input.applicationId]
@@ -118,8 +116,8 @@ export const snapshotRound = action(
           },
         })
         if (!row || row.revision !== input.revision) throw new ActionError('Round changed. Refresh before recording a snapshot.')
-        const own = await tx.grantApplication.count({ where: { roundId: row.id, project: { members: { some: { userId: user.id } } } } })
-        if (own) throw new ForbiddenError('A project member cannot freeze their own review round')
+        if (await hasRoundConflict(tx, row.id, user.id))
+          throw new ForbiddenError('A project member cannot freeze their own review round')
         const result = await tx.grantRoundSnapshot.create({
           data: {
             roundId: row.id,
