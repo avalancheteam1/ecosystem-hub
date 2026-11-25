@@ -15,8 +15,8 @@ export function ApplicationList({ rows, staff }: { rows: Awaited<ReturnType<type
       stage: PROJECT_MATURITY[r.projectVersion.maturity as ProjectMaturity]?.label ?? 'Stage not set',
       round: (
         <div className="flex flex-col items-start gap-1">
-          <span className="wrap-anywhere">{r.round.name}</span>
-          <RoundIntakeStatus open={r.round.published} />
+          <span className="wrap-anywhere">{r.round?.name ?? 'Mini Grants'}</span>
+          {r.round && <RoundIntakeStatus open={r.round.published} />}
         </div>
       ),
       status: (
@@ -85,7 +85,7 @@ export function ApplicationList({ rows, staff }: { rows: Awaited<ReturnType<type
             },
             {
               key: 'round',
-              label: 'Round',
+              label: 'Programme or round',
             },
             {
               key: 'status',

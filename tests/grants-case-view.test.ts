@@ -53,6 +53,8 @@ function applicantCase(state: ApplicantCase['state'], writer: boolean): Applican
     name: 'Synthetic project',
     round: 'Synthetic round',
     roundOpen: false,
+    continuous: false,
+    demoProofMissing: false,
     projectSlug: 'synthetic-project',
     userId: 'member-1',
     writer,

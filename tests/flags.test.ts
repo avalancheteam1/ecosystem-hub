@@ -18,3 +18,9 @@ test('isFlag: only registry keys, not prototype names', () => {
   assert.equal(isFlag('nope'), false)
   assert.equal(isFlag('toString'), false)
 })
+
+test('US-1: continuous Mini Grants defaults off without hiding saved applications', () => {
+  assert.equal(flagOn(new Map(), 'miniGrantsIntake'), false)
+  assert.equal(flagOn(new Map([['miniGrantsIntake', true]]), 'miniGrantsIntake'), true)
+  assert.equal(flagForPath('/grants/applications/a'), null)
+})

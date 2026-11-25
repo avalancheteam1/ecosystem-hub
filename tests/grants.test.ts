@@ -5,6 +5,7 @@ import {
   criterionIds,
   clearanceIds,
   money,
+  hasDemoProof,
   stateSchema,
   type GrantState,
   type Command,
@@ -702,4 +703,10 @@ describe('milestone-first short submissions', () => {
     const shortlisted = change(state, { kind: 'release_review_status', status: 'shortlisted' })
     expect(applicationStatus(answer(change(shortlisted, request), 2)).status).toBe('shortlisted')
   })
+})
+
+it('US-1 recognizes a usable project demo URL without fetching it', () => {
+  expect(hasDemoProof([])).toBe(false)
+  expect(hasDemoProof(['', 'about:blank', 'https://', 'not a link'])).toBe(false)
+  expect(hasDemoProof(['not a link', 'https://example.test/demo'])).toBe(true)
 })

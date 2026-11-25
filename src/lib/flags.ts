@@ -16,6 +16,12 @@ export type FlagDef = {
 }
 
 export const FLAGS = {
+  miniGrantsIntake: {
+    label: 'Continuous Mini Grants intake',
+    description: 'Switch new Mini Grant applications from rounds to continuous intake. Existing cases keep their workflow.',
+    default: false,
+    paths: [],
+  },
   tooling: {
     label: 'Community Tools',
     description: 'The public list on /tooling (incl. tool pages and the submit page), its card and preview on /ecosystem and its sitemap entries. Review stays available at /admin/tooling.',

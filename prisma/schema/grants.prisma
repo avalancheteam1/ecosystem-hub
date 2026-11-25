@@ -15,8 +15,8 @@ model GrantRound {
 
 model GrantApplication {
   id               String         @id @default(cuid())
-  roundId          String
-  round            GrantRound     @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  roundId          String?
+  round            GrantRound?    @relation(fields: [roundId], references: [id], onDelete: Restrict)
   projectId        String
   project          Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
   projectVersionId String

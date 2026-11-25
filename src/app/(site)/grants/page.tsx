@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { canonical } from '@/lib/metadata'
 import Link from 'next/link'
+import { isFlagOn } from '@/lib/flag-store'
 import Image from 'next/image'
 import { Layers, UsersRound, Globe } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
 }
 export const dynamic = 'force-dynamic'
 export default async function GrantsPage() {
-  const rounds = await publishedRounds()
+  const continuous = await isFlagOn('miniGrantsIntake')
+  const rounds = continuous ? [] : await publishedRounds()
   return (
     <>
       <section id="grant-programmes" aria-label="Grant programmes" className="grid scroll-mt-24 gap-6 md:grid-cols-2">
@@ -28,9 +30,11 @@ export default async function GrantsPage() {
             <p className="mt-4 flex items-center gap-3">
               <Layers className="size-5" aria-hidden /> Up to $10,000
             </p>
-            <div className="mt-3"><RoundIntakeStatus open={rounds.length > 0} /></div>
+            <div className="mt-3"><RoundIntakeStatus open={continuous || rounds.length > 0} /></div>
             <p className="mt-6 max-w-prose text-base text-fg-muted">
-              For early-stage builders and community initiatives with a concrete Avalanche outcome.
+              {continuous
+                ? 'For builders with a working project or prototype and a concrete Avalanche outcome. Apply anytime.'
+                : 'For early-stage builders and community initiatives with a concrete Avalanche outcome.'}
             </p>
             <Link className={buttonVariants({ className: 'mt-6' })} href="/grants/mini-grants">
               View programme

@@ -1,9 +1,14 @@
 import { z } from 'zod'
 
 export const roundNotAccepting = 'This round is not accepting applications'
+export const continuousIntakePaused = 'Mini Grants intake is paused. You can keep editing your saved draft.'
+export const missingDemo = 'Add a demo link showing your working project or prototype to your Hub project.'
 export const roundClosedForSubmission = 'This round has closed. You can keep editing the draft and submit when it reopens.'
 
 export const id = z.string().min(1).max(100)
+export const startSchema = z.strictObject({ projectId: id })
+const demoUrl = z.url({ protocol: /^https?$/ })
+export const hasDemoProof = (demoLinks: string[]) => demoLinks.some((link) => demoUrl.safeParse(link).success)
 export const text = z.string().trim().min(1).max(10000)
 export const day = z.iso.date()
 export const evidence = z

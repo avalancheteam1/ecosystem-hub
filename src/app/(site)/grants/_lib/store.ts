@@ -4,8 +4,10 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { ActionError, ForbiddenError } from '@/lib/action-error'
 import type { CurrentUser } from '@/lib/session'
+import { FLAGS } from '@/lib/flags'
+import { recordProjectActivity } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
-import { roundClosedForSubmission, roundNotAccepting, stateSchema, type IntakeAnswers, type Command } from './schemas'
+import { continuousIntakePaused, hasDemoProof, missingDemo, roundClosedForSubmission, roundNotAccepting, stateSchema, type IntakeAnswers, type Command, type GrantState } from './schemas'
 import { milestoneFirstEnabled, shortIntakeEnabled } from './config'
 import { assertReviewer } from './staff'
 import { commandPermission, initialState, mayCommand, transition } from './rules'
@@ -23,9 +25,10 @@ async function projectAccess(tx: Prisma.TransactionClient, projectId: string, us
   return { project, role: project?.members[0]?.role ?? null }
 }
 
-async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versionId: string) {
+async function pinVersion(tx: Prisma.TransactionClient, projectId: string, versionId: string, requireDemo = false) {
   const version = await tx.projectVersion.findUnique({ where: { id: versionId } })
   if (!version || version.projectId !== projectId) throw new ActionError('Save a project version first')
+  if (requireDemo && !hasDemoProof(version.demoLinks)) throw new ActionError(missingDemo)
   const missing = missingForSubmission(version)
   if (missing.length) throw new ActionError(`Complete your project first: ${missing.join(', ')}`)
   if (planSeal(version) === 'seal-draft')
@@ -70,6 +73,56 @@ async function resolveMilestone(tx: Prisma.TransactionClient, projectId: string,
   return { ...answers, terms: { ...answers.terms, title: milestone.title, due: milestone.targetDate } }
 }
 
+async function continuousIntakeOn(tx: Prisma.TransactionClient) {
+  // Read the same flag as public discovery directly on writes to avoid a stale rollout decision.
+  const flag = await tx.featureFlag.findUnique({ where: { key: 'miniGrantsIntake' }, select: { enabled: true } })
+  return flag?.enabled ?? FLAGS.miniGrantsIntake.default
+}
+
+async function insertGrant(tx: Prisma.TransactionClient, projectId: string, projectVersionId: string, roundId: string | null, state: GrantState, actorId: string) {
+  const application = await tx.grantApplication.create({
+    data: { roundId, projectId, projectVersionId, status: state.status, state: json(state) },
+    select: { id: true },
+  })
+  await tx.grantRevision.create({
+    data: { applicationId: application.id, number: 0, actorId, kind: 'create', state: json(state) },
+  })
+  return application
+}
+
+export async function startGrant(projectId: string, user: CurrentUser) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await transaction(async (tx) => {
+        const { project, role } = await projectAccess(tx, projectId, user)
+        if (!canEditProject(role ?? '')) throw new ForbiddenError('Only this project owner or a writer may apply')
+        if (!project?.currentVersionId || project.archivedAt) throw new ActionError('Choose an active project with a saved version')
+        if (!(await continuousIntakeOn(tx))) throw new ActionError(continuousIntakePaused)
+        // The predicate read and insert are one SERIALIZABLE operation. Concurrent
+        // misses cannot both commit. Reapplication will qualify eligible terminal
+        // cases here while keeping this check and the new insert in one transaction.
+        const existing = await tx.grantApplication.findFirst({
+          where: { projectId, roundId: null },
+          select: { id: true },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        })
+        if (existing) return { id: existing.id, created: false }
+        const state = initialState({ intakeVersion: 2, amountMinor: null, summary: '', milestone: null })
+        const row = await insertGrant(tx, projectId, project.currentVersionId, null, state, user.id)
+        return { id: row.id, created: true }
+      })
+    } catch (error) {
+      // Prisma can expose a commit-time conflict directly from adapter-pg.
+      const prismaConflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034'
+      const adapterConflict = error instanceof Error && error.name === 'DriverAdapterError' &&
+        typeof error.cause === 'object' && error.cause !== null &&
+        'kind' in error.cause && error.cause.kind === 'TransactionWriteConflict'
+      if (!prismaConflict && !adapterConflict) throw error
+    }
+  }
+  throw conflict()
+}
+
 export async function createGrant(projectId: string, roundId: string, answers: IntakeAnswers, user: CurrentUser, submit = false) {
   if (answers.intakeVersion === 2 && !shortIntakeEnabled())
     throw new ActionError('The short form is currently unavailable. Reload to start a new application.')
@@ -77,6 +130,7 @@ export async function createGrant(projectId: string, roundId: string, answers: I
     const { project, role } = await projectAccess(tx, projectId, user)
     if (!canEditProject(role ?? '')) throw new ForbiddenError('Only this project owner or a writer may apply')
     if (!project?.currentVersionId || project.archivedAt) throw new ActionError('Choose an active project with a saved version')
+    if (await continuousIntakeOn(tx)) throw new ActionError('Start a new application through continuous Mini Grants intake.')
     const round = await tx.grantRound.findFirst({ where: { id: roundId, published: true }, select: { id: true } })
     if (!round) throw new ActionError(roundNotAccepting)
     const initial = initialState(await resolveMilestone(tx, projectId, answers, submit))
@@ -91,14 +145,7 @@ export async function createGrant(projectId: string, roundId: string, answers: I
           { id: randomUUID(), actorId: user.id, now: new Date().toISOString(), projectVersionId: versionId, milestoneFirst: milestoneFirstEnabled() },
         )
       : initial
-    const application = await tx.grantApplication.create({
-      data: { roundId, projectId, projectVersionId: versionId, status: state.status, state: json(state) },
-      select: { id: true },
-    })
-    await tx.grantRevision.create({
-      data: { applicationId: application.id, number: 0, actorId: user.id, kind: 'create', state: json(state) },
-    })
-    return application
+    return insertGrant(tx, projectId, versionId, roundId, state, user.id)
   }).catch((error) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') throw conflict()
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')
@@ -112,7 +159,7 @@ export async function mutateGrant(applicationId: string, revision: number, comma
     return await transaction(async (tx) => {
       const row = await tx.grantApplication.findUnique({
         where: { id: applicationId },
-        select: { id: true, projectId: true, projectVersionId: true, revision: true, state: true, round: { select: { published: true } } },
+        select: { id: true, projectId: true, projectVersionId: true, revision: true, state: true, roundId: true, round: { select: { published: true } } },
       })
       if (!row) throw new ForbiddenError('Grant access denied')
       const { project, role } = await projectAccess(tx, row.projectId, user)
@@ -124,8 +171,9 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       }
       if (!project || (project.archivedAt && role)) throw new ActionError('This project is archived or unavailable')
       if (row.revision !== revision) throw conflict()
+      const continuous = row.roundId === null
       if (state.answers.intakeVersion === 2 && (command.kind === 'save_application' || command.kind === 'submit_application')) {
-        if (!shortIntakeEnabled()) throw new ActionError('Editing and submitting short drafts is currently unavailable. Your saved draft is unchanged.')
+        if (!continuous && !shortIntakeEnabled()) throw new ActionError('Editing and submitting short drafts is currently unavailable. Your saved draft is unchanged.')
         if (command.kind === 'submit_application' && !command.shortAnswers)
           throw new ActionError('Review the short application and include the reviewed answers before submitting.')
       }
@@ -133,8 +181,11 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       let projectVersionId = row.projectVersionId
       const pinReply = command.kind === 'answer_request' && !(state.version === 3 && state.milestoneClearance)
       if (command.kind === 'submit_application' || pinReply) {
-        if (command.kind === 'submit_application' && !row.round.published) throw new ActionError(roundClosedForSubmission)
-        projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '')
+        if (command.kind === 'submit_application') {
+          if (row.round && !row.round.published) throw new ActionError(roundClosedForSubmission)
+          if (continuous && !(await continuousIntakeOn(tx))) throw new ActionError(continuousIntakePaused)
+        }
+        projectVersionId = await pinVersion(tx, row.projectId, project.currentVersionId ?? '', continuous)
       }
       if (command.kind === 'submit_application') {
         if (command.shortAnswers && state.answers.intakeVersion !== 2) throw new ActionError('Continue using the original form for this draft.')
@@ -159,6 +210,12 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       await tx.grantRevision.create({
         data: { applicationId, number: revision + 1, actorId: user.id, kind: command.kind, state: json(next) },
       })
+      if (continuous && command.kind === 'submit_application') {
+        await recordProjectActivity(tx, [{
+          projectId: row.projectId, versionId: projectVersionId, program: 'grants',
+          targetId: applicationId, targetName: 'Mini Grants', event: 'submitted', actorId: user.id,
+        }])
+      }
       return { id: applicationId, revision: revision + 1 }
     })
   } catch (error) {

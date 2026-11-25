@@ -73,7 +73,7 @@ export function GrantCaseView({
     internal = data.staff ? data.state : null,
     capabilities = data.staff ? data.capabilities : null
   const short = s.answers.intakeVersion === 2 ? s.answers : null
-  const editShortDraft = !data.staff && data.writer && s.status === 'draft' && short !== null && shortIntakeEnabled()
+  const editShortDraft = !data.staff && data.writer && s.status === 'draft' && short !== null && (data.continuous || shortIntakeEnabled())
   const legacy = s.answers.intakeVersion !== 2 ? s.answers : null
   const requestedAmount = short ? short.amountMinor : legacy?.terms.amountMinor
   const requestedRoute = internal?.answers.intakeVersion === 2 ? undefined : internal?.answers.terms.route
@@ -451,7 +451,7 @@ export function GrantCaseView({
   } else if (tab === 'Overview' || tab === 'Application') {
     const nextStep = (
       <SectionCard title="Applicant visibility" className="self-start space-y-4 lg:col-start-2 lg:row-start-1">
-        {s.status === 'draft' && !data.roundOpen && <p>You can keep editing this draft. You can submit when this round reopens.</p>}
+        {s.status === 'draft' && !data.continuous && !data.roundOpen && <p>You can keep editing this draft. You can submit when this round reopens.</p>}
         <p className="text-fg-muted">{statusCopy.detail}</p>
         {publicStatus.updateRequested && (
           <Link href={`${base}?tab=Requests`} className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
@@ -477,7 +477,7 @@ export function GrantCaseView({
                 <StatusPill tone={s.status === 'approved' ? 'success' : 'info'}>{statusCopy.label}</StatusPill>
                 {maturity && <StatusPill tone="neutral">Project stage {maturity.label}</StatusPill>}
                 {s.status === 'approved' && <StatusPill tone={workflowTone}>{workflowLabel}</StatusPill>}
-                {!editShortDraft && <RoundIntakeStatus open={data.roundOpen} />}
+                {!data.continuous && !editShortDraft && <RoundIntakeStatus open={data.roundOpen} />}
               </div>
               <p className="text-fg-muted">{statusCopy.detail}</p>
               {s.status === 'draft' && !data.roundOpen && !short && <p>You can keep editing this draft. Submit when intake reopens.</p>}
@@ -492,6 +492,8 @@ export function GrantCaseView({
               draft={{ id: data.id, revision: data.revision, projectName: data.name, roundName: data.round, answers: short }}
               roadmaps={[{ id: data.projectId, slug: data.projectSlug, milestones: data.milestones }]}
               roundOpen={data.roundOpen}
+              continuous={data.continuous}
+              demoProofMissing={data.demoProofMissing}
             />
           ) : data.writer && s.status === 'draft' && legacy ? (
             <>
@@ -1556,7 +1558,7 @@ export function GrantCaseView({
   return (
     <div className={data.staff ? 'min-w-0' : 'container-page py-10'}>
       <BackLink href={data.staff ? '/admin/grants' : '/grants/applications'}>{data.staff ? 'Review queue' : 'All applications'}</BackLink>
-      <PageHeader title={data.name} description={`Mini Grants / ${data.round}`}>
+      <PageHeader title={data.name} description={data.continuous ? "Mini Grants" : `Mini Grants / ${data.round}`}>
         {!data.staff && data.writer && s.status === 'submitted' && !s.closedAt && (
           form('withdraw_application', 'Withdraw application', { confirm: false },
             [{ path: 'confirm', label: 'Withdraw this application from consideration.', type: 'checkbox' }], true)
@@ -1585,7 +1587,7 @@ export function GrantCaseView({
         {publicStatus.updateRequested && <StatusPill className="text-fg-heading" tone="warning">Update requested</StatusPill>}
         {!staffMilestoneDecision && s.status === 'approved' && <StatusPill className="text-fg-heading" tone={workflowTone}>{workflowLabel}</StatusPill>}
       </div>}
-      {data.staff && <div className="mb-4"><RoundIntakeStatus open={data.roundOpen} /></div>}
+      {data.staff && !data.continuous && <div className="mb-4"><RoundIntakeStatus open={data.roundOpen} /></div>}
       {!oneCase && (
         <>
           {data.staff && milestoneFirst && <Link href={base} className={`${jumpClass} mb-2`}>Case overview</Link>}

@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/db'
 import { requirePermission, requireUser, denyAccess, denyContext } from '@/lib/guards'
 import { canEditProject, TEAM_ROLES } from '@/lib/project-submission'
+import { isFlagOn } from '@/lib/flag-store'
 import { can } from '@/lib/permissions'
-import { stateSchema } from './schemas'
+import { hasDemoProof, stateSchema } from './schemas'
 import { reviewerOptions } from './reviewers'
 import { applicantProjection, applicationStatus } from './rules'
 
@@ -77,7 +78,13 @@ export async function readApplication(id: string, staff: boolean) {
       status: true,
       state: true,
       projectVersion: true,
-      project: { select: { slug: true, members: { where: { userId: user.id }, select: { role: true } } } },
+      project: {
+        select: {
+          slug: true,
+          members: { where: { userId: user.id }, select: { role: true } },
+          currentVersion: { select: { demoLinks: true } },
+        },
+      },
       round: { select: { name: true, published: true } },
     },
   })
@@ -98,8 +105,11 @@ export async function readApplication(id: string, staff: boolean) {
     projectVersionId: row.projectVersionId,
     revision: row.revision,
     name: row.projectVersion.name,
-    round: row.round.name,
-    roundOpen: row.round.published,
+    round: row.round?.name ?? 'Mini Grants',
+    roundOpen: row.round?.published ?? await isFlagOn('miniGrantsIntake'),
+    continuous: row.round === null,
+    demoProofMissing: !staff && row.status === 'draft' && row.round === null &&
+      !hasDemoProof(row.project.currentVersion?.demoLinks ?? []),
     projectSlug: row.project.slug,
     userId: user.id,
     writer: canEditProject(role ?? ''),

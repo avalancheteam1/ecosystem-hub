@@ -51,6 +51,7 @@ export function activityHref(a: { program: string; targetId: string | null; vers
     const slug = a.targetId ? c.hackathonSlugs.get(a.targetId) : undefined
     return slug ? `/events/${slug}` : null
   }
+  if (a.program === 'grants') return `/grants/applications/${a.targetId}`
   if (a.program === 'tooling') return a.versionId && a.versionId === c.listedToolingVersionId ? `/tooling/${c.projectSlug}` : '/tooling/submit'
   return null
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Field } from '@/components/field'
 import { ProjectPicker, type ProjectPickerOption } from '@/components/project-picker'
@@ -11,13 +12,15 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
 import { changeApplication, createApplication } from '../_lib/actions'
-import { roundClosedForSubmission, roundNotAccepting, shortDraft, shortSubmission, type ShortIntake } from '../_lib/schemas'
+import { continuousIntakePaused, missingDemo, roundClosedForSubmission, roundNotAccepting, shortDraft, shortSubmission, type ShortIntake } from '../_lib/schemas'
 import { RoundIntakeStatus } from './navigation'
 import type { GrantRoadmap } from './command-form'
 
 type ExistingDraft = { id: string; revision: number; projectName: string; roundName: string; answers: ShortIntake }
 
-export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmaps, rounds = [], initialProject = '' }: {
+export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmaps, rounds = [], initialProject = '', continuous = false, demoProofMissing = false }: {
+  continuous?: boolean
+  demoProofMissing?: boolean
   draft?: ExistingDraft
   roundOpen?: boolean
   projects?: ProjectPickerOption[]
@@ -32,6 +35,7 @@ export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmap
   const [roundId, setRound] = useState(rounds[0]?.id ?? '')
   const [closedRounds, setClosedRounds] = useState<string[]>([])
   const canSubmit = roundOpen && !closedRounds.includes(roundId)
+  const closedMessage = continuous ? continuousIntakePaused : draft ? roundClosedForSubmission : 'Choose another open round, or return when this round reopens.'
   const [amount, setAmount] = useState(draft?.answers.amountMinor ? String(draft.answers.amountMinor / 100) : '')
   const [summary, setSummary] = useState(draft?.answers.summary ?? '')
   const [milestone, setMilestone] = useState(draft?.answers.milestone ?? null)
@@ -62,7 +66,11 @@ export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmap
       return
     }
     if (submit && !canSubmit) {
-      setError({ text: draft ? roundClosedForSubmission : roundNotAccepting })
+      setError({ text: closedMessage })
+      return
+    }
+    if (submit && demoProofMissing) {
+      setError({ text: missingDemo })
       return
     }
     if (submit && project?.missing.length) {
@@ -104,7 +112,7 @@ export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmap
             })
           : await createApplication({ projectId, roundId, answers, submit, confirm: submit })
         if (!result.ok) {
-          if (result.error === roundClosedForSubmission || result.error === roundNotAccepting) {
+          if (result.error === roundClosedForSubmission || result.error === roundNotAccepting || result.error === continuousIntakePaused) {
             setClosedRounds((closed) => [...closed, roundId])
           }
           setError({ text: result.error })
@@ -126,7 +134,9 @@ export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmap
       <h2 ref={heading} tabIndex={-1} className="text-xl">Review your application</h2>
       <RoundIntakeStatus open={canSubmit} />
       <dl className="space-y-4">
-        <div><dt>Project and round</dt><dd className="text-fg-muted">{draft?.projectName ?? project?.name} / {draft?.roundName ?? rounds.find((r) => r.id === roundId)?.name}</dd></div>
+        <div><dt>{continuous ? 'Project' : 'Project and round'}</dt><dd className="text-fg-muted">
+          {draft?.projectName ?? project?.name}{!continuous && ` / ${draft?.roundName ?? rounds.find((r) => r.id === roundId)?.name}`}
+        </dd></div>
         {review.amountMinor !== null && <div><dt>Requested amount</dt><dd className="text-fg-muted">${(review.amountMinor / 100).toLocaleString('en-US')} USD</dd></div>}
         <div><dt>Work this grant will fund</dt><dd className="wrap-anywhere whitespace-pre-wrap text-fg-muted">{review.summary}</dd></div>
         <div><dt>Deliverable and target date</dt><dd className="wrap-anywhere text-fg-muted">{review.milestone?.title} · {review.milestone?.due} (UTC)</dd></div>
@@ -166,6 +176,15 @@ export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmap
           </NativeSelect>
         </Field>
       </SectionCard>}
+      {continuous && draft && roadmap && demoProofMissing && (
+        <SectionCard title="Working project or prototype">
+          <p className="text-sm text-fg-muted">{missingDemo}</p>
+          <Link
+            className="inline-flex min-h-11 items-center underline"
+            href={`/projects/${roadmap.slug}/edit?next=${encodeURIComponent(`/grants/applications/${draft.id}`)}`}
+          >Edit project links</Link>
+        </SectionCard>
+      )}
       <SectionCard title="Funding request" className="space-y-4">
         <Field id={`${uid}-amount`} label="Requested amount (USD)" hint="Whole dollars, up to $10,000." required>
           <Input id={`${uid}-amount`} className="min-h-11" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} {...errorProps('amountMinor')} />
@@ -219,7 +238,7 @@ export function ShortGrantForm({ draft, roundOpen = true, projects = [], roadmap
             onChange={(e) => setMilestone({ ...milestone, evidence: e.target.value })} {...errorProps('milestone.evidence')} />
         </Field>}
       </SectionCard>
-      {!canSubmit && <p className="text-sm text-fg-muted">{draft ? roundClosedForSubmission : 'Choose another open round, or return when this round reopens.'}</p>}
+      {!canSubmit && <p className="text-sm text-fg-muted">{closedMessage}</p>}
       {summaryError}
       <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" disabled={pending || (!draft && !canSubmit)} onClick={() => {

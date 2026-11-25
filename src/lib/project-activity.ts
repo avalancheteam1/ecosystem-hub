@@ -8,6 +8,7 @@ import type { Prisma } from '@prisma/client'
 /** Programs a project takes part in. Keys are persisted - only add. `staff`: who acts on the other side, shown to the team instead of a name. */
 export const PROJECT_PROGRAMS = {
   hackathon: { label: 'Hackathon', staff: 'the organisers' },
+  grants: { label: 'Mini Grants', staff: 'the grants team' },
   tooling: { label: 'Developer Tooling', staff: 'team1' },
 } as const
 export type ProjectProgram = keyof typeof PROJECT_PROGRAMS

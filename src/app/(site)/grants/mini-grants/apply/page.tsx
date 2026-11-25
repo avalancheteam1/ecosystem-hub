@@ -1,10 +1,12 @@
 import Link from 'next/link'
+import { isFlagOn } from '@/lib/flag-store'
 import type { Metadata } from 'next'
 import { PageHeader } from '@/components/layout/page-header'
 import { missingForSubmission } from '@/lib/project-submission'
 import { SectionCard } from '@/components/section-card'
 import { BackLink } from '@/components/back-link'
 import { EmptyState } from '@/components/empty-state'
+import { StartMiniGrantForm } from '../../_components/start-mini-grant-form'
 import { myProjects, publishedRounds } from '../../_lib/queries'
 import { shortIntakeEnabled } from '../../_lib/config'
 import { GrantCommandForm } from '../../_components/command-form'
@@ -21,7 +23,8 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
   const query = await searchParams
   const shortEnabled = shortIntakeEnabled()
   const initialStep = Math.max(0, ['project', 'outcome', 'milestone', 'review'].indexOf(query.step || 'project'))
-  const [projects, rounds] = await Promise.all([myProjects(), publishedRounds()])
+  const continuous = await isFlagOn('miniGrantsIntake')
+  const [projects, rounds] = await Promise.all([myProjects(), continuous ? [] : publishedRounds()])
   const projectOptions = projects.flatMap(({ id, slug, currentVersion: v, _count }) => v ? [{
     id, slug, name: v.name, tagline: v.shortDescription, imageUrl: v.logoUrl ?? v.coverUrl, maturity: v.maturity,
     versionNumber: v.number, sealed: !!v.sealedAt, members: _count.members, missing: missingForSubmission(v),
@@ -33,7 +36,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
         title="New application"
         description="Save an incomplete draft, review the full application, then confirm submission. Your existing project supplies the project details and team."
       />
-      {!rounds.length ? (
+      {!continuous && !rounds.length ? (
         <EmptyState
           title="No open round"
           action={
@@ -57,7 +60,9 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
         </EmptyState>
       ) : (
         <div className="grid gap-10 md:grid-cols-[2fr_1fr]">
-          {shortEnabled ? (
+          {continuous ? (
+            <StartMiniGrantForm projects={projectOptions} initialProject={projectOptions.find((project) => project.id === query.project)?.id} />
+          ) : shortEnabled ? (
             <ShortGrantForm
               projects={projectOptions}
               initialProject={projectOptions.find((project) => project.id === query.project)?.id}
@@ -130,8 +135,10 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
             />
           )}
           <SectionCard title="Before you apply" className="self-start">
-            {!shortEnabled && <RoundIntakeStatus open />}
-            <p className="mt-4 text-sm text-fg-muted">{shortEnabled
+            {!continuous && !shortEnabled && <RoundIntakeStatus open />}
+            <p className="mt-4 text-sm text-fg-muted">{continuous
+              ? 'Add a demo link to your Hub project that shows it working. You can start a draft while you prepare your proof.'
+              : shortEnabled
               ? 'Choose a planned or in-progress roadmap milestone, or add a dated deliverable for this application. Describe the evidence you will provide on completion.'
               : 'Choose a planned or in-progress milestone on your project roadmap. Define a measurable acceptance test and list the costs for the remaining work.'}</p>
             <p className="mt-4 text-sm text-fg-muted">Keep project links on your Hub project and contact details in <Link href="/profile" className="underline">your profile</Link>.</p>

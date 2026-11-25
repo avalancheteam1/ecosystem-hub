@@ -5,8 +5,23 @@ import { action } from '@/lib/action'
 import { ActionError } from '@/lib/action-error'
 import { recordAudit } from '@/lib/audit'
 import { shortIntakeEnabled } from './config'
-import { createSchema, mutationSchema } from './schemas'
-import { createGrant, mutateGrant } from './store'
+import { createSchema, mutationSchema, startSchema } from './schemas'
+import { createGrant, mutateGrant, startGrant } from './store'
+
+export const startApplication = action({ schema: startSchema, permission: 'user' }, async ({ projectId }, user) => {
+  const { id, created } = await startGrant(projectId, user)
+  if (created) {
+    await recordAudit({
+      actorId: user.id,
+      action: 'grant.create',
+      entityType: 'GrantApplication',
+      entityId: id,
+      after: { projectId, roundId: null, submitted: false, revision: 0 },
+    })
+    revalidatePath('/grants/applications')
+  }
+  return { id }
+})
 
 export const createApplication = action({ schema: createSchema, permission: 'user' }, async (input, user) => {
   if (shortIntakeEnabled() && input.answers.intakeVersion !== 2) throw new ActionError('Reload to use the short form for a new application.')

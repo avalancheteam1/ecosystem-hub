@@ -172,12 +172,93 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       await db.grantRoundSnapshot.deleteMany({ where: { roundId } })
       await db.grantRound.delete({ where: { id: roundId } })
     }
+    await db.projectActivity.deleteMany({ where: { projectId: { in: projects } } })
     await db.project.updateMany({ where: { id: { in: projects } }, data: { currentVersionId: null } })
     await db.projectMember.deleteMany({ where: { projectId: { in: projects } } })
     await db.projectVersion.deleteMany({ where: { projectId: { in: projects } } })
     await db.project.deleteMany({ where: { id: { in: projects } } })
     await db.user.deleteMany({ where: { id: { in: userIds } } })
     await db.$disconnect()
+  })
+  it('US-1 starts or resumes one roundless case with one receipt and one audit', async () => {
+    const session = await import('@/lib/session')
+    const p = await project()
+    vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+    expect((await actions.startApplication({ projectId: p.id })).ok).toBe(false)
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      // Close the fixture's only published round, leaving intake without a configured open round.
+      await db.grantRound.update({ where: { id: roundId }, data: { published: false } })
+      const results = await Promise.all(Array.from({ length: 8 }, () => actions.startApplication({ projectId: p.id })))
+      const cases = await db.grantApplication.findMany({ where: { projectId: p.id } })
+      applications.push(...cases.map(({ id }) => id))
+      expect(cases).toHaveLength(1)
+      const [row] = cases
+      expect(results).toEqual(Array(8).fill({ ok: true, data: { id: row.id } }))
+      expect(row).toMatchObject({ roundId: null, status: 'draft', revision: 0, projectVersionId: p.versionId })
+      expect(await db.grantRevision.count({ where: { applicationId: row.id } })).toBe(1)
+      expect(await db.auditLog.count({ where: { entityId: row.id, action: 'grant.create' } })).toBe(1)
+      expect((await db.projectVersion.findUniqueOrThrow({ where: { id: p.versionId } })).sealedAt).toBeNull()
+      vi.mocked(session.getCurrentUser).mockResolvedValue(null)
+      expect(await actions.startApplication({ projectId: p.id })).toEqual({ ok: false, error: 'Not signed in' })
+      await db.projectMember.create({ data: { projectId: p.id, userId: stranger.id, role: 'reader' } })
+      vi.mocked(session.getCurrentUser).mockResolvedValue(stranger)
+      expect(await actions.startApplication({ projectId: p.id })).toEqual({ ok: false, error: 'Only this project owner or a writer may apply' })
+      await db.projectMember.updateMany({ where: { projectId: p.id, userId: stranger.id }, data: { role: 'writer' } })
+      expect(await actions.startApplication({ projectId: p.id })).toEqual({ ok: true, data: { id: row.id } })
+    } finally {
+      await db.grantRound.update({ where: { id: roundId }, data: { published: true } })
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
+  it('US-1 requires pinned demo proof only for continuous submissions and preserves the saved draft on refusal', async () => {
+    const session = await import('@/lib/session')
+    const { readApplication } = await import('@/app/(site)/grants/_lib/queries')
+    const p = await project()
+    const legacyProject = await project()
+    const legacy = await store.createGrant(legacyProject.id, roundId, { ...fields(), projectMilestoneId: legacyProject.milestoneId }, builder)
+    applications.push(legacy.id)
+    const shortAnswers = {
+      intakeVersion: 2 as const,
+      amountMinor: 10000,
+      summary: 'Finish the prototype quickstart',
+      milestone: { source: 'application' as const, title: 'Publish quickstart', due: fields().terms.due, evidence: 'Replay results' },
+    }
+    const submit = { kind: 'submit_application' as const, confirm: true as const, shortAnswers }
+    vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+    await db.featureFlag.create({ data: { key: 'miniGrantsIntake', enabled: true } })
+    try {
+      const started = await actions.startApplication({ projectId: p.id })
+      if (!started.ok) throw new Error(started.error)
+      const { id } = started.data
+      applications.push(id)
+      await expect(store.createGrant(p.id, roundId, fields(), builder)).rejects.toThrow('continuous')
+      await db.projectVersion.update({
+        where: { id: p.versionId }, data: { demoLinks: [], websiteUrl: 'https://example.test/about' },
+      })
+      const saved = await store.mutateGrant(id, 0, { kind: 'save_application', answers: shortAnswers }, builder)
+      await expect(store.mutateGrant(id, saved.revision, submit, builder)).rejects.toThrow('demo link')
+      expect(await readApplication(id, false)).toMatchObject({ revision: 1, state: { status: 'draft', answers: shortAnswers } })
+      expect((await db.projectVersion.findUniqueOrThrow({ where: { id: p.versionId } })).sealedAt).toBeNull()
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
+      await expect(store.mutateGrant(id, saved.revision, submit, builder)).rejects.toThrow('paused')
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: true } })
+      await db.projectVersion.update({ where: { id: p.versionId }, data: { demoLinks: ['https://example.test/demo'] } })
+      await expect(store.mutateGrant(id, saved.revision, submit, builder)).resolves.toMatchObject({ revision: 2 })
+      const legacySaved = await store.mutateGrant(legacy.id, 0, {
+        kind: 'save_application', answers: { ...fields(), projectMilestoneId: legacyProject.milestoneId },
+      }, builder)
+      await store.mutateGrant(legacy.id, legacySaved.revision, { kind: 'submit_application', confirm: true }, builder)
+      await db.featureFlag.update({ where: { key: 'miniGrantsIntake' }, data: { enabled: false } })
+      vi.mocked(session.getCurrentUser).mockResolvedValue(reviewer)
+      expect(await readApplication(id, true)).toMatchObject({
+        state: { status: 'submitted' }, projectVersion: { id: p.versionId, demoLinks: ['https://example.test/demo'] },
+      })
+      expect(await db.projectActivity.count({ where: { targetId: id, versionId: p.versionId, event: 'submitted' } })).toBe(1)
+      expect(await readApplication(legacy.id, true)).toMatchObject({ round: prefix, state: { status: 'submitted' } })
+    } finally {
+      await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
   })
   it('seals and pins the real project version atomically on submission', async () => {
     const p = await project(),
