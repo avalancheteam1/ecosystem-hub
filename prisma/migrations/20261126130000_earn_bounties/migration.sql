@@ -64,6 +64,7 @@ CREATE TABLE "earn_submissions" (
     "status" "EarnSubmissionStatus" NOT NULL DEFAULT 'pending',
     "revision" INTEGER NOT NULL DEFAULT 1,
     "version" INTEGER NOT NULL DEFAULT 1,
+    "ownerVersion" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

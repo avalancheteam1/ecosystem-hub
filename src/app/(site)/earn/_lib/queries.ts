@@ -21,7 +21,7 @@ export async function listPublicBounties(filters: ReturnType<typeof earnCatalogF
   const rows = await prisma.earnBounty.findMany({
     where: {
       ...published,
-      ...(filters.status === 'open' ? { deadline: { gt: now } } : {}),
+      ...(filters.status === 'open' ? { deadline: { gt: now }, resultsAnnouncedAt: null } : {}),
       ...(filters.status === 'closed' ? { deadline: { lte: now }, resultsAnnouncedAt: null } : {}),
       ...(filters.status === 'announced' ? { resultsAnnouncedAt: { not: null } } : {}),
       ...(filters.type === 'all' ? {} : { hubModule: filters.type === 'standard' ? null : { not: null } }),

@@ -8,6 +8,8 @@ export type StageGate = Pick<EarnStageInput, 'title' | 'requiresPrevApproval' | 
 }
 type StageAttempt = { stageId: string; status: EarnSubmissionStatus }
 
+export const activeContinuationStatuses = ['pending', 'needs_review', 'changes_requested', 'approved'] as const
+
 export function previousStageError(stage: StageGate, stages: StageGate[], entries: StageAttempt[]) {
   if (!stage.requiresPrevApproval) return null
   const approved = new Set(entries.filter((entry) => entry.status === 'approved').map((entry) => entry.stageId))
@@ -33,8 +35,12 @@ export function reviewError(status: EarnSubmissionStatus, decision: string, isFi
   if (status !== 'pending' && status !== 'needs_review') return 'This revision already has a decision or has been withdrawn.'
   if (status === 'needs_review' && decision === 'needs_review') return 'This revision is already in review.'
   if (decision === 'changes_requested' && now >= deadline) return 'The submission deadline has passed. Changes are closed.'
-  if (decision === 'approved' && isFinal && now < deadline) return 'Select final-stage work after the deadline.'
   return null
+}
+
+export function ownerSubmissionStatus(status: EarnSubmissionStatus, privateFinal: boolean): EarnSubmissionStatus {
+  if (privateFinal && (status === 'pending' || status === 'needs_review' || status === 'approved')) return 'needs_review'
+  return status
 }
 
 export function stageEvidenceError(requiresPullRequest: boolean, issueUrl: string | null, pullRequests: string[]) {

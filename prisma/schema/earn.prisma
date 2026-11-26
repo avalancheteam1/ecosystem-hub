@@ -83,6 +83,7 @@ model EarnSubmission {
   status        EarnSubmissionStatus    @default(pending)
   revision      Int                     @default(1)
   version       Int                     @default(1)
+  ownerVersion  Int?
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
   stage         EarnStage               @relation(fields: [stageId], references: [id], onDelete: Restrict)
