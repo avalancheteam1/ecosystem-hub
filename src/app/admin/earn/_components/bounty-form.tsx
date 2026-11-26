@@ -42,7 +42,12 @@ export function BountyForm({ id: preallocatedId, initial, organizations, publish
   const { pending, run } = useActionToast()
   const [id] = useState(preallocatedId)
   const [deadline, setDeadline] = useState(utcToZoned(initial?.deadline, 'UTC'))
-  const [native, setNative] = useState(!initial || initial.stages.length > 0)
+  const savedStages = initial?.stages
+  const [submissions, setSubmissions] = useState<'hub' | 'external' | 'confirmed-external'>(!initial || initial.stages.length > 0 ? 'hub' : 'external')
+  const native = submissions === 'hub'
+  const confirmExternal = published && !!savedStages?.length
+  const [removedStageIds, setRemovedStageIds] = useState<string[]>([])
+  const [termsMissing, setTermsMissing] = useState(false)
   const [stages, setStages] = useState<DraftStage[]>(() => initial?.stages.length
     ? initial.stages.map((stage) => ({ ...stage, key: stage.id }))
     : [blankStage('first', 'Submission')])
@@ -57,6 +62,20 @@ export function BountyForm({ id: preallocatedId, initial, organizations, publish
   function editMarkdown(field: keyof typeof markdown, value: string) {
     setMarkdown((current) => ({ ...current, [field]: value }))
   }
+
+  function changeSubmissions(mode: typeof submissions) {
+    if (stagesLocked || (mode === 'external' && confirmExternal)) return
+    setSubmissions(mode)
+    setTermsMissing(false)
+  }
+
+  function removeStage(stage: DraftStage) {
+    if (stagesLocked) return
+    setStages((current) => current.filter((item) => item.key !== stage.key))
+    const stageId = stage.id
+    if (published && stageId) setRemovedStageIds((current) => current.includes(stageId) ? current : [...current, stageId])
+  }
+
   const savedFinal = initial?.stages.at(-1)
   const finalCapRequired = !savedFinal || savedFinal.approvalLimit !== null || stages.at(-1)?.id !== savedFinal.id
   const defaultOrganization = organizations.find((org) => org.id === 'team1-central')
@@ -65,7 +84,14 @@ export function BountyForm({ id: preallocatedId, initial, organizations, publish
   return (
     <form className="space-y-6" onSubmit={async (event) => {
       event.preventDefault()
-      const fields = new FormData(event.currentTarget)
+      const form = event.currentTarget
+      const terms = native ? markdown.terms.trim() || null : null
+      if (published && native && !terms) {
+        setTermsMissing(true)
+        form.querySelector<HTMLElement>('#earn-terms')?.focus()
+        return
+      }
+      const fields = new FormData(form)
       const text = (name: string) => String(fields.get(name) ?? '').trim()
       const prStage = stages.find((stage) => stage.requiresPullRequest)?.key ?? stages.at(-1)?.key
       const organizationId = text('organizationId')
@@ -80,7 +106,7 @@ export function BountyForm({ id: preallocatedId, initial, organizations, publish
         deadline: toUtcIso(deadline, 'UTC'),
         hubModule: feature ? text('hubModule') : null,
         githubIssueUrl: feature ? text('githubIssueUrl') : null,
-        terms: native ? markdown.terms.trim() || null : null,
+        terms,
         organizationId: organizationId && organizationId !== initial?.organizationId ? organizationId : undefined,
         logoUrl,
         stages: native ? stages.map((stage) => ({
@@ -91,7 +117,17 @@ export function BountyForm({ id: preallocatedId, initial, organizations, publish
         })) : [],
       }
       if (initial) {
-        await run(() => saveBountyDraft({ id, revision: initial.revision, draft }), published ? 'Bounty saved' : 'Draft saved')
+        const confirmedRemovals = submissions === 'confirmed-external' ? initial.stages.map((stage) => stage.id) : removedStageIds
+        const { stages: nextStages, ...brief } = draft
+        const stagesChanged = nextStages.length !== initial.stages.length || nextStages.some((stage, index) => {
+          const saved = initial.stages[index]
+          return stage.id !== saved.id || (Object.keys(stage) as (keyof typeof stage)[]).some((field) => stage[field] !== saved[field])
+        })
+        await run(() => saveBountyDraft({
+          id, revision: initial.revision,
+          draft: !published || stagesChanged || confirmedRemovals.length ? draft : brief,
+          ...(confirmedRemovals.length ? { removedStageIds: confirmedRemovals } : {}),
+        }), published ? 'Bounty saved' : 'Draft saved')
       } else {
         await run(() => createBountyDraft({ id, draft }), 'Draft created', () => router.push(`/admin/earn/${id}`))
       }
@@ -139,7 +175,13 @@ export function BountyForm({ id: preallocatedId, initial, organizations, publish
           )}
         </div>
       </SectionCard>
-      <StageFields enabled={native} onEnabled={setNative} stages={stages} onStages={setStages} feature={feature} terms={markdown.terms} onTermsChange={(value) => editMarkdown('terms', value)} published={published} locked={stagesLocked} finalCapRequired={finalCapRequired} />
+      <StageFields enabled={native} onEnabled={(enabled) => changeSubmissions(enabled ? 'hub' : 'external')}
+        onConfirmExternal={confirmExternal ? () => changeSubmissions('confirmed-external') : undefined}
+        stages={stages} onStages={setStages} onRemove={removeStage} feature={feature}
+        terms={markdown.terms} termsMissing={termsMissing} onTermsChange={(value) => {
+          editMarkdown('terms', value)
+          setTermsMissing(false)
+        }} published={published} locked={stagesLocked} finalCapRequired={finalCapRequired} />
       <Button type="submit" disabled={pending}>{pending ? 'Saving…' : published ? 'Save changes' : 'Save draft'}</Button>
     </form>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { ConfirmButton } from '@/components/confirm-button'
 import { Field } from '@/components/field'
 import { MarkdownField } from '@/components/markdown-field'
 import { SectionCard } from '@/components/section-card'
@@ -16,12 +17,13 @@ export function blankStage(key: string, title = ''): DraftStage {
   return { key, title, deliverables: '', requiresPrevApproval: true, requiresPullRequest: false, submissionPolicy: 'resubmit', approvalLimit: null }
 }
 
-export function StageFields({ enabled, onEnabled, stages, onStages, feature, terms, onTermsChange, published, locked, finalCapRequired }: {
-  enabled: boolean; onEnabled: (value: boolean) => void; stages: DraftStage[]; onStages: (stages: DraftStage[]) => void; feature: boolean; terms: string; onTermsChange: (value: string) => void
+export function StageFields({ enabled, onEnabled, onConfirmExternal, stages, onStages, onRemove, feature, terms, onTermsChange, termsMissing, published, locked, finalCapRequired }: {
+  enabled: boolean; onEnabled: (value: boolean) => void; onConfirmExternal?: () => void
+  stages: DraftStage[]; onStages: (stages: DraftStage[]) => void; onRemove: (stage: DraftStage) => void
+  feature: boolean; terms: string; onTermsChange: (value: string) => void; termsMissing: boolean
   published: boolean; locked: boolean; finalCapRequired: boolean
 }) {
   const prStage = stages.find((stage) => stage.requiresPullRequest)?.key ?? stages.at(-1)?.key
-  const hasPublishedStages = published && stages.some((stage) => stage.id)
   function edit(key: string, change: Partial<EarnStageInput>) {
     onStages(stages.map((stage) => stage.key === key ? { ...stage, ...change } : stage))
   }
@@ -35,14 +37,23 @@ export function StageFields({ enabled, onEnabled, stages, onStages, feature, ter
 
   return (
     <SectionCard title="Hub submissions">
-      <label className="flex min-h-11 items-center gap-3">
-        <Checkbox checked={enabled} disabled={locked || hasPublishedStages} onCheckedChange={(value) => onEnabled(value === true)} /> Accept submissions in the Hub
-      </label>
+      {enabled && !locked && onConfirmExternal ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p>Accepting submissions in the Hub</p>
+          <ConfirmButton size="default" message="Switch to external submissions? Saving will remove all saved stages." onConfirm={onConfirmExternal}>
+            Switch to external submissions
+          </ConfirmButton>
+        </div>
+      ) : (
+        <label className="flex min-h-11 items-center gap-3">
+          <Checkbox checked={enabled} disabled={locked} onCheckedChange={(value) => onEnabled(value === true)} /> Accept submissions in the Hub
+        </label>
+      )}
       {locked && <p className="text-sm text-fg-muted">After a submission, you can edit stage titles, deliverables, limits and submission policies. Stage order and requirements stay fixed.</p>}
-      {!locked && hasPublishedStages && <p className="text-sm text-fg-muted">Unpublish this bounty to remove saved stages.</p>}
       {enabled && (
         <div className="mt-4 space-y-5">
-          <MarkdownField id="earn-terms" label="Additional terms (optional)" value={terms} onChange={onTermsChange} maxLength={6000} rows={4} />
+          <MarkdownField id="earn-terms" label={published ? 'Additional terms' : 'Additional terms (optional)'} value={terms} onChange={onTermsChange} maxLength={6000} rows={4} required={published} />
+          {termsMissing && <p role="alert" className="text-sm text-destructive">Add the approved terms before saving a live bounty that accepts submissions in the Hub.</p>}
           {feature && <Field id="earn-pr-stage" label="Stage that collects the GitHub pull request">
             <NativeSelect id="earn-pr-stage" value={prStage} disabled={locked} onChange={(event) => onStages(stages.map((stage) => ({ ...stage, requiresPullRequest: stage.key === event.target.value })))}>
               {stages.map((stage, index) => <option key={stage.key} value={stage.key}>{index + 1}. {stage.title || 'Untitled stage'}</option>)}
@@ -59,7 +70,12 @@ export function StageFields({ enabled, onEnabled, stages, onStages, feature, ter
                   {!locked && stages.length > 1 && <div className="flex flex-wrap gap-2">
                     <Button type="button" size="icon" variant="outline" aria-label={`Move stage ${index + 1} up`} disabled={!index} onClick={() => move(index, -1)}><ArrowUp /></Button>
                     <Button type="button" size="icon" variant="outline" aria-label={`Move stage ${index + 1} down`} disabled={index === stages.length - 1} onClick={() => move(index, 1)}><ArrowDown /></Button>
-                    {(!published || !stage.id) && <Button type="button" size="icon" variant="outline" aria-label={`Remove stage ${index + 1}`} onClick={() => onStages(stages.filter((item) => item.key !== stage.key))}><Trash2 /></Button>}
+                    {published && stage.id ? (
+                      <ConfirmButton size="default" title={`Remove stage ${index + 1}`} message={`Remove stage ${index + 1}, “${stage.title}”? Saving will remove the saved stage.`} onConfirm={() => onRemove(stage)}>
+                        <Trash2 aria-hidden />
+                        <span className="sr-only">Remove stage {index + 1}</span>
+                      </ConfirmButton>
+                    ) : <Button type="button" size="icon" variant="outline" aria-label={`Remove stage ${index + 1}`} onClick={() => onRemove(stage)}><Trash2 /></Button>}
                   </div>}
                 </div>
                 <Field id={`${field}-title`} label="Stage title" required>
