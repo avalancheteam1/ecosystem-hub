@@ -4,6 +4,7 @@ import { isFlagOn } from '@/lib/flag-store'
 import { getHackathonRoles } from '@/app/(site)/events/_lib/hackathons/queries'
 import { can, holdsAny } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
+import { EarnNavLink } from './earn-nav-link'
 import { Logo } from './logo'
 import { ThemeToggle } from './theme-toggle'
 import { MobileNav } from './mobile-nav'
@@ -25,7 +26,7 @@ export async function SiteHeader() {
         <nav aria-label="Main" className="hidden items-center gap-6 text-sm md:flex">
           <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
           <Link href="/education" className="text-fg-muted transition-colors hover:text-fg-heading">Education</Link>
-          {earnOn && <Link href="/earn" className="text-fg-muted transition-colors hover:text-fg-heading">Earn</Link>}
+          {earnOn && <EarnNavLink className="text-fg-muted transition-colors hover:text-fg-heading" />}
           <Link href="/ecosystem" className="text-fg-muted transition-colors hover:text-fg-heading">Ecosystem</Link>
           {/* ponytail: external until grants live in the hub */}
           <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</a>

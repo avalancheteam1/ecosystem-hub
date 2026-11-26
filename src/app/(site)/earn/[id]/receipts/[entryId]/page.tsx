@@ -14,6 +14,7 @@ import { SubmissionStatusPill } from '../../../_components/submission-status-pil
 import { WithdrawButton } from '../../../_components/withdraw-button'
 import { contributorStatus, submissionLabels } from '../../../_lib/stage-rules'
 import { getOwnReceipt } from '../../../_lib/workflow-queries'
+import { ReceiptFocus } from './receipt-focus'
 
 export const metadata: Metadata = { title: 'Submission', robots: { index: false } }
 
@@ -42,33 +43,35 @@ export default async function ReceiptPage({ params, searchParams }: {
   )
 
   return (
-    <div className="container-page max-w-4xl py-10">
+    <ReceiptFocus key={entry.id} editing={!!editing}>
       <BackLink href={bounty.cancelledAt ? '/earn/submissions' : `/earn/${id}?stage=${stage.id}`}>{bounty.cancelledAt ? 'My submissions' : bounty.title}</BackLink>
       <PageHeader title="Your submission" description={`${stage.title} · revision ${entry.revision}`}><SubmissionStatusPill label={status} /></PageHeader>
       <div className="space-y-6">
         {bounty.cancelledAt && <SectionCard title="Bounty cancelled"><p>{bounty.title} is closed. Your submission and its history are still available.</p></SectionCard>}
         {entry.award && <SectionCard title="Your award"><p className="break-words">{entry.award.reward}</p><p className="mt-2 text-sm">{entry.award.rewardedAt ? 'External reward recorded' : 'Awaiting external reward'}</p></SectionCard>}
         <SubmissionLineage entries={entry.lineage} hrefPrefix={`/earn/${id}/receipts`} />
-        <SectionCard title="Revision history" actions={editAction || entry.canWithdraw ? (
-          <>
-            {editAction}
-            {entry.canWithdraw && <WithdrawButton key={entry.version} bountyId={id} id={entry.id} version={entry.version} />}
-          </>
-        ) : undefined}>
-          {entry.revisions.length === 0 && <p>No revisions on this page.</p>}
-          <ol className="space-y-4">{entry.revisions.map((item) => (
-            <li key={item.number} className="rounded-lg border border-line p-4">
-              <h3 className="mb-2">Revision {item.number}</h3>
-              <RevisionEvidence revision={item} />
-              {entry.reviews.filter((review) => review.revision === item.number && review.feedback).map((review) => (
-                <p key={review.id} className="mt-2 whitespace-pre-wrap break-words">{submissionLabels[review.decision]} · {review.feedback}</p>
-              ))}
-            </li>
-          ))}</ol>
-          <div className="[&_a]:min-h-11 [&_a]:min-w-11"><Pager page={page} hasMore={entry.hasMore} params={{}} /></div>
-        </SectionCard>
+        <div id="submission-history" role="region" aria-label="Revision history" tabIndex={-1} className="scroll-mt-20">
+          <SectionCard title="Revision history" actions={editAction || entry.canWithdraw ? (
+            <>
+              {editAction}
+              {entry.canWithdraw && <WithdrawButton key={entry.version} bountyId={id} id={entry.id} version={entry.version} />}
+            </>
+          ) : undefined}>
+            {entry.revisions.length === 0 && <p>No revisions on this page.</p>}
+            <ol className="space-y-4">{entry.revisions.map((item) => (
+              <li key={item.number} className="rounded-lg border border-line p-4">
+                <h3 className="mb-2">Revision {item.number}</h3>
+                <RevisionEvidence revision={item} />
+                {entry.reviews.filter((review) => review.revision === item.number && review.feedback).map((review) => (
+                  <p key={review.id} className="mt-2 whitespace-pre-wrap break-words">{submissionLabels[review.decision]} · {review.feedback}</p>
+                ))}
+              </li>
+            ))}</ol>
+            <div className="[&_a]:min-h-11 [&_a]:min-w-11"><Pager page={page} hasMore={entry.hasMore} params={{}} /></div>
+          </SectionCard>
+        </div>
         {editing && (
-          <div id="edit-submission" tabIndex={-1} className="scroll-mt-20">
+          <div id="edit-submission" tabIndex={-1} className="scroll-mt-20 [&_textarea]:scroll-mt-20">
             <SectionCard title="Revise your submission" actions={
               <Button asChild variant="outline"><Link href={`${receiptPage}#edit-submission-link`}>Cancel</Link></Button>
             }>
@@ -77,6 +80,6 @@ export default async function ReceiptPage({ params, searchParams }: {
           </div>
         )}
       </div>
-    </div>
+    </ReceiptFocus>
   )
 }

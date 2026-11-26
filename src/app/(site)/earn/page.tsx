@@ -32,7 +32,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
       <form id="earn-reset-filters" action="/earn" method="get" />
       <form action="/earn" role="search" aria-label="Filter bounties" className="mb-8 grid items-end gap-4 rounded-xl border border-line bg-surface-1 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Field id="earn-search" label="Search bounties" className="sm:col-span-2">
-          <Input id="earn-search" name="q" defaultValue={filters.q} placeholder="Title or Hub module" maxLength={120} className="h-11 bg-surface-2" />
+          <Input id="earn-search" name="q" defaultValue={filters.q} placeholder="Title or Hub module" maxLength={120} className="h-11 border-fg-muted bg-surface-2" />
         </Field>
         <Field id="earn-type" label="Bounty type">
           <NativeSelect id="earn-type" name="type" defaultValue={filters.type} className="w-full bg-surface-2">
@@ -56,32 +56,35 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
       </form>
       {rows.length ? (
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map((bounty) => (
-            <li key={bounty.id} className="min-w-0">
-              <Link
-                href={`/earn/${bounty.id}`}
-                aria-labelledby={`bounty-title-${bounty.id}`}
-                className="flex h-full flex-col rounded-xl border border-line bg-surface-2 p-6 hover:border-brand hover:shadow-glow focus-visible:border-brand focus-visible:outline-brand motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5"
-              >
-                <div className="mb-3 flex flex-wrap gap-2">
-                  <StatusPill tone={!bounty.resultsAnnouncedAt && bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
-                  {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
-                </div>
-                <div className="mb-4 flex items-start gap-3">
-                  {bounty.logoUrl && <Image src={bounty.logoUrl} alt="" width={48} height={48} className="size-12 shrink-0 rounded-lg object-cover" />}
-                  <div className="min-w-0">
-                    <p className="text-sm wrap-anywhere text-fg-muted">{bounty.organization.name} · {bounty.category}</p>
-                    <h2 id={`bounty-title-${bounty.id}`} className="text-xl wrap-anywhere">{bounty.title}</h2>
+          {rows.map((bounty) => {
+            const accepting = !bounty.resultsAnnouncedAt && bounty.deadline > now
+            return (
+              <li key={bounty.id} className="min-w-0">
+                <Link
+                  href={`/earn/${bounty.id}`}
+                  aria-labelledby={`bounty-title-${bounty.id}`}
+                  className="flex h-full flex-col rounded-xl border border-line bg-surface-2 p-6 hover:border-brand hover:shadow-glow focus-visible:border-brand focus-visible:outline-brand motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5"
+                >
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <StatusPill tone={accepting ? 'success' : 'neutral'} className={accepting ? 'text-fg-body' : undefined}>{bounty.resultsAnnouncedAt ? 'Results announced' : accepting ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
+                    {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
                   </div>
-                </div>
-                {bounty.hubModule && <p className="mb-4 break-words text-sm text-fg-body">{bounty.hubModule}</p>}
-                <dl className="mt-auto flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-line pt-4">
-                  <div className="min-w-0"><dt className="text-sm text-fg-muted">Reward</dt><dd className="break-words text-fg-heading">{bounty.reward}</dd></div>
-                  <div><dt className="text-sm text-fg-muted">Deadline</dt><dd><time dateTime={bounty.deadline.toISOString()}>{formatShortDate(bounty.deadline, 'UTC', now)} UTC</time></dd></div>
-                </dl>
-              </Link>
-            </li>
-          ))}
+                  <div className="mb-4 flex items-start gap-3">
+                    {bounty.logoUrl && <Image src={bounty.logoUrl} alt="" width={48} height={48} className="size-12 shrink-0 rounded-lg object-cover" />}
+                    <div className="min-w-0">
+                      <p className="text-sm wrap-anywhere text-fg-muted">{bounty.organization.name} · {bounty.category}</p>
+                      <h2 id={`bounty-title-${bounty.id}`} className="text-xl wrap-anywhere">{bounty.title}</h2>
+                    </div>
+                  </div>
+                  {bounty.hubModule && <p className="mb-4 break-words text-sm text-fg-body">{bounty.hubModule}</p>}
+                  <dl className="mt-auto flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-line pt-4">
+                    <div className="min-w-0"><dt className="text-sm text-fg-muted">Reward</dt><dd className="break-words text-fg-heading">{bounty.reward}</dd></div>
+                    <div><dt className="text-sm text-fg-muted">Deadline</dt><dd><time dateTime={bounty.deadline.toISOString()}>{formatShortDate(bounty.deadline, 'UTC', now)} UTC</time></dd></div>
+                  </dl>
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       ) : <EmptyState title="No bounties match these filters">Check all statuses or try a different search.</EmptyState>}
       <div className="[&_a]:min-h-11"><Pager page={page} hasMore={hasMore} params={filters} /></div>
