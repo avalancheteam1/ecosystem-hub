@@ -42,7 +42,7 @@ export default async function BountyPage({ params, searchParams }: {
       <PageHeader title={bounty.title} description={`${bounty.organization.name} · ${bounty.category}`}>
         <div className="flex items-center gap-2">
           {bounty.logoUrl && <Image src={bounty.logoUrl} alt="" width={48} height={48} className="size-12 shrink-0 rounded-lg object-cover" />}
-          <StatusPill tone={open ? 'success' : 'neutral'}>{status}</StatusPill>
+          <StatusPill tone={open ? 'success' : 'neutral'} className="text-fg-body">{status}</StatusPill>
         </div>
       </PageHeader>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">

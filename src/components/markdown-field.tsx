@@ -22,11 +22,11 @@ export function MarkdownField({ id, label, hint, value, onChange, rows = 8, maxL
   const helpId = `${id}-markdown-help`
   return (
     <Tabs defaultValue="write">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <Label htmlFor={id}>{label}</Label>
-        <TabsList aria-label={`${label} editor`} className="border border-line">
-          <TabsTrigger value="write">Write</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
+        <TabsList aria-label={`${label} editor`} className="shrink-0 border border-line group-data-[orientation=horizontal]/tabs:h-auto">
+          <TabsTrigger value="write" className="h-auto min-h-11 min-w-11 shrink-0">Write</TabsTrigger>
+          <TabsTrigger value="preview" className="h-auto min-h-11 min-w-11 shrink-0">Preview</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="write" tabIndex={-1}>

@@ -155,7 +155,7 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
           {fieldError('changeNote')}
         </Field>
       )}
-      <details className="rounded-lg border border-line p-4">
+      <details key={termsVersion} open className="rounded-lg border border-line p-4">
         <summary className="flex min-h-11 cursor-pointer items-center">Bounty terms · version {termsVersion}</summary>
         <Markdown className="wrap-anywhere">{terms}</Markdown>
       </details>
