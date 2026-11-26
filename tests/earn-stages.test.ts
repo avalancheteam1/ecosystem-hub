@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { bountyDraftSchema, revisionEvidenceSchema, reviewSchema, type EarnStageInput } from '@/app/(site)/earn/_lib/schemas'
-import { contributorStatus, newSubmissionError, previousStageError, revisionAllowed, reviewError, stageEvidenceError, type StageGate } from '@/app/(site)/earn/_lib/stage-rules'
+import { contributorStatus, newSubmissionError, revisionAllowed, reviewError, stageEvidenceError, type StageGate } from '@/app/(site)/earn/_lib/stage-rules'
 
 const stage: EarnStageInput = {
   title: 'Idea', deliverables: 'Describe the proposal.', requiresPrevApproval: true, requiresPullRequest: false,
   submissionPolicy: 'resubmit', approvalLimit: null,
 }
 const first: StageGate = { ...stage, id: 'one', position: 1 }
-const second: StageGate = { ...stage, title: 'Outline', id: 'two', position: 2 }
-const last: StageGate = { ...stage, title: 'Course', id: 'three', position: 3 }
-const stages = [first, second, last]
 const base = {
   title: 'Education', description: 'Course', deliverables: 'Completed course', participation: 'Submit in the Hub.',
   participationUrl: null, category: 'Development', reward: 'Mentorship', deadline: '2027-01-01T00:00:00Z',
@@ -17,13 +14,6 @@ const base = {
 }
 
 describe('native Earn stage rules', () => {
-  it('requires every earlier approval unless the selected stage accepts parallel work', () => {
-    const attempts = [{ stageId: second.id, status: 'approved' as const }]
-    expect(previousStageError(last, stages, attempts)).toMatch(/Idea/)
-    expect(previousStageError(last, stages, [...attempts, { stageId: first.id, status: 'approved' }])).toBeNull()
-    expect(previousStageError({ ...last, requiresPrevApproval: false }, stages, [])).toBeNull()
-  })
-
   it('separates one-entry limits, permitted revisions, and multiple final-stage entries', () => {
     const attempts = [{ stageId: first.id, status: 'approved' as const }]
     expect(newSubmissionError(first, false, attempts)).toMatch(/already approved/)
@@ -36,10 +26,9 @@ describe('native Earn stage rules', () => {
     expect(revisionAllowed('multiple', 'approved')).toBe(false)
   })
 
-  it('locks final selection to the cutoff and prevents repeated terminal reviews', () => {
+  it('preserves late final selection and prevents repeated terminal reviews', () => {
     const before = new Date('2026-11-19T12:00Z')
     const cutoff = new Date('2026-11-19T13:00Z')
-    expect(reviewError('pending', 'approved', true, cutoff, before)).toMatch(/after the deadline/)
     expect(reviewError('needs_review', 'approved', true, cutoff, cutoff)).toBeNull()
     expect(reviewError('pending', 'changes_requested', false, cutoff, cutoff)).toMatch(/Changes are closed/)
     expect(reviewError('approved', 'needs_review', true, cutoff, cutoff)).toBeNull()
@@ -59,13 +48,34 @@ describe('native Earn stage rules', () => {
   })
 
   it('validates stage descriptions, versioned terms, and accepts exactly one PR stage for a native feature', () => {
-    const code = { ...stage, requiresPullRequest: true }
+    const code = { ...stage, requiresPullRequest: true, approvalLimit: 2 }
     const data = { ...base, stages: [stage, code], terms: 'Example terms.' }
     expect(bountyDraftSchema.safeParse(data).success).toBe(true)
     expect(bountyDraftSchema.safeParse({ ...data, stages: [stage, stage] }).success).toBe(false)
-    expect(bountyDraftSchema.safeParse({ ...data, terms: null }).success).toBe(false)
     expect(bountyDraftSchema.safeParse({ ...data, stages: [{ ...stage, deliverables: '' }, code] }).success).toBe(false)
     expect(bountyDraftSchema.safeParse({ ...data, stages: Array(21).fill(code) }).success).toBe(false)
+  })
+
+  it.each([null, undefined])('US-09 accepts optional additional terms (%s) on a valid native draft', (terms) => {
+    const parsed = bountyDraftSchema.safeParse({
+      ...base, stages: [{ ...stage, requiresPullRequest: true, approvalLimit: 2 }], terms,
+    })
+    expect(parsed.error?.issues ?? []).toEqual([])
+    expect(parsed.data?.terms ?? null).toBeNull()
+  })
+
+  it.each([
+    { cap: null, valid: false },
+    { cap: 0, valid: false },
+    { cap: 2, valid: true },
+  ])('US-26 validates a new final stage with cap $cap', ({ cap, valid }) => {
+    const parsed = bountyDraftSchema.safeParse({
+      ...base,
+      terms: 'Synthetic additional terms',
+      stages: [{ ...stage, requiresPullRequest: true, approvalLimit: cap }],
+    })
+    if (valid) expect(parsed.data?.stages?.[0]?.approvalLimit).toBe(cap)
+    else expect(parsed.error?.issues.map((issue) => issue.path) ?? []).toContainEqual(['stages', 0, 'approvalLimit'])
   })
 
   it('validates evidence without throwing and binds a feature PR to the linked repository', () => {
