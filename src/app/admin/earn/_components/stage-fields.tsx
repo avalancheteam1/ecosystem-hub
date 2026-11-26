@@ -97,9 +97,9 @@ export function StageFields({ enabled, onEnabled, onConfirmExternal, stages, onS
                     {final && <p id={`${field}-limit-hint`} className="text-sm text-fg-muted">{capRequired ? 'Enter a whole number from 1 to 1,000.' : 'Existing limit may stay blank. To set one, enter a whole number from 1 to 1,000.'}</p>}
                   </Field>
                 </div>
-                {index > 0 && <label className="flex min-h-11 items-center gap-3">
-                  <Checkbox checked={stage.requiresPrevApproval} disabled={locked} onCheckedChange={(value) => edit(stage.key, { requiresPrevApproval: value === true })} /> Require approval of every earlier stage
-                </label>}
+                {index > 0 && <p className="text-sm text-fg-muted">
+                  Contributors need an approved submission of their own from the immediately previous stage.
+                </p>}
               </li>
             })}
           </ol>
