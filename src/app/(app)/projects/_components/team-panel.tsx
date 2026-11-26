@@ -13,7 +13,7 @@ import { inviteMember, removeMember, revokeInvite, setMemberRole, transferOwners
 import { ASSIGNABLE_ROLES, PROJECT_ROLES, type ProjectRole } from '../_lib/rules'
 
 type Member = { userId: string; role: string; user: { name: string; email: string; image: string | null } }
-type Invite = { id: string; email: string; role: string }
+type Invite = { id: string; email: string | null; role: string; inviteeUser: { name: string } | null }
 type Assignable = (typeof ASSIGNABLE_ROLES)[number]
 
 const roleLabel = (r: string) => PROJECT_ROLES[r as ProjectRole]?.label ?? r
@@ -76,7 +76,7 @@ export function TeamPanel({ projectId, members, invites, meId }: { projectId: st
         <ul className="space-y-2 border-t border-line pt-4">
           {invites.map((i) => (
             <li key={i.id} className="flex items-center justify-between gap-3 text-sm">
-              <span className="truncate text-fg-muted">{i.email} <span className="text-fg-faint">- invited as {roleLabel(i.role).toLowerCase()}</span></span>
+              <span className="truncate text-fg-muted">{i.inviteeUser?.name ?? i.email} <span className="text-fg-faint">- invited as {roleLabel(i.role).toLowerCase()}</span></span>
               <Button variant="ghost" size="sm" disabled={pending} onClick={() => run(() => revokeInvite({ inviteId: i.id }), 'Invite revoked')}>Revoke</Button>
             </li>
           ))}

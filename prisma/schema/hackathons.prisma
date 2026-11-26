@@ -154,12 +154,27 @@ model Participant {
   termsAcceptedAt DateTime?
   /// active | pending (awaiting approval) | rejected | withdrawn
   status          String    @default("active")
+  teamSeeker      TeamSeeker?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@unique([hackathonId, userId])
   @@index([userId])
   @@map("hackathon_participants")
+}
+
+/// "Looking for a team" (find-a-team): a row = this participant is looking. Name, roles and skills come from the profile.
+model TeamSeeker {
+  participantId String      @id
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  /// short note shown to other participants of the hackathon
+  note          String      @default("")
+  /// tracks of this hackathon they're interested in (empty = any)
+  trackIds      String[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("hackathon_team_seekers")
 }
 
 model HackathonStage {
