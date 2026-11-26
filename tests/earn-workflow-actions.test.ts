@@ -25,10 +25,14 @@ const id = '17f149fa-6932-4c27-85f5-096379ba4db6'
 const stageId = '4f1a1aff-0e83-47df-b238-58c04948beac'
 const reviewer = { id: 'staff', isSuperAdmin: false, permissions: new Set(['earn.review']) }
 const contributor = { id: 'contributor', isSuperAdmin: false, permissions: new Set() }
-const entry = { status: 'pending', revision: 2, version: 4, stageId, contributorId: 'contributor' }
+const entry = {
+  status: 'pending', revision: 2, version: 4, ownerVersion: 4, stageId, contributorId: 'contributor',
+  updatedAt: new Date('2026-11-23T12:00:00Z'),
+}
 const review = { id, bountyId, version: 4, decision: 'approved' as const, feedback: 'Visible later', internalNote: 'Staff only' }
 const bounty = {
   deadline: new Date(0), terms: 'Current terms', termsVersion: 3, reward: 'Mentorship', resultsAnnouncedAt: null, revision: 5,
+  updatedAt: new Date('2026-11-22T12:00:00Z'),
   stages: [{ id: stageId, position: 1, title: 'Final work', approvalLimit: 1, submissionPolicy: 'resubmit', requiresPullRequest: false }],
 }
 const ideaStageId = 'fe8520ca-cfa9-4adc-bf3f-fe4f6918b2cb'
@@ -94,7 +98,9 @@ describe('Earn action boundaries', () => {
     mocks.count.mockResolvedValueOnce(0)
     expect(await reviewStage(review)).toEqual({ ok: true, data: { id } })
     expect(mocks.review).toHaveBeenCalledWith({ data: expect.objectContaining({ submissionId: id, revision: 2, internalNote: 'Staff only' }) })
-    expect(mocks.complete).toHaveBeenCalledWith({ where: { id: bountyId }, data: { revision: { increment: 1 } } })
+    expect(mocks.complete).toHaveBeenCalledWith({
+      where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 } }),
+    })
     expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain('Staff only')
     expect(mocks.award).not.toHaveBeenCalled()
   })
@@ -113,7 +119,11 @@ describe('Earn action boundaries', () => {
   describe('contributor writes on an intermediate multiple-entry stage', () => {
     const priorApproval = { stageId: ideaStageId, status: 'approved' }
     const approvedSibling = { id: '169afc2b-3647-4743-a4a2-a62fedaf6309', stageId, contributorId: contributor.id, status: 'approved' }
-    const revisableEntry = { ...entry, id, status: 'changes_requested' }
+    const revisableEntry = { ...entry, id, status: 'changes_requested', previousSubmissionId: null }
+    const intermediate = { ...stagedBounty, stages: [
+      { ...stagedBounty.stages[1], position: 1, requiresPrevApproval: false },
+      { ...stagedBounty.stages[2], position: 2 },
+    ] }
     const evidence = { notes: 'Synthetic outline', links: [], pullRequests: [], termsVersion: bounty.termsVersion, accepted: true as const }
     const submit = { id, bountyId, stageId, evidence }
     const ref = { id, bountyId, version: revisableEntry.version }
@@ -122,8 +132,8 @@ describe('Earn action boundaries', () => {
 
     beforeEach(() => {
       mocks.user = contributor
-      mocks.bounty.mockResolvedValue({ ...stagedBounty, deadline: new Date(Date.now() + 60_000) })
-      mocks.submissions.mockResolvedValue([priorApproval])
+      mocks.bounty.mockResolvedValue({ ...intermediate, deadline: new Date(Date.now() + 60_000) })
+      mocks.submissions.mockResolvedValue([])
       mocks.entry.mockResolvedValue(revisableEntry)
       mocks.findApproved.mockResolvedValue(null)
       mocks.createSubmission.mockResolvedValue({ count: 1 })
@@ -131,7 +141,9 @@ describe('Earn action boundaries', () => {
 
     it('accepts a submission with an open window and unlocked stage', async () => {
       expect(await submitStage(submit)).toEqual({ ok: true, data: { id } })
-      expect(mocks.createSubmission).toHaveBeenCalledExactlyOnceWith({ data: { id, stageId, contributorId: contributor.id }, skipDuplicates: true })
+      expect(mocks.createSubmission).toHaveBeenCalledExactlyOnceWith({
+        data: expect.objectContaining({ id, stageId, contributorId: contributor.id }), skipDuplicates: true,
+      })
       expect(mocks.createRevision).toHaveBeenCalledExactlyOnceWith({
         data: expect.objectContaining({ submissionId: id, number: 1, termsVersion: evidence.termsVersion }),
       })
@@ -140,7 +152,7 @@ describe('Earn action boundaries', () => {
 
     it.each([
       { gate: 'after the deadline', offset: -60_000, entries: [priorApproval], error: 'Submissions are closed.' },
-      { gate: 'before the stage unlocks', offset: 60_000, entries: [], error: 'Unlocks after approval of “Idea”.' },
+      { gate: 'before the stage unlocks', offset: 60_000, entries: [], error: expect.stringMatching(/Unlocks after approval|(?:choose|select|required).*previous|previous.*approved/i) },
     ])('#33 denies submission $gate without writing', async ({ offset, entries, error }) => {
       mocks.bounty.mockResolvedValueOnce({ ...stagedBounty, deadline: new Date(Date.now() + offset) })
       mocks.submissions.mockResolvedValueOnce(entries)
@@ -152,15 +164,21 @@ describe('Earn action boundaries', () => {
     })
 
     it('#3 accepts another submission after the contributor has an approved sibling', async () => {
-      mocks.submissions.mockResolvedValueOnce([priorApproval, approvedSibling])
+      mocks.submissions.mockResolvedValueOnce([approvedSibling])
 
       expect(await submitStage(submit)).toEqual({ ok: true, data: { id } })
-      expect(mocks.createSubmission).toHaveBeenCalledExactlyOnceWith({ data: { id, stageId, contributorId: contributor.id }, skipDuplicates: true })
+      expect(mocks.createSubmission).toHaveBeenCalledExactlyOnceWith({
+        data: expect.objectContaining({ id, stageId, contributorId: contributor.id }), skipDuplicates: true,
+      })
     })
 
-    it('revises an owned entry with changes requested', async () => {
+    it('US-05 revises an owned historical entry with changes requested and null lineage', async () => {
+      mocks.bounty.mockResolvedValueOnce({ ...stagedBounty, deadline: new Date(Date.now() + 60_000) })
       expect(await reviseStage(revision)).toEqual({ ok: true, data: { id } })
-      expect(mocks.update).toHaveBeenCalledExactlyOnceWith({ where: { id }, data: { status: 'pending', revision: 3, version: { increment: 1 } } })
+      expect(mocks.update).toHaveBeenCalledExactlyOnceWith({
+        where: { id }, data: expect.objectContaining({ status: 'pending', revision: 3, version: { increment: 1 } }),
+      })
+      expect(mocks.update.mock.calls[0][0].data.previousSubmissionId ?? null).toBeNull()
       expect(mocks.createRevision).toHaveBeenCalledExactlyOnceWith({
         data: expect.objectContaining({ submissionId: id, number: 3, changeNote: revision.changeNote }),
       })
@@ -171,7 +189,9 @@ describe('Earn action boundaries', () => {
       mocks.findApproved.mockResolvedValueOnce({ id: approvedSibling.id })
 
       expect(await reviseStage(revision)).toEqual({ ok: true, data: { id } })
-      expect(mocks.update).toHaveBeenCalledExactlyOnceWith({ where: { id }, data: { status: 'pending', revision: 3, version: { increment: 1 } } })
+      expect(mocks.update).toHaveBeenCalledExactlyOnceWith({
+        where: { id }, data: expect.objectContaining({ status: 'pending', revision: 3, version: { increment: 1 } }),
+      })
     })
 
     it('#33 denies withdrawal by another contributor and accepts it from the owner', async () => {
@@ -195,7 +215,9 @@ describe('Earn action boundaries', () => {
 
     it('#36 audits the prior submission status on a successful withdrawal', async () => {
       expect(await withdrawStage(withdrawal)).toEqual({ ok: true, data: { id } })
-      expect(mocks.update).toHaveBeenCalledExactlyOnceWith({ where: { id }, data: { status: 'withdrawn', version: { increment: 1 } } })
+      expect(mocks.update).toHaveBeenCalledExactlyOnceWith({
+        where: { id }, data: expect.objectContaining({ status: 'withdrawn', version: { increment: 1 } }),
+      })
       expect(mocks.updateRevision).toHaveBeenCalledExactlyOnceWith({
         where: { submissionId_number: { submissionId: id, number: revisableEntry.revision } },
         data: { withdrawnAt: expect.any(Date), withdrawalReason: withdrawal.reason },
@@ -220,7 +242,9 @@ describe('Earn action boundaries', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
 
     expect(await reviewStage(review)).toEqual({ ok: true, data: { id } })
-    expect(mocks.update).toHaveBeenCalledExactlyOnceWith({ where: { id }, data: { status: 'approved', version: { increment: 1 } } })
+    expect(mocks.update).toHaveBeenCalledExactlyOnceWith({
+      where: { id }, data: expect.objectContaining({ status: 'approved', version: { increment: 1 } }),
+    })
     expect(mocks.review).toHaveBeenCalledOnce()
     expect(mocks.audit).toHaveBeenCalledOnce()
   })
@@ -236,6 +260,13 @@ describe('Earn action boundaries', () => {
     const siblingId = '169afc2b-3647-4743-a4a2-a62fedaf6309'
     const otherId = 'c1ab4105-4db2-44dc-8891-e45cf5a152fc'
     const nextId = '71811cec-5796-4dc5-ba80-abf6e4e4992d'
+    const eligibleParent = {
+      id: siblingId, stageId: ideaStageId, contributorId: contributor.id, status: 'approved', stage: { bountyId, position: 1 },
+    }
+    const openSecondStage = () => ({
+      ...openFinal(),
+      stages: [stagedBounty.stages[0], { ...finalStage, position: 2, requiresPrevApproval: false }],
+    })
 
     beforeEach(() => {
       mocks.user = contributor
@@ -245,46 +276,43 @@ describe('Earn action boundaries', () => {
     })
 
     it('US-05 requires a parent even when the old later-stage parallel switch was off', async () => {
-      mocks.bounty.mockResolvedValue({
-        ...openFinal(),
-        stages: [
-          stagedBounty.stages[0],
-          { ...finalStage, position: 2, requiresPrevApproval: false },
-        ],
-      })
-      mocks.submissions.mockResolvedValue([{ id: siblingId, stageId: ideaStageId, status: 'approved' }])
+      mocks.bounty.mockResolvedValue(openSecondStage())
+      mocks.submissions.mockResolvedValue([eligibleParent])
 
       const result = await submitStage(submit)
       expect(mocks.lock).toHaveBeenCalledOnce()
-      expect.soft(result).toMatchObject({ ok: false, error: expect.stringMatching(/previous|parent|preced|continue/i) })
+      expect.soft(result).toMatchObject({
+        ok: false,
+        error: expect.stringMatching(/approved.*(?:previous|prior|preced|parent)|(?:previous|prior|preced|parent).*approved/i),
+      })
       expect(mocks.createSubmission).not.toHaveBeenCalled()
       expect(mocks.createRevision).not.toHaveBeenCalled()
       expect(mocks.audit).not.toHaveBeenCalled()
     })
 
     it('US-05 accepts a supplied approved immediate parent on a formerly parallel later stage', async () => {
-      mocks.bounty.mockResolvedValue({
-        ...openFinal(),
-        stages: [stagedBounty.stages[0], { ...finalStage, position: 2, requiresPrevApproval: false }],
+      mocks.bounty.mockResolvedValue(openSecondStage())
+      const findParent = vi.fn(async ({ where }) => {
+        if (!mocks.lock.mock.calls.length) throw new Error('Read the predecessor after locking its bounty.')
+        return where.id === siblingId ? eligibleParent : null
       })
-      mocks.entry.mockResolvedValue({
-        id: siblingId, stageId: ideaStageId, contributorId: contributor.id, status: 'approved', stage: { bountyId, position: 1 },
-      })
-      mocks.findApproved.mockResolvedValue(null)
+      mocks.entry.mockImplementation(findParent)
+      mocks.findApproved.mockImplementation(findParent)
+      mocks.count.mockResolvedValue(0)
       const continuation = { ...submit, previousSubmissionId: siblingId }
 
       const result = await submitStage(continuation)
       expect(mocks.lock, JSON.stringify(result)).toHaveBeenCalledOnce()
       expect(result).toEqual({ ok: true, data: { id } })
+      expect(findParent).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ id: siblingId }),
+      }))
       expect(mocks.createSubmission).toHaveBeenCalledWith({
         data: expect.objectContaining({ id, stageId, contributorId: contributor.id, previousSubmissionId: siblingId }),
         skipDuplicates: true,
       })
     })
 
-    const eligibleParent = {
-      id: siblingId, stageId: ideaStageId, contributorId: contributor.id, status: 'approved', stage: { bountyId, position: 1 },
-    }
     it.each([
       { label: 'unknown parent', parent: null, child: null },
       { label: 'different owner', parent: { ...eligibleParent, contributorId: 'other-contributor' }, child: null },
@@ -314,10 +342,13 @@ describe('Earn action boundaries', () => {
       mocks.count.mockResolvedValue(0)
 
       expect(await reviewStage(review)).toEqual({ ok: true, data: { id } })
-      expect(mocks.update).toHaveBeenCalledWith({ where: { id }, data: expect.objectContaining({ status: 'approved' }) })
+      expect(mocks.update).toHaveBeenCalledWith({
+        where: { id }, data: expect.objectContaining({ status: 'approved', updatedAt: entry.updatedAt }),
+      })
+      expect(mocks.update.mock.calls[0][0].data.ownerVersion ?? entry.ownerVersion).toBe(entry.ownerVersion)
       expect(mocks.award).not.toHaveBeenCalled()
       expect(mocks.complete).toHaveBeenCalledWith({
-        where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 } }),
+        where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 }, updatedAt: bounty.updatedAt }),
       })
       expect(mocks.complete.mock.calls[0][0].data.resultsAnnouncedAt).toBeUndefined()
       mocks.user = contributor
@@ -325,9 +356,8 @@ describe('Earn action boundaries', () => {
     })
 
     it.each(['edit', 'withdraw'] as const)('US-06 accepts an owner form opened before private selection (%s)', async (operation) => {
-      // The owner's loaded form predates a staff-only version bump.
-      mocks.entry.mockResolvedValue({ ...entry, id, status: 'approved', version: 5 })
-      const opened = { id, bountyId, version: entry.version }
+      mocks.entry.mockResolvedValue({ ...entry, id, status: 'approved', ownerVersion: 4, version: 5 })
+      const opened = { id, bountyId, version: 4 }
       const updated = operation === 'edit'
         ? await reviseStage({ ...opened, evidence, changeNote: 'Synthetic revision' })
         : await withdrawStage({ ...opened, reason: 'Synthetic withdrawal' })
@@ -336,15 +366,15 @@ describe('Earn action boundaries', () => {
       expect(updated).toEqual({ ok: true, data: { id } })
       expect(mocks.update).toHaveBeenCalledWith({ where: { id }, data: expect.objectContaining({ status }) })
       expect(mocks.complete).toHaveBeenCalledWith({
-        where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 } }),
+        where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 }, updatedAt: bounty.updatedAt }),
       })
       expect(mocks.audit).toHaveBeenCalledWith({ data: expect.objectContaining({ entityId: id }) })
       expect(mocks.award).not.toHaveBeenCalled()
     })
 
     it.each(['edit', 'withdraw'] as const)('US-06 rejects a genuinely stale owner form (%s)', async (operation) => {
-      mocks.entry.mockResolvedValue({ ...entry, revision: entry.revision + 1, version: entry.version + 1 })
-      const stale = { id, bountyId, version: entry.version }
+      mocks.entry.mockResolvedValue({ ...entry, revision: entry.revision + 1, ownerVersion: 5, version: 6 })
+      const stale = { id, bountyId, version: 4 }
       const result = operation === 'edit'
         ? await reviseStage({ ...stale, evidence, changeNote: 'Synthetic revision' })
         : await withdrawStage({ ...stale, reason: 'Synthetic withdrawal' })
@@ -379,7 +409,36 @@ describe('Earn action boundaries', () => {
       expect(mocks.audit).toHaveBeenCalledOnce()
     })
 
-    it('US-09 accepts current terms when the bounty has no additional terms', async () => {
+    it.each([undefined, false])('US-06 denies early announcement without affirmative closeNow (%s)', async (closeNow) => {
+      mocks.user = superAdmin
+      mocks.submissions.mockResolvedValue([{ id }])
+      const confirmation = { id: bountyId, revision: bounty.revision, note: '' }
+      const input = closeNow === undefined ? confirmation : { ...confirmation, closeNow }
+      const result = await announceAwards(input)
+      expect(mocks.lock, JSON.stringify(result)).toHaveBeenCalledOnce()
+      expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/confirm|close|deadline/i) })
+      expect(mocks.submissions).not.toHaveBeenCalled()
+      expect(mocks.award).not.toHaveBeenCalled()
+      expect(mocks.complete).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    it('US-06 accepts a current explicit close-now confirmation before cutoff', async () => {
+      mocks.user = superAdmin
+      mocks.submissions.mockResolvedValue([{ id }])
+      const input = { id: bountyId, revision: bounty.revision, note: '', closeNow: true }
+      const result = await announceAwards(input)
+      expect(mocks.lock, JSON.stringify(result)).toHaveBeenCalledOnce()
+      expect(result).toEqual({ ok: true, data: { id: bountyId } })
+      expect(mocks.award).toHaveBeenCalledOnce()
+      expect(mocks.complete).toHaveBeenCalledExactlyOnceWith({
+        where: { id: bountyId },
+        data: expect.objectContaining({ resultsAnnouncedAt: expect.any(Date), revision: { increment: 1 } }),
+      })
+      expect(mocks.audit).toHaveBeenCalledOnce()
+    })
+
+    it('US-09 held for official copy: accepts current terms when the bounty has no additional terms', async () => {
       mocks.bounty.mockResolvedValue({ ...openFinal(), terms: null })
 
       expect(await submitStage(submit)).toEqual({ ok: true, data: { id } })
@@ -522,8 +581,13 @@ describe('Earn action boundaries', () => {
     mocks.user = { ...reviewer, permissions: new Set(['earn.review', 'earn.finalize']) }
     expect(await reviewStage({ ...remove, internalNote: '' })).toMatchObject({ ok: false })
     expect(await reviewStage(remove)).toEqual({ ok: true, data: { id } })
-    expect(mocks.update).toHaveBeenCalledWith({ where: { id }, data: { status: 'needs_review', version: { increment: 1 } } })
-    expect(mocks.complete).toHaveBeenCalledWith({ where: { id: bountyId }, data: { revision: { increment: 1 } } })
+    expect.soft(mocks.update).toHaveBeenCalledWith({
+      where: { id }, data: expect.objectContaining({ status: 'needs_review', version: { increment: 1 }, updatedAt: entry.updatedAt }),
+    })
+    expect(mocks.update.mock.calls[0][0].data.ownerVersion ?? entry.ownerVersion).toBe(entry.ownerVersion)
+    expect.soft(mocks.complete).toHaveBeenCalledWith({
+      where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 }, updatedAt: bounty.updatedAt }),
+    })
     expect(mocks.award).not.toHaveBeenCalled()
   })
 

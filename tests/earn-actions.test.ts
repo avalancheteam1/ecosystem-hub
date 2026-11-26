@@ -35,6 +35,7 @@ const draft = {
   hubModule: null, githubIssueUrl: null,
 }
 const publish = { id, revision: 1, publish: true }
+const terms = 'Synthetic existing additional terms'
 const tx = {
   $queryRaw: vi.fn(async () => []),
   earnBounty: { findUnique: state.findUnique, createMany: state.createBounty, updateMany: state.updateMany },
@@ -62,7 +63,7 @@ describe('native Earn publishing boundaries', () => {
 
   it('requires the expected revision and audits a successful publication in the write transaction', async () => {
     state.user = publisher
-    state.findUnique.mockResolvedValue({ publishedAt: null, deadline: new Date(Date.now() + 60_000) })
+    state.findUnique.mockResolvedValue({ publishedAt: null, deadline: new Date(Date.now() + 60_000), terms, stages: [], _count: { stages: 0 } })
     state.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 })
     expect(await setBountyPublication(publish)).toMatchObject({ ok: false })
     expect(state.auditLogCreate).not.toHaveBeenCalled()
@@ -109,12 +110,24 @@ describe('native Earn publishing boundaries', () => {
     ]
     const listing = {
       ...draft, id, stages: stages.map((stage, index) => ({ ...stage, bountyId: id, position: index + 1 })),
+      _count: { stages: stages.length },
       publishedAt: new Date(0), deadline: new Date(Date.now() + 60_000),
-      revision: 1, cancelledAt: null, resultsAnnouncedAt: null, terms: null, termsVersion: 1,
+      revision: 1, cancelledAt: null, resultsAnnouncedAt: null, terms, termsVersion: 1,
     }
     const change = { ...draft, deadline: listing.deadline.toISOString(), description: 'Updated synthetic brief', terms: 'Synthetic terms' }
     const editedStages = stages.map((stage) => ({ ...stage, title: `Revised ${stage.title}` }))
+    const positionalStages = editedStages.map(({ id: _id, ...stage }) => stage)
     const activity = { id: '17f149fa-6932-4c27-85f5-096379ba4db6' }
+
+    function expectNoWrite() {
+      expect(state.updateMany).not.toHaveBeenCalled()
+      expect(state.updateStage).not.toHaveBeenCalled()
+      expect(state.updateStages).not.toHaveBeenCalled()
+      expect(state.deleteStages).not.toHaveBeenCalled()
+      expect(state.createStages).not.toHaveBeenCalled()
+      expect(state.auditLogCreate).not.toHaveBeenCalled()
+      expect(state.revalidatePath).not.toHaveBeenCalled()
+    }
 
     beforeEach(() => {
       tx.$queryRaw.mockClear()
@@ -143,6 +156,11 @@ describe('native Earn publishing boundaries', () => {
       const result = await saveBountyDraft({ id, revision: 1, draft: live })
       expect(tx.$queryRaw, JSON.stringify(result)).toHaveBeenCalledOnce()
       expect(result).toEqual({ ok: true, data: { id } })
+      for (const stage of editedStages) {
+        expect(state.updateStage).toHaveBeenCalledWith({
+          where: { id: stage.id, bountyId: id }, data: expect.objectContaining({ title: stage.title }),
+        })
+      }
       expect(state.deleteStages).not.toHaveBeenCalled()
       expect(state.createStages).not.toHaveBeenCalled()
       expect(state.auditLogCreate).toHaveBeenCalledOnce()
@@ -152,6 +170,7 @@ describe('native Earn publishing boundaries', () => {
       { label: 'reorder', stages: [...editedStages].reverse() },
       { label: 'remove', stages: editedStages.slice(1) },
       { label: 'wrong ID', stages: [{ ...editedStages[0], id: '169afc2b-3647-4743-a4a2-a62fedaf6309' }, editedStages[1]] },
+      { label: 'absent saved ID', stages: [positionalStages[0], editedStages[1]] },
     ])('US-08 rejects a structural save with activity ($label) under lock', async ({ stages }) => {
       state.findUnique.mockImplementation(async ({ where }) => where.publishedAt === null ? null : listing)
       const changeTopology = { ...change, stages }
@@ -159,12 +178,78 @@ describe('native Earn publishing boundaries', () => {
       expect(tx.$queryRaw, JSON.stringify(result)).toHaveBeenCalledOnce()
       expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/stage|order/i) })
       expect(state.findSubmission).toHaveBeenCalled()
-      expect(state.updateMany).not.toHaveBeenCalled()
-      expect(state.updateStages).not.toHaveBeenCalled()
-      expect(state.updateStage).not.toHaveBeenCalled()
+      expectNoWrite()
+    })
+
+    it('US-08 rejects a malformed saved stage identity before mutation', async () => {
+      state.findUnique.mockResolvedValue(listing)
+      const malformed = { ...change, stages: [{ ...editedStages[0], id: 'not-a-uuid' }, editedStages[1]] }
+
+      expect(await saveBountyDraft({ id, revision: 1, draft: malformed })).toMatchObject({
+        ok: false, error: expect.stringMatching(/uuid|invalid/i),
+      })
+      expect(state.transaction).not.toHaveBeenCalled()
+      expectNoWrite()
+    })
+
+    describe('published stage changes before activity', () => {
+      const newFinal = { ...positionalStages[1], title: 'Intentional replacement final stage' }
+      const edited = { ...change, stages: [editedStages[0], newFinal] }
+      const save = { id, revision: 1, draft: edited }
+
+      beforeEach(() => {
+        state.findUnique.mockImplementation(async ({ where }) => where.publishedAt === null ? null : listing)
+        state.findSubmission.mockResolvedValue(null)
+      })
+
+      it.each([
+        { label: 'omitted acknowledgement', removed: undefined, includeStages: true, requiresLock: true },
+        { label: 'empty acknowledgement', removed: [], includeStages: true, requiresLock: true },
+        { label: 'mismatched retained ID', removed: [stageId], includeStages: true, requiresLock: true },
+        { label: 'duplicate removal ID', removed: [finalId, finalId], includeStages: true, requiresLock: false },
+        { label: 'unowned removal ID', removed: ['169afc2b-3647-4743-a4a2-a62fedaf6309'], includeStages: true, requiresLock: true },
+        { label: 'removal without a stage list', removed: [finalId], includeStages: false, requiresLock: false },
+      ])('US-08 denies implicit stage replacement ($label) without writes', async ({ removed, includeStages, requiresLock }) => {
+        const input = removed === undefined ? save : { ...save, draft: includeStages ? edited : change, removedStageIds: removed }
+        const result = await saveBountyDraft(input)
+
+        expect.soft(result).toMatchObject({ ok: false, error: expect.stringMatching(/stage|remov/i) })
+        expectNoWrite()
+        expect(result).not.toMatchObject({ error: expect.stringMatching(/unrecognized key/i) })
+        if (requiresLock) expect(tx.$queryRaw, JSON.stringify(result)).toHaveBeenCalledOnce()
+      })
+
+      it('US-08 applies a matching removal acknowledgement and retains the existing stage ID', async () => {
+        const input = { ...save, removedStageIds: [finalId] }
+        const result = await saveBountyDraft(input)
+        expect(tx.$queryRaw, JSON.stringify(result)).toHaveBeenCalledOnce()
+        expect(result).toEqual({ ok: true, data: { id } })
+        expect(state.updateStage).toHaveBeenCalledWith({
+          where: { id: stageId, bountyId: id }, data: expect.objectContaining({ title: editedStages[0].title, position: 1 }),
+        })
+        expect(state.deleteStages).toHaveBeenCalledExactlyOnceWith({ where: { bountyId: id, id: { in: [finalId] } } })
+        expect(state.createStages).toHaveBeenCalledExactlyOnceWith({
+          data: [expect.objectContaining({ bountyId: id, title: newFinal.title, position: 2 })],
+        })
+        expect(state.createStages.mock.calls[0][0].data[0].id).toBeUndefined()
+        expect(state.auditLogCreate).toHaveBeenCalledOnce()
+      })
+    })
+
+    it('US-08 keeps unpublished legacy positional edits on the same existing stage IDs', async () => {
+      state.findUnique.mockResolvedValue({ ...listing, publishedAt: null })
+      state.findSubmission.mockResolvedValue(null)
+
+      expect(await saveBountyDraft({ id, revision: 1, draft: { ...change, stages: positionalStages } })).toEqual({ ok: true, data: { id } })
+      for (const [index, stage] of editedStages.entries()) {
+        expect(state.updateStage).toHaveBeenCalledWith({
+          where: { id: stage.id, bountyId: id },
+          data: expect.objectContaining({ title: stage.title, position: index + 1 }),
+        })
+      }
       expect(state.deleteStages).not.toHaveBeenCalled()
       expect(state.createStages).not.toHaveBeenCalled()
-      expect(state.auditLogCreate).not.toHaveBeenCalled()
+      expect(state.auditLogCreate).toHaveBeenCalledOnce()
     })
 
     it.each([
@@ -176,12 +261,62 @@ describe('native Earn publishing boundaries', () => {
           ? null : { ...listing, resultsAnnouncedAt: announced, revision },
       )
       expect(await saveBountyDraft({ id, revision: 1, draft: change })).toMatchObject({ ok: false })
-      expect(state.updateMany).not.toHaveBeenCalled()
-      expect(state.updateStage).not.toHaveBeenCalled()
-      expect(state.updateStages).not.toHaveBeenCalled()
-      expect(state.deleteStages).not.toHaveBeenCalled()
+      expectNoWrite()
+    })
+
+    it('US-09 denies publishing a staged native listing without effective terms', async () => {
+      state.findUnique.mockResolvedValue({ ...listing, publishedAt: null, terms: null })
+
+      const result = await setBountyPublication(publish)
+      expect(tx.$queryRaw).toHaveBeenCalledOnce()
+      expect.soft(result).toMatchObject({ ok: false, error: expect.stringMatching(/terms/i) })
+      expectNoWrite()
+    })
+
+    it.each([
+      { kind: 'native with effective terms', effectiveTerms: terms, count: stages.length },
+      { kind: 'external-only without terms', effectiveTerms: null, count: 0 },
+    ])('US-09 allows publication for $kind', async ({ effectiveTerms, count }) => {
+      state.findUnique.mockResolvedValue({
+        ...listing, publishedAt: null, terms: effectiveTerms, stages: listing.stages.slice(0, count), _count: { stages: count },
+      })
+      expect(await setBountyPublication(publish)).toEqual({ ok: true, data: { id } })
+      expect(state.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ publishedAt: expect.any(Date), revision: { increment: 1 } }),
+      }))
+      expect(state.auditLogCreate).toHaveBeenCalledOnce()
+    })
+
+    it('US-09 allows an unpublished native draft with optional additional terms', async () => {
+      const native = { ...change, terms: null, stages: positionalStages }
+      expect(await createBountyDraft({ id, draft: native })).toEqual({ ok: true, data: { id } })
+      expect(state.createBounty).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ id, terms: null }),
+      }))
+      expect(state.createStages).toHaveBeenCalledOnce()
+      expect(state.auditLogCreate).toHaveBeenCalledOnce()
+    })
+
+    it('US-09 denies clearing the only effective terms on a live native listing', async () => {
+      state.findUnique.mockImplementation(async ({ where }) => where.publishedAt === null ? null : listing)
+      const result = await saveBountyDraft({ id, revision: 1, draft: { ...change, terms: null } })
+
+      expect(tx.$queryRaw).toHaveBeenCalledOnce()
+      expect.soft(result).toMatchObject({ ok: false, error: expect.stringMatching(/terms/i) })
+      expectNoWrite()
+    })
+
+    it('US-09 allows a live native brief save that preserves its effective terms', async () => {
+      state.findUnique.mockImplementation(async ({ where }) => where.publishedAt === null ? null : listing)
+
+      expect(await saveBountyDraft({ id, revision: 1, draft: { ...change, terms } })).toEqual({ ok: true, data: { id } })
+      expect(state.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ terms, revision: { increment: 1 } }),
+      }))
+      expect(state.updateMany.mock.calls[0][0].data.termsVersion).toBeUndefined()
       expect(state.createStages).not.toHaveBeenCalled()
-      expect(state.auditLogCreate).not.toHaveBeenCalled()
+      expect(state.deleteStages).not.toHaveBeenCalled()
+      expect(state.auditLogCreate).toHaveBeenCalledOnce()
     })
 
     it.each([
