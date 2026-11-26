@@ -64,7 +64,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
                 className="flex h-full flex-col rounded-xl border border-line bg-surface-2 p-6 hover:border-brand hover:shadow-glow focus-visible:border-brand focus-visible:outline-brand motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5"
               >
                 <div className="mb-3 flex flex-wrap gap-2">
-                  <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
+                  <StatusPill tone={!bounty.resultsAnnouncedAt && bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
                   {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
                 </div>
                 <div className="mb-4 flex items-start gap-3">

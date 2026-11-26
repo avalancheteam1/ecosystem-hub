@@ -52,7 +52,7 @@ export default async function BountyPage({ params, searchParams }: {
           {bounty.resultsAnnouncedAt && <SectionCard title="Results announced">
             <p>{awardCount ? `${awardCount} ${awardCount === 1 ? 'award' : 'awards'}` : 'No awards were selected.'}</p>
             {bounty.resultsNote && <Markdown className="mt-2 wrap-anywhere">{bounty.resultsNote}</Markdown>}
-            <p className="mt-2 text-sm text-fg-muted">Contributors can check their own receipts for award details.</p>
+            <p className="mt-2 text-sm text-fg-muted">Contributors can check their own submissions for award details.</p>
           </SectionCard>}
           {bounty.stages.length > 0 && bounty.terms ? (
             <BountyStages instructions={bounty.participation} githubIssueUrl={bounty.githubIssueUrl} id={bounty.id} stages={bounty.stages} active={textParam(stage, 36)} page={pageParam(page)} open={open} resultsAnnounced={!!bounty.resultsAnnouncedAt} terms={bounty.terms} termsVersion={bounty.termsVersion} />

@@ -51,7 +51,7 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
         {open && blocked && !prerequisite && <p className="mt-3 text-sm text-fg-body">{blocked}</p>}
         {open && !user && <Button asChild className="mt-4"><Link href={signIn}>Sign in to contribute</Link></Button>}
       </SectionCard>
-      {progress.rows.length > 0 && <SectionCard title="Your receipts">
+      {progress.rows.length > 0 && <SectionCard title="Your submissions">
         <ul className="divide-y divide-line">
           {progress.rows.map((entry) => (
             <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-2">

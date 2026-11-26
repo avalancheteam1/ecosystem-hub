@@ -17,11 +17,11 @@ type Props =
 const labels = {
   announce: {
     title: 'Announce results', submit: 'Publish results', success: 'Results announced',
-    description: 'Publish the result and deliver private award receipts. This closes review and fixes the award list.',
+    description: 'Publish the result and show private award details on awarded submissions. This closes review and fixes the award list.',
   },
   cancel: {
     title: 'Cancel bounty', submit: 'Cancel bounty', success: 'Bounty cancelled',
-    description: 'Take the listing offline and close submissions and review. Contributors keep access to their private receipts.',
+    description: 'Take the listing offline and close submissions and review. Contributors keep access to their private submissions.',
   },
   reward: {
     title: 'Record external reward', submit: 'Mark rewarded', success: 'External reward recorded',

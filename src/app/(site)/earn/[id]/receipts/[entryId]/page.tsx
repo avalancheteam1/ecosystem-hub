@@ -14,7 +14,7 @@ import { WithdrawButton } from '../../../_components/withdraw-button'
 import { contributorStatus, revisionAllowed, submissionLabels } from '../../../_lib/stage-rules'
 import { getOwnReceipt } from '../../../_lib/workflow-queries'
 
-export const metadata: Metadata = { title: 'Submission receipt', robots: { index: false } }
+export const metadata: Metadata = { title: 'Submission', robots: { index: false } }
 
 export default async function ReceiptPage({ params, searchParams }: {
   params: Promise<{ id: string; entryId: string }>
@@ -45,9 +45,9 @@ export default async function ReceiptPage({ params, searchParams }: {
   return (
     <div className="container-page max-w-4xl py-10">
       <BackLink href={bounty.cancelledAt ? '/earn/submissions' : `/earn/${id}?stage=${stage.id}`}>{bounty.cancelledAt ? 'My submissions' : bounty.title}</BackLink>
-      <PageHeader title="Your submission receipt" description={`${stage.title} · revision ${entry.revision}`}><SubmissionStatusPill label={status} /></PageHeader>
+      <PageHeader title="Your submission" description={`${stage.title} · revision ${entry.revision}`}><SubmissionStatusPill label={status} /></PageHeader>
       <div className="space-y-6">
-        {bounty.cancelledAt && <SectionCard title="Bounty cancelled"><p>{bounty.title} is closed. Your receipt and its history are still available.</p></SectionCard>}
+        {bounty.cancelledAt && <SectionCard title="Bounty cancelled"><p>{bounty.title} is closed. Your submission and its history are still available.</p></SectionCard>}
         {entry.award && <SectionCard title="Your award"><p className="break-words">{entry.award.reward}</p><p className="mt-2 text-sm">{entry.award.rewardedAt ? 'External reward recorded' : 'Awaiting external reward'}</p></SectionCard>}
         <SectionCard title="Revision history" actions={editAction || canWithdraw ? (
           <>
