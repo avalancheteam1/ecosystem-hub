@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
@@ -50,14 +50,41 @@ export function SelectWinner({ id, bountyId, version, approvalLimit }: { id: str
   )
 }
 
-export function RemoveSelection({ id, bountyId, version }: { id: string; bountyId: string; version: number }) {
+export function RemoveSelection({ id, bountyId, version, entryLabel }: { id: string; bountyId: string; version: number; entryLabel?: string }) {
+  const dialogId = useId()
+  const reasonId = `${dialogId}-reason`
   const [reason, setReason] = useState('')
+  const [missingReason, setMissingReason] = useState(false)
+  const submitting = useRef(false)
   const { pending, run } = useActionToast()
+
+  async function remove() {
+    if (pending || submitting.current) return false
+    const internalNote = reason.trim()
+    if (!internalNote) {
+      setMissingReason(true)
+      return false
+    }
+    submitting.current = true
+    try {
+      return await run(() => reviewStage({ id, bountyId, version, decision: 'needs_review', feedback: '', internalNote }), 'Selection removed')
+    } finally {
+      submitting.current = false
+    }
+  }
+
   return (
-    <FormDialog title="Remove selection" description="Return this revision to review and release the award slot. The reason is visible to reviewers." trigger={<Button id="remove-selection" className="min-h-11 scroll-mt-20" variant="outline">Remove selection</Button>} submitLabel="Remove selection" pending={pending}
-      onSubmit={() => run(() => reviewStage({ id, bountyId, version, decision: 'needs_review', feedback: '', internalNote: reason }), 'Selection removed')}>
-      <Field id="earn-unselect-reason" label="Private reason" required>
-        <Textarea id="earn-unselect-reason" maxLength={6000} required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} />
+    <FormDialog title="Remove selection" formId={`${dialogId}-form`} description="Return this revision to review and release the award slot. The reason is visible to reviewers."
+      trigger={<Button id={entryLabel ? undefined : 'remove-selection'} aria-label={entryLabel ? `Remove selection for ${entryLabel}` : undefined} className="min-h-11 scroll-mt-20" variant="outline">Remove selection</Button>}
+      submitLabel="Remove selection" pending={pending} onSubmit={remove}>
+      <Field id={reasonId} label="Private reason" required>
+        <Textarea id={reasonId} maxLength={6000} required rows={3} value={reason}
+          aria-invalid={missingReason || undefined} aria-describedby={missingReason ? `${reasonId}-error` : undefined}
+          onChange={(event) => {
+            setReason(event.target.value)
+            setMissingReason(false)
+          }} />
+        {missingReason && <p id={`${reasonId}-error`} role="alert" className="text-sm text-destructive">Enter a private reason.</p>}
       </Field>
     </FormDialog>
   )

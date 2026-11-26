@@ -14,6 +14,7 @@ import { isFlagOn } from '@/lib/flag-store'
 import { approvedNoticeCopy } from '@/app/(site)/earn/_lib/result-notices'
 import { getResultsForPublishing, listPrivateSelections } from '@/app/(site)/earn/_lib/workflow-queries'
 import { ResultsAction } from '../_components/results-action'
+import { RemoveSelection } from '../_components/review-form'
 import { formatUtc } from '@/lib/dates'
 import { getBountyForPublishing, listEarnOrganizationOptions } from '@/app/(site)/earn/_lib/queries'
 import { BountyForm } from '../_components/bounty-form'
@@ -74,12 +75,20 @@ export default async function ManageBountyPage({ params, searchParams }: { param
           {selections && <div className="mt-4">
             <h3 className="text-lg">Private selections</h3>
             {!selections.rows.length && <p className="mt-2 text-sm text-fg-muted">No private selections on this page.</p>}
-            <ul className="divide-y divide-line">{selections.rows.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <p className="wrap-anywhere">{entry.contributor.name} · revision {entry.revision}</p>
-              <Button asChild variant="outline" className="min-h-11">
-                <Link href={`/admin/earn/review/${entry.id}#remove-selection`} aria-label={`Review selection for ${entry.contributor.name}, revision ${entry.revision}`}>Review selection</Link>
-              </Button>
-            </li>)}</ul>
+            <ul className="divide-y divide-line">{selections.rows.map((entry, index) => {
+              const entryLabel = `${entry.contributor.name}, revision ${entry.revision} (selection ${index + 1})`
+              return (
+                <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <p className="wrap-anywhere">{entry.contributor.name} · revision {entry.revision}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" className="min-h-11">
+                      <Link href={`/admin/earn/review/${entry.id}#remove-selection`} aria-label={`Review selection for ${entryLabel}`}>Review selection</Link>
+                    </Button>
+                    {entry.canRemove && <RemoveSelection key={entry.version} bountyId={id} id={entry.id} version={entry.version} entryLabel={entryLabel} />}
+                  </div>
+                </li>
+              )
+            })}</ul>
             <Pager page={page} hasMore={selections.hasMore} params={{}} />
           </div>}
           {resultsAnnouncedAt && <ul className="mt-4 divide-y divide-line">{result.rows.map((award) => <li key={award.id} className="flex flex-wrap items-center justify-between gap-3 py-3">

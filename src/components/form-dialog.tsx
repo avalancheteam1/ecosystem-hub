@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 export function FormDialog({
   trigger,
   title,
+  formId = `form-${title}`,
   description,
   submitLabel,
   pending,
@@ -21,6 +22,7 @@ export function FormDialog({
 }: {
   trigger: React.ReactNode
   title: string
+  formId?: string
   description?: string
   submitLabel: string
   pending?: boolean
@@ -43,7 +45,7 @@ export function FormDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <form
-          id={`form-${title}`}
+          id={formId}
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault()
@@ -53,7 +55,7 @@ export function FormDialog({
           {children}
         </form>
         <DialogFooter>
-          <Button type="submit" form={`form-${title}`} disabled={pending}>{submitLabel}</Button>
+          <Button type="submit" form={formId} disabled={pending}>{submitLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
