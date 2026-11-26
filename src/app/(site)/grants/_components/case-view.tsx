@@ -21,6 +21,8 @@ import { ApplicantReceipt } from './applicant-receipt'
 import { StaffAwardForm } from './staff-award-form'
 import { StaffCaseTabs } from './staff-case-tabs'
 import { PayoutDestinationForm } from './payout-destination-form'
+import { ApplicantAwardAmountRequest, StaffAwardAmountRequests } from './award-amount-requests'
+import { committeeVoteResult } from '../_lib/committee-policy'
 const usd = (n: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -41,9 +43,9 @@ const verificationFields: GrantField[] = [
   ] },
   note,
   evidence,
-  { path: 'inspected', label: 'Agreed output inspected', type: 'checkbox' },
-  { path: 'reproduced', label: 'Acceptance test reproduced', type: 'checkbox' },
-  { path: 'matches', label: 'Scope and version match', type: 'checkbox' },
+  { path: 'inspected', label: 'Agreed output inspected', type: 'checkbox', requirement: 'required to verify' },
+  { path: 'reproduced', label: 'Acceptance test reproduced', type: 'checkbox', requirement: 'required to verify' },
+  { path: 'matches', label: 'Scope and version match', type: 'checkbox', requirement: 'required to verify' },
 ]
 const milestoneStatus = {
   awaiting_evidence: 'Awaiting evidence',
@@ -62,6 +64,10 @@ const recentActivityLabels = new Map([
   ['request_evidence', 'Evidence requested'],
   ['answer_request', 'Applicant replied'],
   ['clear_milestone', 'Milestone cleared'],
+  ['shortlist_application', 'Application shortlisted internally'],
+  ['request_award_amount', 'Award amount proposed'],
+  ['respond_award_amount', 'Applicant responded to award amount'],
+  ['vote_award', 'Committee vote recorded'],
   ['submit_delivery', 'Milestone evidence submitted'],
   ['review_delivery', 'Milestone evidence reviewed'],
   ['record_decision', 'Decision recorded'],
@@ -87,11 +93,13 @@ export function GrantCaseView({
   requestedTab,
   checkpoint = '30',
   payout,
+  canOpenPayout = false,
 }: {
   data: Awaited<ReturnType<typeof readApplication>>
   requestedTab?: string
   checkpoint?: string
   payout?: Awaited<ReturnType<typeof readPayoutDestination>>
+  canOpenPayout?: boolean
 }) {
   const s = data.state,
     internal = data.staff ? data.state : null,
@@ -106,6 +114,9 @@ export function GrantCaseView({
   const editPlanDraft = editShortDraft && planAnswers
   const legacy = s.answers.intakeVersion === undefined ? s.answers : null
   const requestedAmount = shortAnswers?.amountMinor ?? legacy?.terms.amountMinor
+  const committeeReview = data.staff && data.state.version === 4 ? data.state.committeeReview : undefined
+  const committeeWorkflow = data.staff ? data.committeeWorkflow : undefined
+  const latestAwardRequest = committeeReview?.requests.at(-1)
   const requestedRoute = internal?.answers.intakeVersion === undefined ? internal?.answers.terms.route : undefined
   const base = `${data.staff ? '/admin' : ''}/grants/applications/${data.id}`
   const payoutCard = payout && (
@@ -126,6 +137,12 @@ export function GrantCaseView({
     </SectionCard>
   )
   const plan = data.staff ? milestonePlan(data.state) : data.state.milestonePlan
+  const applicantAmountRequest = !data.staff && plan && data.state.awardAmountRequest?.planId === plan.id
+    ? data.state.awardAmountRequest : undefined
+  const amountRequestOpen = s.status === 'submitted' && !s.closedAt
+  const applicantAmountPending = !!applicantAmountRequest && !applicantAmountRequest.response && amountRequestOpen
+  const pinnedAmount = data.staff && data.state.version === 4 ? data.state.applications.at(-1)?.answers.amountMinor ?? null
+    : submittedPlan?.amountMinor ?? null
   const milestoneFirst = data.staff ? data.state.version === 3 || data.state.version === 4 : data.state.milestoneFirst
   const clearedAt = plan ? plan.approvedAt : data.staff ? data.state.version === 3 ? data.state.milestoneClearance?.at : null : data.state.clearedAt
   const planVerified = !!plan?.approvedAt && plan.milestones.every((m) => m.status === 'accepted')
@@ -140,7 +157,7 @@ export function GrantCaseView({
       : lastDelivery?.state === 'accepted' ? 'Milestone verified'
         : lastDelivery?.state === 'submitted' ? 'Evidence under review'
           : lastDelivery?.state === 'changes_requested' ? 'Evidence changes requested' : 'Milestone cleared'
-  const applicantTabs = ['Overview', 'Application details', 'History']
+  const applicantTabs = ['Overview', 'Application details', ...(applicantAmountRequest ? ['Requests'] : []), 'History']
   const tabs = data.staff
     ? [
         'Application',
@@ -155,13 +172,14 @@ export function GrantCaseView({
         'Impact',
         'History',
       ]
-    : [...applicantTabs, 'Requests', 'Decision', 'Amendments', 'Delivery', 'Payments', 'Impact']
+    : [...applicantTabs, ...(applicantAmountRequest ? [] : ['Requests']), 'Decision', 'Amendments', 'Delivery', 'Payments', 'Impact']
   const tab = requestedTab ? (tabs.includes(requestedTab) ? requestedTab : tabs[0]) : data.staff ? 'Decision' : tabs[0]
-  const oneCase = data.staff && milestoneFirst && !requestedTab
+  const embeddedRecord = requestedTab && ['Follow-ups', 'Amendments', 'Payments', 'History', 'Impact'].includes(requestedTab) ? requestedTab : undefined
+  const oneCase = data.staff && milestoneFirst && (!requestedTab || !!embeddedRecord)
   const caseSectionIds = { Requests: 'case-requests', Delivery: 'case-evidence', Evaluation: 'case-assessment' }
   const staffSectionHref = (section: keyof typeof caseSectionIds) => oneCase ? `#${caseSectionIds[section]}` : `${base}?tab=${section}`
   const applicantOverview = !data.staff && tab === 'Overview'
-  const staffMilestoneDecision = data.staff && milestoneFirst && tab === 'Decision'
+  const staffMilestoneDecision = data.staff && milestoneFirst && (tab === 'Decision' || oneCase)
   const day = ['30', '90', '180'].includes(checkpoint) ? checkpoint : '30'
   const t = s.terms.at(-1),
     active = internal ? activeTerms(internal) : milestoneFirst && s.status === 'approved' ? t : s.terms.findLast((r) => r.confirmedAt)
@@ -215,7 +233,7 @@ export function GrantCaseView({
       plainAssessment={committee && kind === 'save_assessment'}
       recoverUnknownResult={(applicantOverview && (kind === 'answer_request' || kind === 'confirm_terms')) ||
         (!data.staff && milestoneFirst && kind === 'submit_delivery') ||
-        (data.staff && milestoneFirst && ['record_decision', 'hold_application', 'decline_application'].includes(kind))}
+        (data.staff && milestoneFirst && ['record_decision', 'hold_application', 'decline_application', 'shortlist_application'].includes(kind))}
       secondaryTrigger={['withdraw_application', 'hold_application', 'decline_application'].includes(kind) || (staffMilestoneDecision && kind === 'record_decision')}
       outcomeSubmitLabels={staffMilestoneDecision && kind === 'record_decision'
         ? { not_selected: 'Record rejection', deferred: 'Defer application' } : undefined}
@@ -386,6 +404,11 @@ export function GrantCaseView({
   let caseRequests: React.ReactNode
   let caseDecision: React.ReactNode
   let caseEvidence: React.ReactNode
+  let casePayments: React.ReactNode
+  let caseAmendments: React.ReactNode
+  let caseFollowups: React.ReactNode
+  let caseImpact: React.ReactNode
+  let caseHistory: React.ReactNode
   if (applicantOverview && s.status !== 'draft') {
     const award = s.status === 'approved' ? active ?? t : undefined
     const pendingAward = !milestoneFirst && award && !award.confirmedAt && !s.closedAt
@@ -463,7 +486,7 @@ export function GrantCaseView({
           {milestoneFirst && (plan ? planVerified : delivery?.state === 'accepted') && s.status === 'submitted' &&
             <p className="text-fg-muted">{committee ? 'Your milestones are verified. The Grants Committee will review the award separately.'
               : 'The grant team verified the evidence. A separate award decision is pending.'}</p>}
-          {!publicStatus.updateRequested && !nextAction && !payout?.canConfirm && !(committee && ['deferred', 'not_selected'].includes(s.status)) && <p>No action is needed right now.</p>}
+          {!publicStatus.updateRequested && !nextAction && !applicantAmountPending && !payout?.canConfirm && !(committee && ['deferred', 'not_selected'].includes(s.status)) && <p>No action is needed right now.</p>}
           {s.closedAt && <p className="text-fg-muted">This grant is complete.</p>}
           {decision?.publicNote && <p className="wrap-anywhere whitespace-pre-wrap">{decision.publicNote}</p>}
           {decision && 'nextStep' in decision && decision.nextStep && (
@@ -471,7 +494,11 @@ export function GrantCaseView({
           )}
           {award && !milestoneFirst && <ApplicantReceipt key={award.number} recorded={!!award.confirmedAt}>Award confirmation recorded</ApplicantReceipt>}
         </SectionCard>
-        {(requests.length > 0 || nextAction) && <SectionCard title={publicStatus.updateRequested || nextAction ? 'What happens next' : 'Saved responses'} className="space-y-4">
+        {(requests.length > 0 || nextAction || applicantAmountPending) && <SectionCard title={publicStatus.updateRequested || nextAction || applicantAmountPending ? 'What happens next' : 'Saved responses'} className="space-y-4">
+          {applicantAmountPending && <div className="space-y-1">
+            <p>The grant team proposed an award amount of <strong>{usd(applicantAmountRequest.totalMinor)}</strong>.</p>
+            <Link href={`${base}?tab=Requests`} className={actionLink}>Review proposed award amount</Link>
+          </div>}
           {requests.map((request) => requestCard(request, true))}
           {nextAction}
         </SectionCard>}
@@ -693,16 +720,31 @@ export function GrantCaseView({
         {s.requests.map((request) => requestCard(request))}
       </div>
     )
-    if (oneCase) caseRequests = (
-      <SectionCard title="Requests" className="space-y-4">
-        {requests}
-        {requestEvidence()}
-      </SectionCard>
-    )
-    else content = requests
+    const amountRequests = plan && (data.staff ? committeeWorkflow?.required && (
+      <StaffAwardAmountRequests review={committeeReview} plan={plan} requestedAmount={pinnedAmount} open={amountRequestOpen}
+        canPropose={committeeWorkflow.canPropose} canVote={committeeWorkflow.canVote} planVerified={planVerified}
+        openQuestions={s.requests.some((request) => !request.answeredAt)} formTarget={{ applicationId: data.id, revision: data.revision }}
+        viewerId={data.userId} />
+    ) : applicantAmountRequest && (
+      <ApplicantAwardAmountRequest request={applicantAmountRequest} plan={plan} requestedAmount={pinnedAmount} open={amountRequestOpen}
+        writer={data.writer} formTarget={{ applicationId: data.id, revision: data.revision }} />
+    ))
+    if (oneCase || amountRequests) {
+      const sections = (
+        <div className="max-w-4xl space-y-5">
+          {amountRequests}
+          <SectionCard title={amountRequests ? 'Clarification requests' : 'Requests'} className="space-y-4">
+            {requests}
+            {data.staff && requestEvidence()}
+          </SectionCard>
+        </div>
+      )
+      if (oneCase) caseRequests = sections
+      else content = sections
+    } else content = requests
   }
 
-  if (tab === 'Decision' && data.staff && (data.state.version === 3 || data.state.version === 4)) {
+  if ((tab === 'Decision' || oneCase) && data.staff && (data.state.version === 3 || data.state.version === 4)) {
     const state = data.state
     const milestone = short?.milestone
     const awardScope = milestone && { title: milestone.title, due: milestone.due, acceptance: milestone.evidence }
@@ -711,10 +753,18 @@ export function GrantCaseView({
     const openRequest = state.requests.some((request) => !request.answeredAt)
     const assessmentHolds = verified ? readiness(state) : []
     const awaitingDecision = state.status === 'submitted' && state.decisions.every((decision) => decision.outcome === 'deferred')
-    const decide = data.capabilities.decide
+    const governed = state.version === 4 && committeeWorkflow?.required
+    const decide = governed ? committeeWorkflow.canDecide : data.capabilities.decide
+    const shortlisted = !!plan && committeeReview?.shortlist.planId === plan.id
+    const amountAccepted = !!plan && latestAwardRequest?.planId === plan.id && latestAwardRequest.response?.outcome === 'accepted'
+    const committeeApproved = !!committeeReview && !!latestAwardRequest &&
+      committeeVoteResult(committeeReview.shortlist, latestAwardRequest).passed
     const actionClass = 'inline-flex min-h-11 items-center underline underline-offset-4'
     const HoldLink = oneCase ? 'a' : Link
-    const hold: { title: string; detail: string; tab?: keyof typeof caseSectionIds; link?: string } | null = openRequest ? {
+    const hold: { title: string; detail: string; tab?: keyof typeof caseSectionIds; link?: string } | null = governed && !shortlisted ? null
+      : governed && !committeeWorkflow.configured ? {
+        title: 'Committee configuration required', detail: 'Committee actions require the configured roster for this case.',
+      } : openRequest ? {
       title: 'Evidence request open', detail: 'The applicant needs to reply. The grant reviewer can check the request and reassess the application.',
       tab: 'Requests', link: 'Open requests',
     } : !verified ? {
@@ -729,13 +779,37 @@ export function GrantCaseView({
     } : assessmentHolds.length ? {
       title: 'Assessment required', detail: committee ? 'Complete the assessment and resolve the readiness checks.' : 'The grant reviewer must address the readiness checks before the decision owner can issue.',
       tab: 'Evaluation', link: oneCase ? 'Go to assessment' : 'Open evaluation',
+    } : governed && (!amountAccepted || !committeeApproved) ? {
+      title: 'Award amount review required', detail: 'The applicant must accept the current amount proposal and the proposal must pass this application’s Committee voting rule.',
+      tab: 'Requests', link: 'Open award amount proposals',
     } : !decide ? {
       title: 'Decision access required', detail: 'Staff with grant decision access can record an outcome.',
     } : null
-    const canEnterAward = decide && awaitingDecision && !hold
+    const canEnterAward = decide && awaitingDecision && !hold && (!governed || shortlisted)
     const award = lastDecision?.outcome === 'approved' ? lastDecision.terms : null
     const decision = (
       <div className="max-w-4xl space-y-5">
+        {governed && (awaitingDecision || shortlisted) && (
+          <SectionCard title="Committee shortlist" className="space-y-3">
+            {shortlisted && committeeReview ? (
+              <>
+                <StatusPill tone="info">Shortlisted internally</StatusPill>
+                <p>Recorded <time dateTime={committeeReview.shortlist.at}>{committeeReview.shortlist.at.slice(0, 10)} (UTC)</time></p>
+                {hold?.tab !== 'Requests' &&
+                  <HoldLink href={staffSectionHref('Requests')} className={actionClass}>Open award amount proposals</HoldLink>}
+              </>
+            ) : (
+              <>
+                <StatusPill tone="warning">Awaiting shortlist</StatusPill>
+                <p>{committeeWorkflow.configured
+                  ? 'The designated shortlister reviews the pinned application before the Committee takes up the case. Shortlisting is recorded for staff.'
+                  : 'Set up the Committee roster before shortlisting.'}</p>
+                {planCommitments}
+                {plan && committeeWorkflow.canShortlist && form('shortlist_application', 'Shortlist application', { planId: plan.id }, [], true)}
+              </>
+            )}
+          </SectionCard>
+        )}
         {oneCase && !awaitingDecision && !lastDecision && (
           <SectionCard title="Next action"><p>No grant decision is pending for this case.</p></SectionCard>
         )}
@@ -794,8 +868,10 @@ export function GrantCaseView({
         {!oneCase && plan && <SectionCard title="Pinned milestone plan">{planCommitments}</SectionCard>}
         {committee && canEnterAward && (
           <SectionCard title="Award decision" className="space-y-3">
-            <p>The milestone plan is verified. Award issuance is unavailable until the Grants Committee and Finance confirm the approval process.</p>
-            {requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
+            <p>{governed ? 'The accepted proposal passed this application’s Committee voting rule. Award issuance still requires verified Committee and Finance authorization.'
+              : 'The milestone plan is verified. Award issuance is unavailable until the Grants Committee and Finance confirm the approval process.'}</p>
+            {governed && latestAwardRequest ? <p><strong>{usd(latestAwardRequest.totalMinor)}</strong> proposed</p>
+              : requestedAmount != null && <p><strong>{usd(requestedAmount)}</strong> requested</p>}
             <Button type="button" disabled>Issue award</Button>
           </SectionCard>
         )}
@@ -950,11 +1026,15 @@ export function GrantCaseView({
                   options: options('approved', 'deferred', 'not_selected'),
                 },
                 ownerField,
-                ...termsFields(),
+                ...termsFields().map((field) =>
+                  ['terms.hypothesis', 'terms.limits'].includes(field.path)
+                    ? { ...field, requirement: 'required for bounded pilot awards' }
+                    : field),
                 {
                   path: 'budget',
                   label: 'Budget authority reference',
                   optional: true,
+                  requirement: 'required to approve',
                 },
                 {
                   path: 'authority',
@@ -993,7 +1073,7 @@ export function GrantCaseView({
   if (plan && (tab === 'Delivery' || oneCase)) {
     const delivery = (
       <div className="space-y-4">
-        <h2 className="text-lg">Milestone evidence</h2>
+        {!oneCase && <h2 className="text-lg">Milestone evidence</h2>}
         {!plan.approvedAt && <p className="text-fg-muted">Evidence opens when the Grants Committee approves the milestone plan.</p>}
         {plan.milestones.map((milestone) => {
           const attempts = s.deliveries.filter((delivery) => 'milestoneId' in delivery &&
@@ -1039,7 +1119,7 @@ export function GrantCaseView({
     const delivery = (
       <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
         <section className="space-y-6">
-          <h2 className="text-lg">{oneCase ? 'Milestone evidence' : 'Verify the agreed milestone.'}</h2>
+          {!oneCase && <h2 className="text-lg">Verify the agreed milestone.</h2>}
           {!oneCase && <>
             <p>Review the submitted evidence against the agreed terms.</p>
             {active ? termsView(active.terms) : milestoneFirst && short?.milestone ? (
@@ -1092,16 +1172,19 @@ export function GrantCaseView({
                   path: 'inspected',
                   label: 'Agreed output inspected',
                   type: 'checkbox',
+                  requirement: 'required to verify',
                 },
                 {
                   path: 'reproduced',
                   label: 'Acceptance test reproduced',
                   type: 'checkbox',
+                  requirement: 'required to verify',
                 },
                 {
                   path: 'matches',
                   label: 'Scope and version match',
                   type: 'checkbox',
+                  requirement: 'required to verify',
                 },
               ],
             )
@@ -1121,10 +1204,16 @@ export function GrantCaseView({
     )
     if (oneCase) caseEvidence = <SectionCard>{delivery}</SectionCard>
     else content = delivery
-  } else if (tab === 'Payments')
-    content = (
+  }
+  if (tab === 'Payments' || oneCase) {
+    const payments = (
       <div className="space-y-6">
         {data.staff && payoutCard}
+        {oneCase && canOpenPayout && !payoutCard && (
+          <Link href={base + '?tab=Payments#case-payments'} className="inline-flex min-h-11 items-center underline underline-offset-4">
+            View test payout address
+          </Link>
+        )}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg">Track external payments.</h2>
@@ -1254,8 +1343,11 @@ export function GrantCaseView({
         </p>
       </div>
     )
-  else if (tab === 'Amendments')
-    content = (
+    if (oneCase) casePayments = payments
+    else content = payments
+  }
+  if (tab === 'Amendments' || oneCase) {
+    const amendments = (
       <div className="space-y-8">
         <h2 className="text-lg">Review proposed changes to agreed terms.</h2>
         <p>Current terms remain active until renewed review and applicant confirmation.</p>
@@ -1299,6 +1391,7 @@ export function GrantCaseView({
                     path: 'renewed',
                     label: 'I reviewed current scope, funding overlap, rights, conflicts and risks for the amended terms.',
                     type: 'checkbox',
+                    requirement: 'required to approve',
                   },
                 ],
                 true,
@@ -1352,8 +1445,11 @@ export function GrantCaseView({
           )}
       </div>
     )
-  else if (tab === 'Follow-ups' && internal)
-    content = (
+    if (oneCase) caseAmendments = amendments
+    else content = amendments
+  }
+  if ((tab === 'Follow-ups' || oneCase) && internal) {
+    const followups = (
       <div className="space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg">Every case has a next useful action.</h2>
@@ -1477,10 +1573,13 @@ export function GrantCaseView({
         ))}
       </div>
     )
-  else if (tab === 'Impact') {
+    if (oneCase) caseFollowups = followups
+    else content = followups
+  }
+  if (tab === 'Impact' || oneCase) {
     const report = s.impact.findLast((r) => r.day === day),
       acceptedAt = deliveryAcceptedAt(s.deliveries, !!plan)
-    content = (
+    const impact = (
       <div className="space-y-8">
         <nav className="grid gap-3 sm:grid-cols-3" aria-label="Impact checkpoints">
           {['30', '90', '180'].map((d) => {
@@ -1582,12 +1681,14 @@ export function GrantCaseView({
                       path: `observations.${i}.evidence`,
                       label: `${m.name}: evidence reference`,
                       optional: true,
+                      requirement: 'required to submit a measured value',
                     },
                     {
                       path: `observations.${i}.method`,
                       label: `${m.name}: measurement method`,
                       type: 'textarea',
                       optional: true,
+                      requirement: 'required to submit a measured value',
                     },
                   ]),
                   {
@@ -1599,6 +1700,7 @@ export function GrantCaseView({
                     path: 'submit',
                     label: 'Submit this update for review. Leave unchecked to save a draft.',
                     type: 'checkbox',
+                    optional: true,
                   },
                 ],
               )}
@@ -1668,7 +1770,10 @@ export function GrantCaseView({
         )}
       </div>
     )
-  } else if (tab === 'History' && !data.staff) {
+    if (oneCase) caseImpact = impact
+    else content = impact
+  }
+  if (tab === 'History' && !data.staff) {
     const history = [
       ...s.applications.map((app, i) => ({ at: app.at, label: i === 0 ? 'Application submitted' : 'Application response recorded' })),
       ...s.statusReleases.map((release) => ({ at: release.at, label: applicationStatusCopy[release.status].label })),
@@ -1703,8 +1808,8 @@ export function GrantCaseView({
         )}
       </SectionCard>
     )
-  } else if (tab === 'History')
-    content = (
+  } else if (tab === 'History' || oneCase) {
+    const history = (
       <div className="space-y-5">
         <h2 className="text-lg">Application history</h2>
         {s.applications.map((a, i) => (
@@ -1721,16 +1826,23 @@ export function GrantCaseView({
             <time dateTime={release.at}>{release.at.slice(0, 10)}</time> / {applicationStatusCopy[release.status].label}
           </p>
         ))}
-        {internal?.events.map((e) => (
-          <p key={e.id} className="text-sm text-fg-muted">
-            {e.at} / {e.kind.replaceAll('_', ' ')} / {e.note}
-          </p>
+        {internal && [...internal.events].reverse().map((event) => (
+          <div key={event.id} className="space-y-1 border-b border-line pb-3 text-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+              <span>{recentActivityLabels.get(event.kind) ?? event.kind.replaceAll('_', ' ')}</span>
+              <time dateTime={event.at} className="text-fg-muted">{event.at.slice(0, 10)} (UTC)</time>
+            </div>
+            {event.note && <p className="wrap-anywhere whitespace-pre-wrap text-fg-muted">{event.note}</p>}
+          </div>
         ))}
         {!s.applications.length && <p className="text-sm text-fg-muted">No submission has been recorded.</p>}
       </div>
     )
+    if (oneCase) caseHistory = history
+    else content = history
+  }
   const jumpClass = 'inline-flex min-h-11 items-center underline underline-offset-4'
-  const recentEvents = oneCase ? internal?.events.slice(-5).reverse() ?? [] : []
+  const recordSummaryClass = 'min-h-11 cursor-pointer rounded-lg px-4 py-3 font-medium'
 
   return (
     <div className={data.staff ? 'min-w-0' : 'container-page py-10'}>
@@ -1749,7 +1861,8 @@ export function GrantCaseView({
             label: 'Status to show the applicant',
             hint: 'The applicant can see this status immediately after you release it.',
             type: 'select',
-            options: reviewStatus.options.filter((status) => status !== publicStatus.status)
+            options: reviewStatus.options.filter((status) => status !== publicStatus.status &&
+              (status !== 'shortlisted' || !committeeWorkflow?.required || !!committeeReview))
               .map((value) => ({ value, label: applicationStatusCopy[value].label })),
           }],
           true,
@@ -1777,8 +1890,22 @@ export function GrantCaseView({
         </p>
       )}
       {oneCase ? (
-        <StaffCaseTabs key={data.id} panels={{
-          'case-decision': caseDecision,
+        <StaffCaseTabs key={data.id + ':' + (embeddedRecord ?? '')}
+          initialSection={embeddedRecord === 'History' || embeddedRecord === 'Impact' ? 'case-activity' : 'case-decision'} panels={{
+          'case-decision': (
+            <div className="space-y-5">
+              {caseDecision}
+              <SectionCard title="Scheduled next actions" className="space-y-4">{caseFollowups}</SectionCard>
+              <details open={embeddedRecord === 'Amendments' || undefined} className="rounded-xl border border-line">
+                <summary className={recordSummaryClass}>Changes to award terms</summary>
+                <div className="px-4 pb-5">{caseAmendments}</div>
+              </details>
+              <details id="case-payments" open={embeddedRecord === 'Payments' || undefined} className="scroll-mt-24 rounded-xl border border-line">
+                <summary className={recordSummaryClass}>Payments</summary>
+                <div className="px-4 pb-5">{casePayments}</div>
+              </details>
+            </div>
+          ),
           'case-application': (
             <div className="max-w-4xl space-y-2">
               {shortRequest}
@@ -1790,23 +1917,13 @@ export function GrantCaseView({
           'case-evidence': caseEvidence,
           'case-assessment': <SectionCard>{caseAssessment}</SectionCard>,
           'case-activity': (
-            <SectionCard title="Recent activity" className="space-y-3">
-              {recentEvents.length > 0 ? (
-                <ol className="divide-y divide-line">
-                  {recentEvents.map((event) => (
-                    <li key={event.id} className="flex flex-wrap justify-between gap-x-5 py-2 text-sm">
-                      <span>{recentActivityLabels.get(event.kind) ?? 'Case updated'}</span>
-                      <time dateTime={event.at} className="text-fg-muted">{event.at.slice(0, 10)} (UTC)</time>
-                    </li>
-                  ))}
-                </ol>
-              ) : <p>No activity recorded yet.</p>}
-              <nav aria-label="More case records" className="flex flex-wrap gap-x-5">
-                {['History', 'Follow-ups', 'Amendments', 'Payments', 'Impact'].map((section) => (
-                  <Link key={section} href={`${base}?tab=${section}`} className={jumpClass}>{section === 'History' ? 'Full history' : section}</Link>
-                ))}
-              </nav>
-            </SectionCard>
+            <div className="space-y-5">
+              <SectionCard>{caseHistory}</SectionCard>
+              <details open={embeddedRecord === 'Impact' || undefined} className="rounded-xl border border-line">
+                <summary className={recordSummaryClass}>Impact updates</summary>
+                <div className="px-4 pb-5">{caseImpact}</div>
+              </details>
+            </div>
           ),
         }} />
       ) : content}

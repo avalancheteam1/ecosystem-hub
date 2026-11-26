@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { missingForSubmission } from '@/lib/project-submission'
 import { SectionCard } from '@/components/section-card'
 import { BackLink } from '@/components/back-link'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { StartMiniGrantForm } from '../../_components/start-mini-grant-form'
 import { myProjects, publishedRounds } from '../../_lib/queries'
@@ -29,13 +30,20 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
     id, slug, name: v.name, tagline: v.shortDescription, imageUrl: v.logoUrl ?? v.coverUrl, maturity: v.maturity,
     versionNumber: v.number, sealed: !!v.sealedAt, members: _count.members, missing: missingForSubmission(v), demoLinks: v.demoLinks,
   }] : [])
+  const createProjectHref = '/projects/new?' + new URLSearchParams({ next: '/grants/mini-grants/apply', selectProject: '1' })
   return (
     <div className="container-page py-10">
       <BackLink href="/grants/applications">All applications</BackLink>
       <PageHeader
         title="New application"
-        description="Save an incomplete draft, review the full application, then confirm submission. Your existing project supplies the project details and team."
-      />
+        description={continuous
+          ? 'Choose or create a Hub project, save your draft, then review and submit it. A working demo link is required for submission.'
+          : 'Choose or create a Hub project, save your draft, then review and submit it.'}
+      >
+        {(continuous || rounds.length > 0) && projectOptions.length > 0 && (
+          <Button asChild variant="outline" className="min-h-11"><Link href={createProjectHref}>Create a project</Link></Button>
+        )}
+      </PageHeader>
       {!continuous && !rounds.length ? (
         <EmptyState
           title="No open round"
@@ -51,7 +59,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
         <EmptyState
           title="Create your project first"
           action={
-            <Link href={'/projects/new'} className="inline-flex min-h-11 items-center text-brand hover:underline">
+            <Link href={createProjectHref} className="inline-flex min-h-11 items-center text-brand hover:underline">
               {'Create a project'}
             </Link>
           }

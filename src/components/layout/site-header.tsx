@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getCurrentUser, type CurrentUser } from '@/lib/session'
 import { getHackathonRoles } from '@/app/(site)/events/_lib/hackathons/queries'
 import { can, holdsAny } from '@/lib/permissions'
+import { isFlagOn } from '@/lib/flag-store'
 import { Button } from '@/components/ui/button'
 import { Logo } from './logo'
 import { ThemeToggle } from './theme-toggle'
@@ -15,7 +16,7 @@ async function userMenuUser(user: CurrentUser): Promise<UserMenuUser> {
 }
 
 export async function SiteHeader() {
-  const user = await getCurrentUser()
+  const [user, grantsOn] = await Promise.all([getCurrentUser(), isFlagOn('grants')])
   const menu = user ? await userMenuUser(user) : null
   return (
     <header className="sticky top-0 z-50 h-16 border-b border-line bg-surface-0/80 backdrop-blur-md">
@@ -25,7 +26,7 @@ export async function SiteHeader() {
           <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
           <Link href="/education" className="text-fg-muted transition-colors hover:text-fg-heading">Education</Link>
           <Link href="/ecosystem" className="text-fg-muted transition-colors hover:text-fg-heading">Ecosystem</Link>
-          <Link href="/grants" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</Link>
+          {grantsOn && <Link href="/grants" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</Link>}
           {user && (
             <>
               <span aria-hidden className="h-4 w-px bg-line" />
@@ -35,7 +36,7 @@ export async function SiteHeader() {
           )}
         </nav>
         <div className="flex items-center gap-1 justify-self-end sm:gap-2">
-          <MobileNav signedIn={!!user} />
+          <MobileNav signedIn={!!user} grantsOn={grantsOn} />
           <ThemeToggle />
           {menu ? (
             <UserMenu user={menu} />

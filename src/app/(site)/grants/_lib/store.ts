@@ -9,7 +9,8 @@ import type { CurrentUser } from '@/lib/session'
 import { FLAGS, type Flag } from '@/lib/flags'
 import { recordProjectActivity, type ProjectActivityEvent } from '@/lib/project-activity'
 import { canEditProject, missingForSubmission, planSeal } from '@/lib/project-submission'
-import { continuousIntakePaused, hasDemoProof, id, missingDemo, projectReviewChanged, roundClosedForSubmission, roundNotAccepting, stateSchema, syntheticPayout, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState, type payoutDestinationSchema, type ReviewedProject } from './schemas'
+import { committeeReviewerAccess, readCommitteeRoster } from './committee-config'
+import { committeeAwardTerms, continuousIntakePaused, hasDemoProof, id, missingDemo, projectReviewChanged, roundClosedForSubmission, roundNotAccepting, stateSchema, syntheticPayout, terms, text, type IntakeAnswers, type PlanIntake, type Command, type GrantState, type payoutDestinationSchema, type ReviewedProject } from './schemas'
 import { milestoneFirstEnabled, shortIntakeEnabled, syntheticPayoutEnabled } from './config'
 import { projectReviewSnapshot } from './reviewed-project'
 import { assertReviewer } from './staff'
@@ -254,8 +255,9 @@ export async function createGrant(projectId: string, roundId: string, answers: E
 
 const awardAuthorizationSchema = z.object({
   applicationId: id, revision: z.number().int().nonnegative(), planId: id, actorId: id,
-  budget: text.max(2000), authority: text, terms,
+  budget: text.max(2000), authority: text, terms, awardRequestId: id.optional(),
 })
+const committeeAwardAuthorizationSchema = awardAuthorizationSchema.extend({ terms: committeeAwardTerms })
 const planActivity: Partial<Record<Command['kind'], ProjectActivityEvent>> = {
   clear_milestone: 'grant_plan_approved',
   submit_delivery: 'grant_evidence_submitted',
@@ -265,8 +267,22 @@ const planActivity: Partial<Record<Command['kind'], ProjectActivityEvent>> = {
   issue_award: 'grant_award_issued',
 }
 
-export function usesTransactionalDecisionAudit(kind: Command['kind']) {
-  return kind === 'hold_application' || kind === 'decline_application' || kind === 'issue_award'
+export function usesTransactionalGrantAudit(kind: Command['kind']) {
+  return kind === 'hold_application' || kind === 'decline_application' || kind === 'issue_award' ||
+    kind === 'shortlist_application' || kind === 'request_award_amount' || kind === 'respond_award_amount' || kind === 'vote_award'
+}
+
+async function checkCommitteeAccess(tx: Prisma.TransactionClient, roster: NonNullable<Awaited<ReturnType<typeof readCommitteeRoster>>>,
+  actorId: string, projectId?: string) {
+  // The authenticated actor already passed the current request's review permission check.
+  const otherIds = roster.memberIds.filter((id) => id !== actorId)
+  const reviewerCount = await tx.user.count({ where: { id: { in: otherIds }, ...committeeReviewerAccess } })
+  if (reviewerCount !== otherIds.length)
+    throw new ActionError('Every configured Committee reviewer must have grant review access.')
+  if (projectId && await tx.projectMember.findFirst({
+    where: { projectId, userId: { in: roster.memberIds } },
+    select: { id: true },
+  })) throw new ForbiddenError('A Committee seat has a project membership conflict')
 }
 
 // Only a server-side caller can supply authorization. The public action has no
@@ -328,14 +344,24 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       const effectiveCommand = command.kind === 'save_application'
         ? { ...command, answers: await resolveMilestone(tx, row.projectId, command.answers, false) }
         : command
+      const committeeReviewEnabled = state.version === 4 && await grantFlagOn(tx, 'grantsCommitteeReview')
+      const committeeRequired = state.version === 4 && (committeeReviewEnabled || !!state.committeeReview)
+      const approvalSchema = committeeRequired ? committeeAwardAuthorizationSchema : awardAuthorizationSchema
       const approval = command.kind === 'issue_award' && state.version === 4
-        ? awardAuthorizationSchema.safeParse(authorization).data : undefined
+        ? approvalSchema.safeParse(authorization).data : undefined
       const awardAuthorization = approval?.applicationId === row.id && approval.revision === row.revision &&
         approval.planId === state.applications.at(-1)?.id && approval.actorId === user.id ? approval : undefined
+      const shortlist = state.version === 4 ? state.committeeReview?.shortlist : undefined
+      const roster = committeeRequired
+        ? await readCommitteeRoster(tx, shortlist ? !!shortlist.managedRoster : await grantFlagOn(tx, 'grantsCommitteeInvitations'), shortlist)
+        : null
       const eventId = randomUUID()
       const next = transition(state, effectiveCommand, {
         id: eventId, actorId: user.id, now: now.toISOString(), projectVersionId, milestoneFirst: milestoneFirstEnabled(), awardAuthorization,
+        committeeReviewEnabled, committeeRoster: roster,
       })
+      if (roster && (command.kind === 'shortlist_application' || command.kind === 'vote_award' || command.kind === 'issue_award'))
+        await checkCommitteeAccess(tx, roster, user.id, command.kind === 'shortlist_application' ? undefined : row.projectId)
       if (previousScope && !hasChangedRoadmapScope(previousScope.milestones, next.answers) &&
         !hasChangedDemo(previousScope.demoLinks, await demoLinksForVersion(tx, row.projectId, projectVersionId)))
         throw new ActionError(missingScopeChange)
@@ -350,8 +376,8 @@ export async function mutateGrant(applicationId: string, revision: number, comma
       })
       if (result.count !== 1) throw conflict()
       // Reapplication reads this immutable decision kind and its resulting status.
-      const transactionalDecision = usesTransactionalDecisionAudit(command.kind)
-      const receiptKind = transactionalDecision && command.kind !== 'issue_award' ? 'record_decision' : command.kind
+      const standardDecisionReceipt = command.kind === 'hold_application' || command.kind === 'decline_application'
+      const receiptKind = standardDecisionReceipt ? 'record_decision' : command.kind
       await tx.grantRevision.create({
         data: { applicationId, number: revision + 1, actorId: user.id, kind: receiptKind, state: json(next) },
       })
@@ -364,12 +390,20 @@ export async function mutateGrant(applicationId: string, revision: number, comma
           targetId: applicationId, targetName: 'Mini Grants', event, actorId: user.id,
         }])
       }
-      if (transactionalDecision) await writeAudit(tx, {
+      if (usesTransactionalGrantAudit(command.kind)) await writeAudit(tx, {
         actorId: user.id, action: `grant.${command.kind}`, entityType: 'GrantApplication', entityId: applicationId,
         before: { revision },
         after: {
           revision: revision + 1,
-          ...(command.kind === 'issue_award' ? { decisionId: eventId, planId: awardAuthorization?.planId } : { outcome: next.status }),
+          ...(standardDecisionReceipt ? { outcome: next.status } : {}),
+          ...(command.kind === 'shortlist_application' ? { planId: command.planId } : {}),
+          ...(command.kind === 'request_award_amount' ? { requestId: eventId, planId: command.planId } : {}),
+          ...(command.kind === 'respond_award_amount' ? { requestId: command.requestId, outcome: command.outcome } : {}),
+          ...(command.kind === 'vote_award' ? { requestId: command.requestId, vote: command.vote } : {}),
+          ...(command.kind === 'issue_award' ? {
+            decisionId: eventId, planId: awardAuthorization?.planId,
+            ...(next.version === 4 && next.committeeReview?.issuedRequestId ? { requestId: next.committeeReview.issuedRequestId } : {}),
+          } : {}),
         },
       })
       return { id: applicationId, revision: revision + 1 }

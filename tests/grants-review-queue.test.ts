@@ -186,7 +186,7 @@ describe.skipIf(!database)('US-5 AC8 review queue on isolated Postgres', () => {
     expect(JSON.stringify(result)).not.toContain('Private budget reference')
   })
 
-  it('filters older roundless plans by their latest pinned milestone attempts before pagination', async () => {
+  it('filters older roundless plans by their latest pinned attempts and amount requests before pagination', async () => {
     getAuthState.mockResolvedValue({ status: 'signed-in', user: reviewer })
     const planAnswers = planSubmission.parse({
       intakeVersion: 3, amountMinor: terms.amountMinor, summary: 'Ship two synthetic deliverables',
@@ -253,6 +253,37 @@ describe.skipIf(!database)('US-5 AC8 review queue on isolated Postgres', () => {
     if (bothAccepted.version !== 4) throw new Error('Expected v4 delivery attempts')
     await expectLane({ ...bothAccepted, deliveries: [...bothAccepted.deliveries, foreignAttempt] }, 'decision')
     expect(JSON.stringify(await read({ ...query, action: 'decision' }))).not.toContain('Private synthetic proof review')
+
+    const committeeReview = {
+      shortlist: { actorId: reviewer.id, at: date.toISOString(), planId, reviewerIds: ['seat-1', 'seat-2', 'seat-3', 'seat-4'] },
+      requests: [],
+    }
+    const proposedAmount = {
+      id: randomUUID(), actorId: reviewer.id, at: date.toISOString(), planId,
+      totalMinor: 900,
+      milestoneAmounts: [{ milestoneId: first.milestoneId, amountMinor: 400 }, { milestoneId: second.milestoneId, amountMinor: 500 }],
+      reason: 'Synthetic amount request reason', votes: [],
+    }
+    const acceptedAmount = {
+      ...proposedAmount, response: { actorId: ownerId, at: date.toISOString(), outcome: 'accepted' as const },
+    }
+    const replacement = {
+      ...proposedAmount, id: randomUUID(),
+      milestoneAmounts: [{ milestoneId: first.milestoneId, amountMinor: 900 }, { milestoneId: second.milestoneId, amountMinor: 0 }],
+    }
+    const pendingReplacement = { ...bothAccepted, committeeReview: { ...committeeReview, requests: [acceptedAmount, replacement] } }
+    await expectLane(pendingReplacement, 'applicant')
+    const waitingQuery = { ...query, q: `${query.q} Waiting` }
+    expect((await read({ ...waitingQuery, action: 'decision' })).rows).toHaveLength(0)
+    const queueRow = (await read({ ...waitingQuery, action: 'applicant' })).rows[0]
+    expect(queueRow).not.toHaveProperty('committeeReview')
+    expect(JSON.stringify(queueRow)).not.toContain(proposedAmount.reason)
+    const declinedReplacement = { ...replacement, response: { ...acceptedAmount.response, outcome: 'declined' as const } }
+    const declinedState = { ...bothAccepted, committeeReview: { ...committeeReview, requests: [acceptedAmount, declinedReplacement] } }
+    await expectLane(declinedState, 'review')
+    const acceptedReplacement = { ...replacement, response: acceptedAmount.response }
+    const acceptedState = { ...bothAccepted, committeeReview: { ...committeeReview, requests: [proposedAmount, acceptedReplacement] } }
+    await expectLane(acceptedState, 'decision')
 
     const assessment = structuredClone(bothAccepted.assessment)
     for (const id of criterionIds) assessment.criteria[id] = { score: '2', basis: 'E', source: 'Synthetic evidence', rationale: 'Supported scope' }

@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ProjectPicker, type ProjectPickerOption } from '@/components/project-picker'
-import { Field } from '@/components/field'
+import { Field, FieldRequirement } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,9 @@ export type GrantField = {
   options?: { value: string; label: string }[]
   hint?: string
   optional?: boolean
+  requirement?: string
   maxLength?: number
+  minimumMinor?: 0 | 1
 }
 const read = (data: unknown, path: string): unknown =>
   path
@@ -177,10 +179,20 @@ export function GrantCommandForm({
           continue
         }
         const parsed = money.safeParse(raw)
-        if (!parsed.success) {
-          return fail(`${f.label}: Enter a dollar amount from $1 to $10,000 with up to two decimal places.`, f.path)
+        if (parsed.success) {
+          write(payload, f.path, parsed.data)
+          continue
         }
-        write(payload, f.path, parsed.data)
+        if (f.minimumMinor !== undefined) {
+          const subDollar = /^0+(?:\.(\d{1,2}))?$/.exec(String(raw))
+          const cents = Number((subDollar?.[1] ?? '').padEnd(2, '0'))
+          if (subDollar && cents >= f.minimumMinor) {
+            write(payload, f.path, cents)
+            continue
+          }
+        }
+        const minimum = f.minimumMinor === 0 ? '$0' : f.minimumMinor === 1 ? '$0.01' : '$1'
+        return fail(`${f.label}: Enter a dollar amount from ${minimum} to $10,000 with up to two decimal places.`, f.path)
       } else write(payload, f.path, f.type === 'number' ? (raw === '' ? null : Number(raw)) : raw)
     }
     if (wizard) {
@@ -238,6 +250,8 @@ export function GrantCommandForm({
     const fieldId = `${uid}-${i}`,
       value = values[f.path] ?? ''
     const invalid = error?.path === f.path
+    const requirement = f.requirement ?? (f.optional ? 'optional' : wizard && f.path !== 'projectId' && f.path !== 'roundId'
+      ? 'required to submit' : 'required')
     const descriptors = { 'aria-invalid': invalid || undefined, 'aria-describedby': invalid ? `${uid}-form-error` : undefined }
     const update = (v: string | boolean) => {
       setConfirmed(false)
@@ -247,7 +261,7 @@ export function GrantCommandForm({
     if (f.path === 'projectId' && projectOptions.length)
       return (
         <fieldset key={f.path}>
-          <legend className="mb-2 text-lg">Your Hub project</legend>
+          <legend className="mb-2 text-lg">Your Hub project<FieldRequirement>required</FieldRequirement></legend>
           <ProjectPicker projects={projectOptions} projectId={String(value)} onChange={update}
             returnTo={`${pathname}?project=${encodeURIComponent(String(value))}`} name={fieldId} invalid={invalid}
             describedBy={descriptors['aria-describedby']} />
@@ -257,11 +271,11 @@ export function GrantCommandForm({
       return (
         <label key={f.path} className="flex min-h-11 items-start gap-3 text-sm">
           <Checkbox {...descriptors} id={fieldId} checked={value === true} onCheckedChange={(v) => update(v === true)} className="mt-1" />
-          <span>{f.label}</span>
+          <span>{f.label}<FieldRequirement>{requirement}</FieldRequirement></span>
         </label>
       )
     return (
-      <Field key={f.path} id={fieldId} label={f.label} hint={f.hint}>
+      <Field key={f.path} id={fieldId} label={f.label} hint={f.hint} requirement={requirement}>
         {f.type === 'select' ? (
           <NativeSelect {...descriptors} id={fieldId} value={String(value)} onChange={(e) => update(e.target.value)} required={!f.optional}>
             <option value="">Choose</option>
@@ -371,7 +385,7 @@ export function GrantCommandForm({
           {!roundOpen && <p className="text-sm text-fg-muted">This round is closed. You can still save your draft.</p>}
           <label className="flex min-h-11 items-start gap-3">
             <Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} className="mt-1" />
-            <span>I confirm this application is accurate and ready for review. Submission seals the current project version.</span>
+            <span>I confirm this application is accurate and ready for review. Submission seals the current project version.<FieldRequirement>required to submit</FieldRequirement></span>
           </label>
         </div>
       )}

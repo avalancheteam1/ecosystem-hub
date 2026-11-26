@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation'
+import { isFlagOn } from '@/lib/flag-store'
 import Link from 'next/link'
 import { z } from 'zod'
 import { Pager } from '@/components/layout/pager'
@@ -7,7 +9,8 @@ import { EmptyState } from '@/components/empty-state'
 import { requirePermission } from '@/lib/guards'
 import { can } from '@/lib/permissions'
 import { GRANT_PAGE_SIZE, roundComparison } from '@/app/(site)/grants/_lib/queries'
-import { OperationsNav, RoundIntakeStatus } from '@/app/(site)/grants/_components/navigation'
+import { RoundIntakeStatus } from '@/app/(site)/grants/_components/navigation'
+import { OperationsNav } from '../_components/operations-nav'
 import { RoundControls } from '@/app/(site)/grants/_components/round-controls'
 import { RoundTable } from '@/app/(site)/grants/_components/round-table'
 import { stateSchema, assessment, storedRoundChoice } from '@/app/(site)/grants/_lib/schemas'
@@ -24,6 +27,7 @@ export default async function RoundsPage({
   }>
 }) {
   const user = await requirePermission('grants.review')
+  if (!(await isFlagOn('grantsRoundManagement'))) redirect('/admin/grants')
   const query = await searchParams
   const roundId = textParam(query.round)
   const snapshotId = textParam(query.snapshot)

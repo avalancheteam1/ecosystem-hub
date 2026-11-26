@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Field } from '@/components/field'
+import { Field, FieldRequirement } from '@/components/field'
 import { ProjectPicker, type ProjectPickerOption } from '@/components/project-picker'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
@@ -292,22 +292,23 @@ function ShortGrantFields({
       <fieldset disabled={busy} className="min-w-0 space-y-4">
         {!multi && <RoundIntakeStatus open={canSubmit} />}
         {summaryError}
+        <p className="text-sm text-fg-muted">You can save a draft before completing the fields required for submission.</p>
         {!draft && <SectionCard title="Project and round" className="space-y-5">
           <fieldset id={fields.project} tabIndex={-1} className="scroll-mt-24">
-            <legend className="mb-2 text-sm font-medium">Your Hub project</legend>
+            <legend className="mb-2 text-sm font-medium">Your Hub project<FieldRequirement>required</FieldRequirement></legend>
             <ProjectPicker projects={projects} projectId={projectId} onChange={(id) => {
               setProject(id)
               if (rows[0].milestone?.source === 'roadmap') updateMilestone(rows[0].key, null)
             }} returnTo={`/grants/mini-grants/apply?project=${projectId}`} />
           </fieldset>
-          <Field id={`${uid}-round`} label="Application round">
+          <Field id={`${uid}-round`} label="Application round" requirement="required">
             <NativeSelect id={`${uid}-round`} value={roundId} onChange={(e) => setRound(e.target.value)}>
               {rounds.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </NativeSelect>
           </Field>
         </SectionCard>}
         {continuous && draft && (
-          <SectionCard title="Working project or prototype" className="space-y-2 p-4 sm:p-6">
+          <SectionCard title="Working project or prototype" description="A working demo link is required to submit." className="space-y-2 p-4 sm:p-6">
             <div id={fields.project} tabIndex={-1} className="scroll-mt-24">
               <p>{draftProject?.name ?? draft.projectName}{draftProject && ` · Version ${draftProject.number}`}</p>
               {missingProjectDetails && <p className="text-sm text-fg-muted">{projectDetailsError}</p>}
@@ -323,12 +324,12 @@ function ShortGrantFields({
           </SectionCard>
         )}
         <SectionCard title="Funding request" className="space-y-4 p-4 sm:p-6">
-          <Field id={fields.amountMinor} label="Requested amount (USD)" required>
+          <Field id={fields.amountMinor} label="Requested amount (USD)" requirement="required to submit">
             <Input id={fields.amountMinor} className="min-h-11 max-w-56 scroll-mt-24" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} aria-required="true" {...errorProps(fields.amountMinor, `${uid}-amount-hint`)} />
             {inlineError(fields.amountMinor)}
             <p id={`${uid}-amount-hint`} className="text-sm text-fg-muted">Whole dollars, up to $10,000.</p>
           </Field>
-          <Field id={fields.summary} label="What will this grant fund?" required>
+          <Field id={fields.summary} label="What will this grant fund?" requirement="required to submit">
             <Textarea id={fields.summary} className="scroll-mt-24" maxLength={1000} value={summary} onChange={(e) => setSummary(e.target.value)} aria-required="true" {...errorProps(fields.summary)} />
             {inlineError(fields.summary)}
           </Field>
@@ -344,7 +345,7 @@ function ShortGrantFields({
             return (
               <fieldset key={key} className={`min-w-0 space-y-4 ${multi ? 'rounded-lg border border-line p-3.5 sm:p-4' : ''}`}>
                 {multi && <legend className="px-1 text-sm font-medium">Milestone {index + 1}</legend>}
-                <Field id={`${prefix}-milestone`} label={multi ? 'Milestone source' : 'Milestone'} required>
+                <Field id={`${prefix}-milestone`} label={multi ? 'Milestone source' : 'Milestone'} requirement="required to submit">
                   <NativeSelect id={`${prefix}-milestone`} className="scroll-mt-24" aria-required="true" value={milestone?.source === 'roadmap' ? milestone.id : milestone?.source ?? ''} {...errorProps(`${prefix}-milestone`)}
                     onChange={(event) => {
                       const id = event.target.value
@@ -377,18 +378,18 @@ function ShortGrantFields({
                   </div>
                 )}
                 {milestone?.source === 'application' && <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.5fr)]">
-                  <Field id={`${prefix}-deliverable`} label="Concrete deliverable" required>
+                  <Field id={`${prefix}-deliverable`} label="Concrete deliverable" requirement="required to submit">
                     <Input id={`${prefix}-deliverable`} className="min-h-11 scroll-mt-24" maxLength={250} value={milestone.title} aria-required="true"
                       onChange={(e) => updateMilestone(key, { ...milestone, title: e.target.value })} {...errorProps(`${prefix}-deliverable`)} />
                     {inlineError(`${prefix}-deliverable`)}
                   </Field>
-                  <Field id={`${prefix}-due`} label="Target date (UTC)" required>
+                  <Field id={`${prefix}-due`} label="Target date (UTC)" requirement="required to submit">
                     <Input id={`${prefix}-due`} className="min-h-11 min-w-0 scroll-mt-24" type="date" value={milestone.due} aria-required="true"
                       onChange={(e) => updateMilestone(key, { ...milestone, due: e.target.value })} {...errorProps(`${prefix}-due`)} />
                     {inlineError(`${prefix}-due`)}
                   </Field>
                 </div>}
-                {milestone && <Field id={`${prefix}-evidence`} label="What evidence will show completion?" required>
+                {milestone && <Field id={`${prefix}-evidence`} label="What evidence will show completion?" requirement="required to submit">
                   <Textarea id={`${prefix}-evidence`} className="scroll-mt-24" maxLength={500} value={milestone.evidence} aria-required="true"
                     onChange={(e) => updateMilestone(key, { ...milestone, evidence: e.target.value })} {...errorProps(`${prefix}-evidence`, `${prefix}-evidence-hint`)} />
                   {inlineError(`${prefix}-evidence`)}

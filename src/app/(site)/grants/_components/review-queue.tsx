@@ -9,6 +9,7 @@ import { PROJECT_MATURITY, type ProjectMaturity } from '@/lib/project-maturity'
 import { REVIEW_QUEUE_ACTIONS, type ReviewQueueLocation } from '../_lib/review-queue'
 import type { ReviewQueuePage } from '../_lib/review-queue-queries'
 import { RoundIntakeStatus } from './navigation'
+import { QueueActionFilter } from './queue-action-filter'
 
 type Row = ReviewQueuePage['rows'][number]
 const queuePath = '/admin/grants'
@@ -95,19 +96,14 @@ export function ReviewQueue({ location, result: { rows, hasMore } }: { location:
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <SearchForm key={`${view}:${action ?? ''}`} q={q} keep={keep} placeholder="Search project" className="mb-0 flex-1 basis-56" />
+        <QueueActionFilter key={action ?? ''} q={q} action={action} view={view} />
         <nav aria-label="Queue view" className="hidden gap-2 md:flex">
           <FilterChip href={queueHref({ ...location, view: 'list' })} active={view === 'list'}>List</FilterChip>
           <FilterChip href={queueHref({ ...location, view: 'kanban' })} active={view === 'kanban'}>Kanban</FilterChip>
         </nav>
       </div>
-      <nav aria-label="Filter by next action" className="mb-5 flex flex-wrap gap-2">
-        <FilterChip href={queueHref({ q, view })} active={!action}>All actions</FilterChip>
-        {REVIEW_QUEUE_ACTIONS.map(([key, label]) => (
-          <FilterChip key={key} href={queueHref({ q, view, action: key })} active={action === key}>{label}</FilterChip>
-        ))}
-      </nav>
       {rows.length === 0 ? (
         <EmptyState
           title={page > 1 ? 'No applications on this page' : q || action ? 'No matching applications' : 'No submitted applications'}

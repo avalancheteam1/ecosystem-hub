@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { action, ForbiddenError, ActionError } from '@/lib/action'
 import { can } from '@/lib/permissions'
 import { recordAudit } from '@/lib/audit'
+import { requireFlag } from '@/lib/flag-store'
 import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { id, text, stateSchema, roundSchema, roundChoice, storedRoundChoice } from './schemas'
@@ -13,6 +14,8 @@ import { assertReviewer, hasRoundConflict } from './staff'
 import { readiness, score } from './rules'
 
 export const createRound = action({ schema: roundSchema, permission: 'grants.manage' }, async (input, user) => {
+  await requireFlag('grants')
+  await requireFlag('grantsRoundManagement')
   if (!can(user, 'grants.review')) throw new ForbiddenError('Grant review access is also required')
   const row = await prisma.grantRound.create({ data: input, select: { id: true } })
   await recordAudit({ actorId: user.id, action: 'grant.round.create', entityType: 'GrantRound', entityId: row.id, after: input })
@@ -24,6 +27,8 @@ export const createRound = action({ schema: roundSchema, permission: 'grants.man
 export const setRoundOpen = action(
   { schema: z.object({ roundId: id, revision: z.number().int().nonnegative(), published: z.boolean() }), permission: 'grants.manage' },
   async (input, user) => {
+    await requireFlag('grants')
+    await requireFlag('grantsRoundManagement')
     if (!can(user, 'grants.review')) throw new ForbiddenError('Grant review access is also required')
     const r = await prisma.grantRound.updateMany({
       where: { id: input.roundId, revision: input.revision },
@@ -47,6 +52,8 @@ const choice = roundChoice
 export const chooseForRound = action(
   { schema: z.object({ roundId: id, revision: z.number().int().nonnegative(), applicationId: id, choice }), permission: 'grants.manage' },
   async (input, user) => {
+    await requireFlag('grants')
+    await requireFlag('grantsRoundManagement')
     if (!can(user, 'grants.review')) throw new ForbiddenError('Grant review access is also required')
     await prisma.$transaction(
       async (tx) => {
@@ -94,6 +101,8 @@ export const chooseForRound = action(
 export const snapshotRound = action(
   { schema: z.object({ roundId: id, revision: z.number().int().nonnegative(), note: text }), permission: 'grants.manage' },
   async (input, user) => {
+    await requireFlag('grants')
+    await requireFlag('grantsRoundManagement')
     if (!can(user, 'grants.review')) throw new ForbiddenError('Grant review access is also required')
     const result = await prisma.$transaction(
       async (tx) => {

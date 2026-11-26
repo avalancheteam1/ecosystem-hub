@@ -16,6 +16,36 @@ export type FlagDef = {
 }
 
 export const FLAGS = {
+  grants: {
+    label: 'Grants',
+    description: 'Public Grants pages, navigation and application actions. Staff can still review existing records.',
+    default: false,
+    paths: ['/grants'],
+  },
+  acceleratorGrants: {
+    label: 'Accelerator Grants discovery',
+    description: 'Show the Accelerator Grants programme and selection details on the Grants page.',
+    default: false,
+    paths: [],
+  },
+  grantsRoundManagement: {
+    label: 'Legacy grant rounds',
+    description: 'Allow staff to manage rounds and accept new round-based applications when continuous intake is off.',
+    default: false,
+    paths: [],
+  },
+  grantsCommitteeReview: {
+    label: 'Grants Committee review',
+    description: 'Route new Mini Grants decisions through the designated shortlist. Awards require applicant acceptance of the proposed amounts and approval under the assigned Committee voting rule. Cases already in Committee review keep those protections.',
+    default: false,
+    paths: [],
+  },
+  grantsCommitteeInvitations: {
+    label: 'Grants Committee invitations',
+    description: 'Use emailed invitations to fill the configured seats for new Committee shortlists. Existing shortlists keep their original roster.',
+    default: false,
+    paths: [],
+  },
   miniGrantsIntake: {
     label: 'Continuous Mini Grants intake',
     description: 'Switch new Mini Grant applications from rounds to continuous intake. Existing cases keep their workflow.',

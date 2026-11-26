@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useRef, useState, type FormEvent } from 'react'
-import { Field } from '@/components/field'
+import { Field, FieldRequirement } from '@/components/field'
 import { Button } from '@/components/ui/button'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
@@ -46,14 +46,14 @@ export function PayoutDestinationForm({ applicationId, revision, awardId }: {
         Use a synthetic address for the test token. You cannot change the address after confirmation.
       </p>
       <p className="text-sm text-fg-muted">Project editors and authorized Finance staff can see the confirmed address.</p>
-      <Field id={`${id}-network`} label="Test network" required>
+      <Field id={`${id}-network`} label="Test network" requirement="required">
         <NativeSelect id={`${id}-network`} name="network" required disabled={pending}
           aria-invalid={issue?.field === 'network'} aria-describedby={issue?.field === 'network' ? `${id}-error` : undefined}>
           <option value="">Select a test network</option>
           <option value={syntheticPayout.network}>{syntheticPayout.networkLabel}</option>
         </NativeSelect>
       </Field>
-      <Field id={`${id}-address`} label="Test payout address" required>
+      <Field id={`${id}-address`} label="Test payout address" requirement="required">
         {/* An unnamed control keeps the address out of native submissions before hydration. */}
         <Textarea id={`${id}-address`} ref={address} autoComplete="off" autoCapitalize="off" spellCheck={false} rows={2}
           required disabled={pending} className="resize-none wrap-anywhere font-mono" aria-invalid={issue?.field === 'address'}
@@ -62,7 +62,7 @@ export function PayoutDestinationForm({ applicationId, revision, awardId }: {
       <label className="flex min-h-11 items-center gap-3 text-sm">
         <input type="checkbox" name="confirm" required disabled={pending} className="size-4 shrink-0 accent-primary"
           aria-invalid={issue?.field === 'confirm'} aria-describedby={issue?.field === 'confirm' ? `${id}-error` : undefined} />
-        I checked that the test network and address are correct.
+        <span>I checked that the test network and address are correct.<FieldRequirement>required</FieldRequirement></span>
       </label>
       {issue && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{issue.message}</p>}
       <Button type="submit" disabled={pending}>{pending ? 'Confirming…' : 'Confirm test payout address'}</Button>

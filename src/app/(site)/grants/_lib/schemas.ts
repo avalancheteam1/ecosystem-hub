@@ -1,3 +1,4 @@
+import { committeeApprovalRules, maxCommitteeSize } from './committee-policy'
 import { z } from 'zod'
 
 export const roundNotAccepting = 'This round is not accepting applications'
@@ -202,6 +203,34 @@ const decision = meta.extend({
   authority: text,
 })
 const committeeDecision = decision.omit({ budget: true, authority: true }).extend({ terms: z.null() })
+const awardAmountMinor = z.number().int().positive().max(1000000)
+export const committeeAwardTerms = terms.extend({ amountMinor: awardAmountMinor })
+export const committeePublicAwardTerms = publicAwardTerms.extend({ amountMinor: awardAmountMinor })
+const awardAmount = {
+  planId: id,
+  totalMinor: awardAmountMinor,
+  milestoneAmounts: z.array(z.strictObject({
+    milestoneId: id,
+    amountMinor: z.number().int().nonnegative().max(1000000),
+  })).min(1).max(MAX_PLAN_MILESTONES),
+  reason: text,
+}
+const awardAmountResponse = { outcome: z.enum(['accepted', 'declined']), note: text.optional() }
+const awardVote = { vote: z.enum(['approve', 'oppose', 'abstain']), note: text }
+const committeeReview = z.object({
+  shortlist: meta.pick({ actorId: true, at: true }).extend({
+    planId: id,
+    reviewerIds: z.array(id).min(1).max(maxCommitteeSize),
+    managedRoster: z.literal(true).optional(),
+    approvalRule: z.enum(committeeApprovalRules).optional(),
+  }).refine(({ reviewerIds, actorId }) => new Set(reviewerIds).size === reviewerIds.length && !reviewerIds.includes(actorId)),
+  requests: z.array(meta.extend({
+    ...awardAmount,
+    response: meta.pick({ actorId: true, at: true }).extend(awardAmountResponse).optional(),
+    votes: z.array(meta.pick({ actorId: true, at: true }).extend(awardVote)),
+  })),
+  issuedRequestId: id.optional(),
+})
 const legacyState = z.object({
   version: z.literal(1),
   status: z.enum(['draft', 'submitted', 'approved', 'deferred', 'not_selected']),
@@ -259,9 +288,10 @@ const milestoneFirstState = currentState.extend({
 })
 const multiMilestoneState = currentState.extend({
   version: z.literal(4),
+  committeeReview: committeeReview.optional(),
   answers: planDraft,
   decisions: z.array(z.union([
-    decision,
+    decision.extend({ terms: committeeAwardTerms.nullable() }),
     committeeDecision.extend({ outcome: z.literal('deferred'), nextStep: text }),
     committeeDecision.extend({ outcome: z.literal('not_selected') }),
   ])),
@@ -276,6 +306,7 @@ const multiMilestoneState = currentState.extend({
     projectVersionId: id,
   })).max(1),
   planApproval: meta.extend({ planId: id, projectVersionId: id }).nullable(),
+  terms: z.array(currentState.shape.terms.element.extend({ terms: committeeAwardTerms })),
   deliveries: z.array(submission.extend({ termsVersion: z.null(), planId: id, milestoneId: id })),
 })
 // Upgrade the live aggregate on its next write. Historical v1 receipts remain readable.
@@ -343,6 +374,10 @@ export const commandSchema = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ kind: z.literal('hold_application'), rationale: text, publicNote: text, nextStep: text }),
   z.strictObject({ kind: z.literal('decline_application'), rationale: text, publicNote: text }),
+  z.strictObject({ kind: z.literal('shortlist_application'), planId: id }),
+  z.strictObject({ kind: z.literal('request_award_amount'), ...awardAmount }),
+  z.strictObject({ kind: z.literal('respond_award_amount'), requestId: id, ...awardAmountResponse }),
+  z.strictObject({ kind: z.literal('vote_award'), requestId: id, ...awardVote }),
   z.strictObject({ kind: z.literal('issue_award'), rationale: text, publicNote: text }),
   z.object({ kind: z.literal('clear_milestone'), confirm: z.literal(true), planId: id.optional() }),
   z.object({ kind: z.literal('confirm_terms'), confirm: z.literal(true) }),

@@ -27,11 +27,11 @@ function MilestoneDialog({ trigger, title, initial, pending, onSubmit }: { trigg
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setM((p) => ({ ...p, [k]: v }))
   return (
     <FormDialog trigger={trigger} title={title} submitLabel="Save milestone" pending={pending} onOpenChange={(o) => o && setM(initial)} onSubmit={() => onSubmit(m)}>
-      <Field id="ms-title" label="Title" required>
+      <Field id="ms-title" label="Title" requirement="required">
         <Input id="ms-title" value={m.title} onChange={(e) => set('title', e.target.value)} required maxLength={120} placeholder="e.g. Mainnet launch" className="h-11" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="ms-date" label="Target date" required>
+        <Field id="ms-date" label="Target date" requirement="required">
           <Input id="ms-date" type="date" value={m.targetDate} onChange={(e) => set('targetDate', e.target.value)} required className="h-11" />
         </Field>
         <Field id="ms-status" label="Status">
@@ -40,7 +40,7 @@ function MilestoneDialog({ trigger, title, initial, pending, onSubmit }: { trigg
           </NativeSelect>
         </Field>
       </div>
-      <MarkdownField id="ms-desc" label="Description" hint="What it includes, how you'll know it's done. Markdown works." value={m.description ?? ''} onChange={(t) => set('description', t)} maxLength={2000} rows={5} />
+      <MarkdownField id="ms-desc" label="Description (optional)" hint="What it includes, how you'll know it's done. Markdown works." value={m.description ?? ''} onChange={(t) => set('description', t)} maxLength={2000} rows={5} />
     </FormDialog>
   )
 }

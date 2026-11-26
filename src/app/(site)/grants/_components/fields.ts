@@ -20,7 +20,7 @@ export const applicationFields: GrantField[] = [
   { path: 'answers.outcome', label: 'What will this grant fund?', type: 'textarea', hint: 'Summarise the work and its expected benefit to Avalanche.' },
   { path: 'answers.whyGrant', label: 'Why is your project a good fit for this grant?', type: 'textarea', maxLength: 4000, hint: 'Explain why funding matters now and what it makes possible.' },
   { path: 'answers.capability', label: 'Execution capability', type: 'textarea' },
-  { path: 'answers.projectMilestoneId', label: 'Project milestone', type: 'select', optional: true },
+  { path: 'answers.projectMilestoneId', label: 'Project milestone', type: 'select', optional: true, requirement: 'required to submit' },
   ...termsFields('answers.terms')
     .filter((field) => !['answers.terms.title', 'answers.terms.due'].includes(field.path))
     .map((field) => field.path === 'answers.terms.amountMinor' ? { ...field, label: 'Requested amount (USD)' } : field),
@@ -48,12 +48,13 @@ export const assessmentFields = (plain: boolean): GrantField[] => [
         { value: 'S', label: plain ? 'Stated only' : 'S - stated, not corroborated' },
       ],
     },
-    { path: `assessment.criteria.${id}.source`, label: plain ? 'Evidence link or reference' : `${id} source`, optional: true, maxLength: 2000 },
+    { path: `assessment.criteria.${id}.source`, label: plain ? 'Evidence link or reference' : `${id} source`, optional: true, requirement: 'required for awards when scored', maxLength: 2000 },
     {
       path: `assessment.criteria.${id}.rationale`,
       label: plain ? 'Why this score?' : `${id} rationale`,
       type: 'textarea',
       optional: true,
+      requirement: 'required for awards when scored',
       hint: anchors[i].map((anchor, score) => `${score}: ${anchor}`).join(' / '),
     },
   ]),
@@ -66,7 +67,7 @@ export const assessmentFields = (plain: boolean): GrantField[] => [
         { value: 'unresolved', label: 'Needs review' }, { value: 'pass', label: 'Checked' }, { value: 'not_applicable', label: 'Does not apply' },
       ] : options('unresolved', 'pass', 'not_applicable'),
     },
-    { path: `assessment.clearances.${id}.evidence`, label: `${plain && id === 'eligibility' ? 'Eligibility' : clearanceNames[i]} evidence`, optional: true, maxLength: 2000 },
+    { path: `assessment.clearances.${id}.evidence`, label: `${plain && id === 'eligibility' ? 'Eligibility' : clearanceNames[i]} evidence`, optional: true, requirement: 'required for awards', maxLength: 2000 },
   ]),
   { path: 'assessment.note', label: 'Internal reviewer note', type: 'textarea', optional: true },
 ]
@@ -77,8 +78,8 @@ export const costRepeater = (prefix = 'answers.costs') => ({
   limit: 30,
   template: { title: '', amountMinor: 0 },
   fields: [
-    { path: 'title', label: 'Description', optional: true },
-    { path: 'amountMinor', label: 'Amount (USD)', type: 'money' as const, optional: true },
+    { path: 'title', label: 'Description', optional: true, requirement: 'required to submit' },
+    { path: 'amountMinor', label: 'Amount (USD)', type: 'money' as const, optional: true, requirement: 'required to submit' },
   ],
 })
 export const metricRepeater = {

@@ -49,11 +49,17 @@ const milestonePlanAction = Prisma.sql`(
 // These lanes describe the current workflow, independent of the viewer's write permissions.
 // Extend this classification and its persisted transition tests together as the lifecycle changes.
 // A published recommendation alone does not make a case ready for a decision.
+const amountRequest = Prisma.sql`((g.state #> '{committeeReview,requests}') -> -1)`
+
 const nextAction = Prisma.sql`CASE
   WHEN g.state->>'closedAt' IS NOT NULL OR g.status IN ('deferred', 'not_selected', 'withdrawn') THEN 'inactive'
   WHEN g.status = 'submitted' THEN CASE
     WHEN jsonb_path_exists(g.state, '$.requests[*] ? (@.answeredAt == null)') THEN 'applicant'
-    WHEN g.state->>'version' = '4' THEN ${milestonePlanAction}
+    WHEN g.state->>'version' = '4' THEN CASE
+      WHEN ${amountRequest} IS NOT NULL AND ${amountRequest} #>> '{response,outcome}' IS NULL THEN 'applicant'
+      WHEN ${amountRequest} #>> '{response,outcome}' = 'declined' THEN 'review'
+      ELSE ${milestonePlanAction}
+    END
     WHEN g.state->>'version' <> '3' OR g.state->>'milestoneClearance' IS NULL THEN 'review'
     WHEN g.state->'deliveries'->-1->>'state' = 'submitted' THEN 'verification'
     WHEN g.state->'deliveries'->-1->>'state' = 'accepted' THEN 'decision'
@@ -71,6 +77,11 @@ const nextAction = Prisma.sql`CASE
   ELSE 'inactive'
 END`
 
+const reviewableBy = (userId: string) => Prisma.sql`g.status <> 'draft'
+      AND NOT EXISTS (
+        SELECT 1 FROM project_members m WHERE m."projectId" = g."projectId" AND m."userId" = ${userId}
+      )`
+
 export async function readReviewQueue({ q, action, page }: ReviewQueueFilters) {
   const user = await requirePermission('grants.review')
   // Do authorization, search, and classification in Postgres before the page limit. Read one extra
@@ -82,10 +93,7 @@ export async function readReviewQueue({ q, action, page }: ReviewQueueFilters) {
     JOIN project_versions v ON v.id = g."projectVersionId"
     LEFT JOIN grant_rounds r ON r.id = g."roundId"
     CROSS JOIN LATERAL (SELECT ${nextAction} AS "nextAction") queue
-    WHERE g.status <> 'draft'
-      AND NOT EXISTS (
-        SELECT 1 FROM project_members m WHERE m."projectId" = g."projectId" AND m."userId" = ${user.id}
-      )
+    WHERE ${reviewableBy(user.id)}
       ${q ? Prisma.sql`AND v.name ILIKE ${`%${q}%`}` : Prisma.empty}
       ${action ? Prisma.sql`AND queue."nextAction" = ${action}` : Prisma.empty}
     ORDER BY g."updatedAt" DESC, g.id DESC
@@ -105,3 +113,14 @@ export async function readReviewQueue({ q, action, page }: ReviewQueueFilters) {
 }
 
 export type ReviewQueuePage = Awaited<ReturnType<typeof readReviewQueue>>
+
+export async function countReviewQueueActions() {
+  const user = await requirePermission('grants.review')
+  return prisma.$queryRaw<{ action: ReviewQueueAction; count: number }[]>`
+    SELECT queue."nextAction" AS action, count(*)::int AS count
+    FROM grant_applications g
+    CROSS JOIN LATERAL (SELECT ${nextAction} AS "nextAction") queue
+    WHERE ${reviewableBy(user.id)} AND queue."nextAction" IN ('review', 'verification', 'decision')
+    GROUP BY queue."nextAction"
+  `
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
+import { FieldRequirement } from '@/components/field'
 import { useRouter } from 'next/navigation'
 import { ProjectPicker, type ProjectPickerOption } from '@/components/project-picker'
 import { SectionCard } from '@/components/section-card'
@@ -50,7 +51,7 @@ export function StartMiniGrantForm({ projects, initialProject = '' }: { projects
       }}>
         <SectionCard className="p-4 sm:p-6">
           <fieldset disabled={pending} className="min-w-0">
-            <legend className="mb-3 text-lg">Choose your Hub project</legend>
+            <legend className="mb-3 text-lg">Choose your Hub project<FieldRequirement>required to continue</FieldRequirement></legend>
             {error && <p id={`${uid}-error`} ref={errorRef} tabIndex={-1} role="alert" className="mb-3 border-s-2 border-destructive ps-2 text-sm font-medium text-fg-heading">{error.text}</p>}
             <ProjectPicker projects={projects} projectId={projectId} onChange={(id) => {
               setProject(id)
@@ -60,7 +61,7 @@ export function StartMiniGrantForm({ projects, initialProject = '' }: { projects
         </SectionCard>
         {project && <SectionCard title="Working project or prototype" className="space-y-2 p-4 sm:p-6">
           <ProjectDemoLinks links={project.demoLinks} />
-          <p className="text-sm text-fg-muted">You can start a draft now. Add a working demo link to your Hub project before submitting.</p>
+          <p className="text-sm text-fg-muted">A working demo link is required for submission. You can start a draft now.</p>
           {!hasDemoProof(project.demoLinks) && <Link href={`/projects/${project.slug}/edit?next=${encodeURIComponent(returnTo)}`}
             className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Edit project links</Link>}
         </SectionCard>}

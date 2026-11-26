@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { committeeRoster } from '@/app/(site)/grants/_lib/committee-config'
 import { syntheticPayoutEnabled } from '@/app/(site)/grants/_lib/config'
 
 vi.mock('server-only', () => ({}))
@@ -55,5 +56,29 @@ describe('US-7 synthetic payout database boundary', () => {
     vi.stubEnv('GRANTS_SYNTHETIC_PAYOUT_ENABLED', 'true')
     vi.stubEnv('NODE_ENV', 'production')
     expect(syntheticPayoutEnabled(fixture)).toBe(false)
+  })
+})
+
+describe('Committee roster configuration', () => {
+  it('accepts different numbers of distinct Hub users and trims configured IDs', () => {
+    vi.stubEnv('GRANTS_SHORTLISTER_ID', ' lead ')
+    vi.stubEnv('GRANTS_COMMITTEE_MEMBER_IDS', ' a, b,c,d ')
+    expect(committeeRoster()).toEqual({ shortlisterId: 'lead', memberIds: ['a', 'b', 'c', 'd'] })
+    vi.stubEnv('GRANTS_COMMITTEE_MEMBER_IDS', 'a,b,c')
+    expect(committeeRoster()?.memberIds).toEqual(['a', 'b', 'c'])
+    vi.stubEnv('GRANTS_COMMITTEE_MEMBER_IDS', 'a,b,c,d,e')
+    expect(committeeRoster()?.memberIds).toHaveLength(5)
+  })
+
+  it.each(['', 'a,a,c,d', 'lead,b,c,d', 'a,b,c,', undefined])('rejects an invalid roster %s', (ids) => {
+    vi.stubEnv('GRANTS_SHORTLISTER_ID', 'lead')
+    vi.stubEnv('GRANTS_COMMITTEE_MEMBER_IDS', ids)
+    expect(committeeRoster()).toBeNull()
+  })
+
+  it('needs a designated shortlister', () => {
+    vi.stubEnv('GRANTS_SHORTLISTER_ID', undefined)
+    vi.stubEnv('GRANTS_COMMITTEE_MEMBER_IDS', 'a,b,c,d')
+    expect(committeeRoster()).toBeNull()
   })
 })

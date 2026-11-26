@@ -6,7 +6,7 @@ import { DataTable } from '@/components/data-table'
 import { requirePermission } from '@/lib/guards'
 import { GRANT_PAGE_SIZE, operations } from '@/app/(site)/grants/_lib/queries'
 import { addDays } from '@/app/(site)/grants/_lib/rules'
-import { OperationsNav } from '@/app/(site)/grants/_components/navigation'
+import { OperationsNav } from '../_components/operations-nav'
 
 export default async function ImpactPage({ searchParams }: { searchParams: Promise<{ day?: string | string[]; page?: string | string[] }> }) {
   await requirePermission('grants.review')

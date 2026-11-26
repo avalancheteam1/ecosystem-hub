@@ -3,8 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { PrismaClient } from '@prisma/client'
 import type { CurrentUser } from '@/lib/session'
 import type { Permission } from '@/lib/permissions'
-import { answers, criterionIds, clearanceIds, type Command, type GrantState, type PlanIntake } from '@/app/(site)/grants/_lib/schemas'
-import { addDays, initialState, transition } from '@/app/(site)/grants/_lib/rules'
+import { answers, criterionIds, clearanceIds, stateSchema, type Command, type GrantState, type PlanIntake } from '@/app/(site)/grants/_lib/schemas'
+import { addDays, applicantProjection, initialState, planAwardScope, transition } from '@/app/(site)/grants/_lib/rules'
 import { projectReviewSnapshot } from '@/app/(site)/grants/_lib/reviewed-project'
 
 // Explicitly opt in; the default Hub suite remains DB-less. Refuse production URLs.
@@ -38,6 +38,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     applications: string[] = []
   let db: PrismaClient, store: typeof import('@/app/(site)/grants/_lib/store'), actions: typeof import('@/app/(site)/grants/_lib/actions')
   let builder: CurrentUser, reviewer: CurrentUser, stranger: CurrentUser, roundId: string
+  const featureKeys = ['grants', 'grantsRoundManagement'] as const
   const user = (id: string, permissions: Permission[] = []): CurrentUser => ({
     id,
     name: 'Synthetic test account',
@@ -178,6 +179,7 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     db = (await import('@/lib/db')).prisma
     store = await import('@/app/(site)/grants/_lib/store')
     actions = await import('@/app/(site)/grants/_lib/actions')
+    await db.featureFlag.createMany({ data: featureKeys.map((key) => ({ key, enabled: true })) })
     builder = user(`${prefix}-builder`)
     reviewer = user(`${prefix}-reviewer`, ['grants.review', 'grants.decide', 'grants.verify', 'grants.payments', 'grants.manage'])
     stranger = user(`${prefix}-stranger`)
@@ -208,7 +210,30 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
     await db.projectVersion.deleteMany({ where: { projectId: { in: projects } } })
     await db.project.deleteMany({ where: { id: { in: projects } } })
     await db.user.deleteMany({ where: { id: { in: userIds } } })
+    await db.featureFlag.deleteMany({ where: { key: { in: [...featureKeys] } } })
     await db.$disconnect()
+  })
+  it('US-F3 pauses public writes and independently blocks new round applications', async () => {
+    const { clearFlagCache } = await import('@/lib/flag-store')
+    const session = await import('@/lib/session')
+    const p = await project()
+    vi.mocked(session.getCurrentUser).mockResolvedValue(builder)
+    const setFlag = async (key: (typeof featureKeys)[number], enabled: boolean) => {
+      await db.featureFlag.update({ where: { key }, data: { enabled } })
+      clearFlagCache()
+    }
+    try {
+      await setFlag('grants', false)
+      expect(await actions.startApplication({ projectId: p.id })).toEqual({ ok: false, error: 'Grants is not available right now' })
+      await setFlag('grants', true)
+      await setFlag('grantsRoundManagement', false)
+      expect(await actions.createApplication({ projectId: p.id, roundId, answers: fields(), submit: false }))
+        .toEqual({ ok: false, error: 'Legacy grant rounds is not available right now' })
+      expect(await db.grantApplication.count({ where: { projectId: p.id } })).toBe(0)
+    } finally {
+      await setFlag('grants', true)
+      await setFlag('grantsRoundManagement', true)
+    }
   })
   it('US-1 starts or resumes one roundless case with one receipt and one audit', async () => {
     const session = await import('@/lib/session')
@@ -672,6 +697,120 @@ describe.skipIf(!database)('native grant transactions on isolated Postgres', () 
       })).toMatchObject({ ok: true })
     } finally {
       await db.featureFlag.delete({ where: { key: 'miniGrantsIntake' } })
+    }
+  })
+
+  it('validates Committee seat access and conflicts in the same transaction as the case write', async () => {
+    const p = await project()
+    const shortlister = user(`${prefix}-shortlister`, ['grants.review'])
+    const committee = Array.from({ length: 4 }, (_value, index) =>
+      user(`${prefix}-seat-${index}`, ['grants.review', 'grants.decide']))
+    const seatIds = committee.map(({ id }) => id)
+    const [firstSeat, secondSeat, , fourthSeat] = committee
+    for (const actor of [shortlister, ...committee]) {
+      await db.user.create({
+        data: { id: actor.id, name: actor.name, email: actor.email, builderRoles: [], otherSocials: [], wallets: [], skills: [] },
+      })
+      userIds.push(actor.id)
+    }
+    await db.userPermission.createMany({ data: seatIds.slice(0, 3).map((userId) => ({ userId, permission: 'grants.review' })) })
+    vi.stubEnv('GRANTS_SHORTLISTER_ID', shortlister.id)
+    vi.stubEnv('GRANTS_COMMITTEE_MEMBER_IDS', seatIds.join(','))
+    const planAnswers: PlanIntake = {
+      intakeVersion: 3, amountMinor: 500000, summary: 'Deliver the agreed quickstart.',
+      milestones: [{ source: 'application', title: 'Quickstart', due: fields().terms.due, evidence: 'Run independently' }],
+    }
+    const apply = (s: GrantState, command: Command) =>
+      transition(s, command, { id: randomUUID(), actorId: reviewer.id, now: now(), projectVersionId: p.versionId })
+    let verified = apply(initialState(planAnswers), { kind: 'submit_application', confirm: true, planAnswers })
+    if (verified.version !== 4) throw new Error('Expected a version 4 plan')
+    const plan = verified.applications[0]
+    const [milestone] = plan.answers.milestones
+    verified = apply(verified, { kind: 'clear_milestone', confirm: true, planId: plan.id })
+    verified = apply(verified, {
+      kind: 'submit_delivery', planId: plan.id, milestoneId: milestone.milestoneId, previousAttemptId: null,
+      release: 'https://example.test/release', reproduction: 'https://example.test/repro', note: 'Evidence',
+    })
+    verified = apply(verified, {
+      kind: 'review_delivery', planId: plan.id, milestoneId: milestone.milestoneId, deliveryId: verified.deliveries.at(-1)!.id,
+      outcome: 'accepted', inspected: true, reproduced: true, matches: true, note: 'Verified', evidence: 'Reproduced',
+    })
+    const assessment = structuredClone(verified.assessment)
+    for (const criterion of criterionIds) assessment.criteria[criterion] = { source: 'Fixture', score: '2', basis: 'E', rationale: 'Fixture' }
+    for (const clearance of clearanceIds) assessment.clearances[clearance] = { evidence: 'Fixture', state: 'pass' }
+    verified = apply(verified, { kind: 'save_assessment', assessment })
+    const { id } = await db.grantApplication.create({
+      data: { projectId: p.id, projectVersionId: p.versionId, status: verified.status, state: store.json(verified) },
+    })
+    applications.push(id)
+    let revision = 0
+    const { getCurrentUser } = await import('@/lib/session')
+    const change = async (command: Command, actor: CurrentUser, expected = revision) => {
+      vi.mocked(getCurrentUser).mockResolvedValue(actor)
+      const result = await actions.changeApplication({ applicationId: id, revision: expected, command })
+      if (result.ok) revision = result.data.revision
+      return result
+    }
+    const workflowFlag = 'grantsCommitteeReview'
+    await db.featureFlag.create({ data: { key: workflowFlag, enabled: true } })
+    try {
+      const shortlist = { kind: 'shortlist_application', planId: plan.id } as const
+      expect(await change(shortlist, reviewer)).toMatchObject({ ok: false })
+      expect(await change(shortlist, shortlister)).toMatchObject({ ok: false, error: expect.stringContaining('grant review access') })
+      await db.userPermission.create({ data: { userId: fourthSeat.id, permission: 'grants.review' } })
+      expect(await change(shortlist, shortlister)).toMatchObject({ ok: true, data: { revision: 1 } })
+      await db.featureFlag.update({ where: { key: workflowFlag }, data: { enabled: false } })
+      const propose = {
+        kind: 'request_award_amount', planId: plan.id, totalMinor: 1, reason: 'Propose a smaller amount',
+        milestoneAmounts: [{ milestoneId: milestone.milestoneId, amountMinor: 1 }],
+      } as const
+      expect(await change({ ...propose, milestoneAmounts: [...propose.milestoneAmounts] }, shortlister)).toMatchObject({ ok: true })
+      const requested = stateSchema.parse((await db.grantApplication.findUniqueOrThrow({ where: { id } })).state)
+      if (requested.version !== 4 || !requested.committeeReview) throw new Error('Expected a shortlisted application')
+      const requestId = requested.committeeReview.requests[0].id
+      const respond = { kind: 'respond_award_amount', requestId, outcome: 'accepted' } as const
+      expect(await change(respond, stranger)).toMatchObject({ ok: false })
+      expect(await change(respond, builder)).toMatchObject({ ok: true })
+      expect(await change(respond, builder, revision - 1)).toMatchObject({ ok: false, error: expect.stringContaining('record changed') })
+      const vote = { kind: 'vote_award', requestId, vote: 'approve', note: 'Private ballot' } as const
+      expect(await change(vote, reviewer)).toMatchObject({ ok: false })
+      for (const actor of committee)
+        expect(await change(vote, actor)).toMatchObject({ ok: true })
+      const conflictingMember = await db.projectMember.create({ data: { projectId: p.id, userId: secondSeat.id, role: 'reader' } })
+      expect(await change({ ...vote, note: 'Still approve' }, secondSeat)).toMatchObject({ ok: false })
+      await expect(store.mutateGrant(id, revision, { ...vote, note: 'Still approve' }, firstSeat)).rejects.toThrow(/membership conflict/i)
+      const issue = { kind: 'issue_award', rationale: 'Verified', publicNote: 'Award issued' } as const
+      expect(await change(issue, firstSeat)).toMatchObject({ ok: false, error: expect.stringContaining('Finance') })
+      const authorization = {
+        applicationId: id, revision, planId: plan.id, actorId: firstSeat.id, awardRequestId: requestId,
+        authority: 'Committee fixture', budget: 'Finance fixture',
+        terms: { ...fields().terms, ...planAwardScope(plan.answers.milestones), amountMinor: propose.totalMinor },
+      }
+      const issueWithAuthority = () => store.mutateGrant(id, revision, issue, firstSeat, authorization)
+      await expect(store.mutateGrant(id, revision, issue, firstSeat, { ...authorization, awardRequestId: 'stale-request' }))
+        .rejects.toThrow(/accepted amount request/i)
+      await expect(issueWithAuthority()).rejects.toThrow(/membership conflict/i)
+      await db.projectMember.delete({ where: { id: conflictingMember.id } })
+      await db.userPermission.deleteMany({ where: { userId: fourthSeat.id, permission: 'grants.review' } })
+      await expect(store.mutateGrant(id, revision, { ...vote, note: 'Still approve' }, firstSeat)).rejects.toThrow(/grant review access/i)
+      await expect(issueWithAuthority()).rejects.toThrow(/grant review access/i)
+      expect(await db.auditLog.count({ where: { entityId: id, action: 'grant.issue_award' } })).toBe(0)
+      await db.userPermission.create({ data: { userId: fourthSeat.id, permission: 'grants.review' } })
+      expect(await issueWithAuthority()).toMatchObject({ revision: revision + 1 })
+      const issued = stateSchema.parse((await db.grantApplication.findUniqueOrThrow({ where: { id } })).state)
+      expect(issued).toMatchObject({ status: 'approved', committeeReview: { issuedRequestId: requestId } })
+      expect(applicantProjection(issued).terms).toMatchObject([{ terms: { amountMinor: 1 } }])
+      const receipts = await db.grantRevision.findMany({ where: { applicationId: id }, orderBy: { number: 'asc' } })
+      expect(receipts.map(({ kind }) => kind)).toEqual([
+        'shortlist_application', 'request_award_amount', 'respond_award_amount',
+        'vote_award', 'vote_award', 'vote_award', 'vote_award', 'issue_award',
+      ])
+      const audit = await db.auditLog.findMany({ where: { entityId: id } })
+      expect(audit).toHaveLength(receipts.length)
+      expect(audit.find(({ action }) => action === 'grant.issue_award')?.after).toMatchObject({ requestId, planId: plan.id })
+      expect(JSON.stringify(audit)).not.toMatch(/Private ballot|Propose a smaller amount|Finance fixture/)
+    } finally {
+      await db.featureFlag.delete({ where: { key: workflowFlag } })
     }
   })
 

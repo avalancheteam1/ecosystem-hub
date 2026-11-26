@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { DataTable } from '@/components/data-table'
 import { requirePermission } from '@/lib/guards'
 import { GRANT_PAGE_SIZE, operations } from '@/app/(site)/grants/_lib/queries'
-import { OperationsNav } from '@/app/(site)/grants/_components/navigation'
+import { OperationsNav } from '../_components/operations-nav'
 
 export default async function FollowupsPage({ searchParams }: { searchParams: Promise<{ page?: string | string[] }> }) {
   await requirePermission('grants.review')
@@ -15,10 +15,10 @@ export default async function FollowupsPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader
-        title="Follow-ups"
+        title="Next actions"
         description="Every case has a next useful action. Open a case to add, reschedule or complete an action."
       />
-      <OperationsNav active="Follow-ups" />
+      <OperationsNav active="Next actions" />
       <DataTable
         id="grants:followups"
         columns={[

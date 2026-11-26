@@ -1,8 +1,9 @@
 import { canEditProject } from '@/lib/project-submission'
-import { ActionError } from '@/lib/action-error'
+import { committeeVoteResult, validCommitteeSize, type CommitteeApprovalRule } from './committee-policy'
+import { ActionError, ForbiddenError } from '@/lib/action-error'
 import type { Permission } from '@/lib/permissions'
 import { can, type AuthzUser } from '@/lib/permissions'
-import { stateSchema, answers, shortSubmission, planSubmission, publicAwardTerms, terms, type IntakeAnswers, type ShortIntake, criterionIds, clearanceIds, type Answers, type Assessment, type Command, type GrantState } from './schemas'
+import { stateSchema, answers, shortSubmission, planSubmission, publicAwardTerms, committeePublicAwardTerms, terms, type IntakeAnswers, type ShortIntake, criterionIds, clearanceIds, type Answers, type Assessment, type Command, type GrantState } from './schemas'
 
 export const criterionNames = [
   'Avalanche relevance',
@@ -119,6 +120,7 @@ const applicantCommands: Command['kind'][] = [
   'save_application',
   'submit_application',
   'answer_request',
+  'respond_award_amount',
   'confirm_terms',
   'submit_delivery',
   'submit_amendment',
@@ -176,6 +178,43 @@ function reassessedAfter(s: GrantState, reply: number, before = s.events.length)
 }
 
 type MultiMilestoneState = Extract<GrantState, { version: 4 }>
+type CommitteeRoster = { shortlisterId: string; memberIds: readonly string[]; managed?: true; approvalRule?: CommitteeApprovalRule }
+
+function pinnedPlan(state: MultiMilestoneState, planId: string | undefined, projectVersionId: string) {
+  const plan = state.applications.at(-1)
+  if (!plan || plan.id !== planId || plan.projectVersionId !== projectVersionId)
+    throw new ActionError('Review the current pinned plan before continuing.')
+  return plan
+}
+
+function requireCommitteeRoster(roster: CommitteeRoster | null | undefined, review?: MultiMilestoneState['committeeReview']) {
+  if (!roster?.shortlisterId || !validCommitteeSize(roster.memberIds.length) || new Set(roster.memberIds).size !== roster.memberIds.length ||
+    roster.memberIds.some((memberId) => !memberId || memberId === roster.shortlisterId))
+    throw new ActionError('The Committee roster is unavailable.')
+  if (review && (review.shortlist.managedRoster !== roster.managed || review.shortlist.actorId !== roster.shortlisterId ||
+    review.shortlist.reviewerIds.length !== roster.memberIds.length ||
+    !review.shortlist.reviewerIds.every((memberId) => roster.memberIds.includes(memberId))))
+    throw new ActionError('The configured Committee roster changed after shortlisting.')
+  return roster
+}
+
+function shortlistedReview(state: MultiMilestoneState, planId: string | undefined, projectVersionId: string) {
+  const plan = pinnedPlan(state, planId, projectVersionId)
+  if (state.committeeReview?.shortlist.planId !== plan.id)
+    throw new ActionError('Shortlist the pinned plan before continuing.')
+  return { plan, review: state.committeeReview }
+}
+
+function requireCommitteeMember(
+  state: MultiMilestoneState, planId: string | undefined, projectVersionId: string,
+  actorId: string, roster: CommitteeRoster | null | undefined, allowShortlister = false,
+) {
+  const { plan, review } = shortlistedReview(state, planId, projectVersionId)
+  const { memberIds, shortlisterId } = requireCommitteeRoster(roster, review)
+  if (!memberIds.includes(actorId) && !(allowShortlister && actorId === shortlisterId))
+    throw new ForbiddenError('You are not assigned to this Committee action')
+  return { plan, review }
+}
 
 function approvedPlan(s: MultiMilestoneState, planId: string | undefined, projectVersionId: string) {
   const plan = s.applications.at(-1)
@@ -225,7 +264,9 @@ export function transition(
   command: Command,
   context: {
     id: string; actorId: string; now: string; projectVersionId: string; milestoneFirst?: boolean
-    awardAuthorization?: { terms: GrantState['terms'][number]['terms']; budget: string; authority: string }
+    committeeReviewEnabled?: boolean
+    committeeRoster?: CommitteeRoster | null
+    awardAuthorization?: { terms: GrantState['terms'][number]['terms']; budget: string; authority: string; awardRequestId?: string }
   },
 ) {
   const s = structuredClone(previous),
@@ -233,6 +274,7 @@ export function transition(
     { id, actorId, now, projectVersionId } = context
   const meta = { id, actorId, at: now },
     today = now.slice(0, 10)
+  const committeeRequired = s.version === 4 && (context.committeeReviewEnabled || !!s.committeeReview)
   need(!s.closedAt || c.kind === 'reconcile_payment', 'This grant is closed')
   switch (c.kind) {
     case 'save_application':
@@ -285,6 +327,8 @@ export function transition(
       need(s.status === 'submitted', 'Only applications awaiting a decision can receive a review status')
       const revision = s.applications.at(-1)
       need(revision, 'Submit the application before releasing a review status')
+      if (c.status === 'shortlisted' && s.version === 4 && committeeRequired)
+        shortlistedReview(s, revision?.id, projectVersionId)
       if (c.status === 'approval_pending') {
         const reply = latestReplyRequiringAssessment(s)
         if (reply !== -1) {
@@ -329,14 +373,72 @@ export function transition(
       if (!sameMilestone && s.version !== 4) s.applications.push({ ...meta, answers: structuredClone(s.answers), projectVersionId })
       break
     }
+    case 'shortlist_application': {
+      if (s.version !== 4 || !committeeRequired) throw new ActionError('Committee shortlisting is unavailable.')
+      need(s.status === 'submitted', 'Only a submitted application can be shortlisted.')
+      const plan = pinnedPlan(s, c.planId, projectVersionId)
+      const roster = requireCommitteeRoster(context.committeeRoster)
+      if (actorId !== roster.shortlisterId) throw new ForbiddenError('Only the configured shortlister may shortlist a plan')
+      need(!s.committeeReview, 'This plan is already shortlisted.')
+      s.committeeReview = {
+        shortlist: {
+          actorId, at: now, planId: plan.id, reviewerIds: [...roster.memberIds],
+          ...(roster.managed ? { managedRoster: true } : {}),
+          ...(roster.approvalRule ? { approvalRule: roster.approvalRule } : {}),
+        },
+        requests: [],
+      }
+      break
+    }
+    case 'request_award_amount': {
+      if (s.version !== 4 || !committeeRequired) throw new ActionError('Award amount requests are unavailable.')
+      need(s.status === 'submitted' && !s.terms.length, 'This application is not awaiting an award.')
+      const { plan, review } = requireCommitteeMember(s, c.planId, projectVersionId, actorId, context.committeeRoster, true)
+      const { totalMinor, milestoneAmounts, reason } = c
+      const milestoneIds = new Set(milestoneAmounts.map((milestone) => milestone.milestoneId))
+      need(milestoneAmounts.length === plan.answers.milestones.length && milestoneIds.size === milestoneAmounts.length &&
+        plan.answers.milestones.every(({ milestoneId }) => milestoneIds.has(milestoneId)),
+      'Enter one allocation for each milestone in the pinned plan.')
+      need(totalMinor > 0 && totalMinor <= (plan.answers.amountMinor ?? 0), 'The award amount must be positive and cannot exceed the pinned request.')
+      need(milestoneAmounts.reduce((sum, milestone) => sum + milestone.amountMinor, 0) === totalMinor,
+        'The milestone allocations must add up to the award amount.')
+      review.requests.push({ ...meta, planId: plan.id, totalMinor, milestoneAmounts, reason, votes: [] })
+      break
+    }
+    case 'respond_award_amount': {
+      if (s.version !== 4 || !s.committeeReview) throw new ActionError('Award amount requests are unavailable.')
+      need(s.status === 'submitted' && !s.terms.length, 'This application is not awaiting an award.')
+      const { plan, review } = shortlistedReview(s, s.applications.at(-1)?.id, projectVersionId)
+      const request = review.requests.at(-1)
+      if (!request || request.id !== c.requestId || request.planId !== plan.id)
+        throw new ActionError('Review the latest award amount request before responding.')
+      need(!request.response, 'This award amount request was already answered.')
+      request.response = { actorId, at: now, outcome: c.outcome, ...(c.note ? { note: c.note } : {}) }
+      break
+    }
+    case 'vote_award': {
+      if (s.version !== 4 || !committeeRequired) throw new ActionError('Committee voting is unavailable.')
+      need(s.status === 'submitted' && !s.terms.length, 'This application is not awaiting an award.')
+      const { plan, review } = requireCommitteeMember(s, s.applications.at(-1)?.id, projectVersionId, actorId, context.committeeRoster)
+      const request = review.requests.at(-1)
+      if (!request || request.id !== c.requestId || request.planId !== plan.id || request.response?.outcome !== 'accepted')
+        throw new ActionError('The applicant must accept the latest award amount request before voting.')
+      approvedPlan(s, s.planApproval?.planId, projectVersionId)
+      need(allMilestonesVerified(s), 'Verify every milestone in the approved plan before voting.')
+      need(!s.requests.some((r) => !r.answeredAt), 'Resolve open evidence requests first')
+      const lastVote = request.votes.findLast((vote) => vote.actorId === actorId)
+      need(lastVote?.vote !== c.vote || lastVote.note !== c.note, 'This vote is already recorded.')
+      request.votes.push({ actorId, at: now, vote: c.vote, note: c.note })
+      break
+    }
     case 'clear_milestone': {
       if (s.version === 4) {
-        const plan = s.applications.at(-1)
-        need(s.status === 'submitted' && plan && plan.id === c.planId && plan.projectVersionId === projectVersionId,
-          'Review the current pinned plan before approving it.')
+        need(s.status === 'submitted', 'Review the current pinned plan before approving it.')
+        const plan = pinnedPlan(s, c.planId, projectVersionId)
+        if (committeeRequired) requireCommitteeMember(s, plan.id, projectVersionId, actorId, context.committeeRoster)
         need(!s.planApproval, 'The milestone plan is already approved.')
         need(!s.requests.some((request) => !request.answeredAt), 'Resolve open evidence requests first')
-        s.planApproval = { ...meta, planId: plan!.id, projectVersionId }
+        s.planApproval = { ...meta, planId: plan.id, projectVersionId }
         break
       }
       if (s.version !== 3) throw new ActionError('This application uses the previous grant workflow')
@@ -352,6 +454,7 @@ export function transition(
     case 'decline_application': {
       if (s.version !== 4) throw new ActionError('Use the original decision workflow for this application.')
       need(s.status === 'submitted' && s.decisions.every((d) => d.outcome === 'deferred'), 'This application is not awaiting a decision')
+      if (committeeRequired) requireCommitteeMember(s, s.applications.at(-1)?.id, projectVersionId, actorId, context.committeeRoster)
       const details = { ...meta, terms: null, rationale: c.rationale, publicNote: c.publicNote, ownerId: actorId }
       const decision = c.kind === 'hold_application'
         ? { ...details, outcome: 'deferred' as const, nextStep: c.nextStep }
@@ -363,15 +466,29 @@ export function transition(
     case 'issue_award': {
       if (s.version !== 4) throw new ActionError('Use the original decision workflow for this application.')
       need(s.status === 'submitted' && !s.terms.length && s.decisions.every((d) => d.outcome === 'deferred'), 'This application is not awaiting an award')
+      const committee = committeeRequired
+        ? requireCommitteeMember(s, s.applications.at(-1)?.id, projectVersionId, actorId, context.committeeRoster).review
+        : undefined
       const plan = approvedPlan(s, s.planApproval?.planId, projectVersionId)
       need(allMilestonesVerified(s), 'Verify every milestone in the approved plan before issuing an award.')
       need(!s.requests.some((r) => !r.answeredAt), 'Resolve open evidence requests first')
       const authorization = context.awardAuthorization
+      const request = committee?.requests.at(-1)
+      if (committee) {
+        if (!request || request.planId !== plan.id || request.response?.outcome !== 'accepted')
+          throw new ActionError('The applicant must accept the latest award amount request before issuance.')
+        const result = committeeVoteResult(committee.shortlist, request)
+        need(result.passed, result.rule === 'unanimity'
+          ? 'Every Committee member assigned to this application must approve the accepted award amount.'
+          : 'The accepted award proposal has not passed the assigned Committee voting rule.')
+      }
       const reasons = readiness(s, authorization?.terms.route)
       need(!reasons.length, reasons.join('; '))
       if (!authorization?.authority.trim() || !authorization.budget.trim())
         throw new ActionError('Award issuance is unavailable until Committee and Finance approval can be verified.')
       const { terms: award, budget, authority } = authorization
+      if (request) need(authorization.awardRequestId === request.id && award.amountMinor === request.totalMinor,
+        'The authorized award must match the accepted amount request and total.')
       need(award.amountMinor <= (plan.answers.amountMinor ?? 0), 'The award cannot exceed the pinned request.')
       const scope = planAwardScope(plan.answers.milestones)
       need(scope && award.title === scope.title && award.acceptance === scope.acceptance && award.due === scope.due,
@@ -381,6 +498,7 @@ export function transition(
       s.terms.push({ ...meta, number: 1, terms: award, confirmedAt: null, confirmedById: null })
       s.decisions.push({ ...meta, outcome: 'approved', terms: award, rationale: c.rationale,
         publicNote: c.publicNote, ownerId: actorId, budget, authority })
+      if (committee && request) committee.issuedRequestId = request.id
       s.status = 'approved'
       break
     }
@@ -647,7 +765,7 @@ export function transition(
     kind: c.kind,
     note: c.kind === 'release_review_status'
       ? applicationStatusCopy[c.status].label
-      : 'note' in c ? c.note : 'reason' in c ? c.reason : 'review' in c ? c.review : c.kind.replaceAll('_', ' '),
+      : 'note' in c && c.note ? c.note : 'reason' in c ? c.reason : 'review' in c ? c.review : c.kind.replaceAll('_', ' '),
   })
   return stateSchema.parse(c.kind === 'submit_application' && context.milestoneFirst && s.version === 2 && s.answers.intakeVersion === 2
     ? { ...s, version: 3, milestoneClearance: null }
@@ -721,13 +839,29 @@ function applicantIntake(value: IntakeAnswers): IntakeAnswers {
 }
 
 export function applicantProjection(s: GrantState) {
-  const award = (value: GrantState['terms'][number]['terms']) =>
-    s.answers.intakeVersion === undefined ? value : publicAwardTerms.parse(value)
+  const award = (value: GrantState['terms'][number]['terms']) => {
+    if (s.answers.intakeVersion === undefined) return value
+    return (s.version === 4 ? committeePublicAwardTerms : publicAwardTerms).parse(value)
+  }
+  const request = s.version === 4 ? s.committeeReview?.requests.at(-1) : undefined
+  const awardAmountRequest = request && {
+    id: request.id,
+    planId: request.planId,
+    totalMinor: request.totalMinor,
+    milestoneAmounts: request.milestoneAmounts.map(({ milestoneId, amountMinor }) => ({ milestoneId, amountMinor })),
+    reason: request.reason,
+    ...(request.response && { response: {
+      outcome: request.response.outcome,
+      at: request.response.at,
+      ...(request.response.note ? { note: request.response.note } : {}),
+    } }),
+  }
   return {
     status: s.status,
     milestoneFirst: s.version === 3 || s.version === 4,
     clearedAt: s.version === 3 ? s.milestoneClearance?.at ?? null : s.version === 4 ? s.planApproval?.at ?? null : null,
     milestonePlan: milestonePlan(s),
+    ...(awardAmountRequest && { awardAmountRequest }),
     withdrawnAt: s.events.findLast((event) => event.kind === 'withdraw_application')?.at ?? null,
     applicantStatus: applicationStatus(s),
     statusReleases: s.statusReleases.map(({ id, at, status }) => ({ id, at, status })),

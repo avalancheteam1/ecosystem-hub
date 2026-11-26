@@ -89,3 +89,26 @@ model GrantRoundSnapshot {
   @@unique([roundId, number])
   @@map("grant_round_snapshots")
 }
+
+/// One occupied Committee seat. Pending invitations reserve a seat until revoked.
+model GrantCommitteeSeat {
+  id        String   @id @default(cuid())
+  slot      Int      @unique
+  email     String   @unique
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("grant_committee_seats")
+}
+
+/// Singleton settings for new managed Committees.
+model GrantCommitteeSettings {
+  id           Int    @id @default(1)
+  seatCount    Int    @default(4)
+  revision     Int    @default(0)
+  approvalRule String @default("unanimity")
+
+  @@map("grant_committee_settings")
+}

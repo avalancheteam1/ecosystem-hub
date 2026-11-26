@@ -12,9 +12,12 @@ import { applicantProjection, applicationStatus, applicationStatusText, issuedPa
 import { grantIntakeHistory, reapplicationEligibility } from './reapplication'
 import { syntheticPayoutEnabled } from './config'
 import { projectReviewSnapshot } from './reviewed-project'
+import { readCommitteeRoster } from './committee-config'
 
-export const publishedRounds = () =>
-  prisma.grantRound.findMany({ where: { published: true }, select: { id: true, name: true }, orderBy: { createdAt: 'desc' }, take: 50 })
+export async function publishedRounds() {
+  if (!(await isFlagOn('grantsRoundManagement'))) return []
+  return prisma.grantRound.findMany({ where: { published: true }, select: { id: true, name: true }, orderBy: { createdAt: 'desc' }, take: 50 })
+}
 
 const roadmapMilestones = () => ({
   where: { status: { in: ['planned', 'in_progress'] }, targetDate: { gte: new Date().toISOString().slice(0, 10) } },
@@ -36,6 +39,7 @@ export async function myProjects() {
       _count: { select: { members: { where: { role: { in: TEAM_ROLES } } } } },
       milestones: roadmapMilestones(),
     },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: 100,
   })
 }
@@ -69,6 +73,8 @@ export async function listApplications(staff: boolean, search = '', page = 1) {
   return rows.map(({ state, ...row }) => {
     const grant = stateSchema.parse(state)
     const applicantStatus = applicationStatus(grant)
+    const amountRequest = grant.version === 4 ? grant.committeeReview?.requests.at(-1) : undefined
+    if (grant.status === 'submitted' && amountRequest && !amountRequest.response) applicantStatus.updateRequested = true
     return { ...row, applicantStatus, statusLabel: applicationStatusText(applicantStatus.status, grant.version === 4).label }
   })
 }
@@ -132,6 +138,27 @@ export async function readApplication(id: string, staff: boolean) {
     }
     return { ...common, staff: false as const, state: applicantProjection(state), projectVersion: row.projectVersion, draftProject, milestones }
   }
+  // Registered voters are separate from the person who screens applications.
+  const shortlist = state.version === 4 ? state.committeeReview?.shortlist : undefined
+  const required = state.version === 4 && (!!shortlist || await isFlagOn('grantsCommitteeReview'))
+  const roster = required
+    ? await readCommitteeRoster(prisma, shortlist ? !!shortlist.managedRoster : await isFlagOn('grantsCommitteeInvitations'), shortlist)
+    : null
+  const rosterMatches = !!roster && (!shortlist || (shortlist.actorId === roster.shortlisterId &&
+    shortlist.reviewerIds.length === roster.memberIds.length &&
+    shortlist.reviewerIds.every((id) => roster.memberIds.includes(id))))
+  const awaitingDecision = row.status === 'submitted' && !state.closedAt
+  const isShortlister = rosterMatches && roster.shortlisterId === user.id
+  const isCommittee = rosterMatches && roster.memberIds.includes(user.id)
+  const mayDecide = !role && can(user, 'grants.decide')
+  const committeeWorkflow = {
+    required,
+    configured: rosterMatches,
+    canShortlist: required && awaitingDecision && isShortlister && !shortlist,
+    canPropose: required && awaitingDecision && !!shortlist && (isShortlister || isCommittee),
+    canVote: required && awaitingDecision && !!shortlist && isCommittee,
+    canDecide: mayDecide && (!required || (!!shortlist && isCommittee)),
+  }
   // The server component consumes this private state. Only the explicit view data goes to client forms.
   return {
     ...common,
@@ -139,10 +166,11 @@ export async function readApplication(id: string, staff: boolean) {
     owners: await reviewerOptions(user),
     state,
     projectVersion: row.projectVersion,
+    committeeWorkflow,
     capabilities: {
       review: !role,
       verify: !role && can(user, 'grants.verify'),
-      decide: !role && can(user, 'grants.decide'),
+      decide: committeeWorkflow.canDecide,
       payments: !role && can(user, 'grants.payments'),
       manage: can(user, 'grants.manage'),
     },

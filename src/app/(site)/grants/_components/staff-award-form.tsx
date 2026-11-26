@@ -134,13 +134,13 @@ export function StaffAwardForm({
             onSubmit={enterDetails}
           >
             {detailError && <p role="alert" className="text-destructive">{detailError}</p>}
-            <Field id={id + '-owner'} label="Decision owner" required>
+            <Field id={id + '-owner'} label="Decision owner" requirement="required">
               <NativeSelect id={id + '-owner'} value={details.ownerId} onChange={(event) => setDetails({ ...details, ownerId: event.target.value })} required>
                 <option value="">Choose</option>
                 {owners.map((owner) => <option key={owner.value} value={owner.value}>{owner.label}</option>)}
               </NativeSelect>
             </Field>
-            <Field id={id + '-route'} label="Funding route" required>
+            <Field id={id + '-route'} label="Funding route" requirement="required">
               <NativeSelect id={id + '-route'} value={details.route} onChange={(event) => setDetails({ ...details, route: event.target.value })} required>
                 <option value="">Choose</option>
                 <option value="bounded_pilot">Bounded pilot</option>
@@ -148,13 +148,13 @@ export function StaffAwardForm({
               </NativeSelect>
             </Field>
             {detailFields.map(({ key, label }) => (
-              <Field key={key} id={id + '-' + key} label={label} required>
+              <Field key={key} id={id + '-' + key} label={label} requirement="required">
                 <Input id={id + '-' + key} value={details[key]} onChange={(event) => setDetails({ ...details, [key]: event.target.value })}
                   inputMode={key === 'amount' ? 'decimal' : undefined} maxLength={key === 'budget' ? 2000 : 10000} required />
               </Field>
             ))}
             {pilot && (['hypothesis', 'limits'] as const).map((key) => (
-              <Field key={key} id={id + '-' + key} label={key === 'hypothesis' ? 'Pilot hypothesis' : 'Pilot limits'} required>
+              <Field key={key} id={id + '-' + key} label={key === 'hypothesis' ? 'Pilot hypothesis' : 'Pilot limits'} requirement="required">
                 <Textarea id={id + '-' + key} value={details[key]} onChange={(event) => setDetails({ ...details, [key]: event.target.value })} maxLength={10000} required />
               </Field>
             ))}
@@ -182,10 +182,10 @@ export function StaffAwardForm({
         </dl>
       </div>
       <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void issue() }}>
-        <Field id={id + '-public-note'} label="Note for the applicant" required>
+        <Field id={id + '-public-note'} label="Note for the applicant" requirement="required">
           <Textarea id={id + '-public-note'} value={publicNote} onChange={(event) => setPublicNote(event.target.value)} maxLength={10000} required />
         </Field>
-        <Field id={id + '-reason'} label="Staff-only reason" required>
+        <Field id={id + '-reason'} label="Staff-only reason" requirement="required">
           <Textarea id={id + '-reason'} value={rationale} onChange={(event) => setRationale(event.target.value)} maxLength={10000} required />
         </Field>
         {error && <p role="alert" className="wrap-anywhere text-destructive">{error}</p>}

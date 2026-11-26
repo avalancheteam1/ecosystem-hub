@@ -75,12 +75,12 @@ export function RoundControls({
       onSubmit={submit}
     >
       {mode === 'create' && (
-        <Field id="grant-round-name" label="Round name">
+        <Field id="grant-round-name" label="Round name" requirement="required">
           <Input id="grant-round-name" className="h-11" required value={name} onChange={(e) => setName(e.target.value)} maxLength={10000} />
         </Field>
       )}
       {mode === 'choice' && (
-        <Field id="grant-round-owner" label="Selection owner">
+        <Field id="grant-round-owner" label="Selection owner" requirement="required">
           <NativeSelect id="grant-round-owner" value={owner} onChange={(e) => setOwner(e.target.value)}>
             {owners.map((o) => (
               <option key={o.value} value={o.value}>
@@ -91,7 +91,7 @@ export function RoundControls({
         </Field>
       )}
       {mode === 'choice' && (
-        <Field id="grant-round-disposition" label="Review disposition">
+        <Field id="grant-round-disposition" label="Review disposition" requirement="required">
           <NativeSelect
             id="grant-round-disposition"
             value={disposition}
@@ -104,7 +104,7 @@ export function RoundControls({
         </Field>
       )}
       {(mode === 'choice' || mode === 'snapshot') && (
-        <Field id="grant-round-note" label="Owner rationale / review note">
+        <Field id="grant-round-note" label="Owner rationale / review note" requirement="required">
           <Textarea id="grant-round-note" required value={note} onChange={(e) => setNote(e.target.value)} maxLength={10000} />
         </Field>
       )}

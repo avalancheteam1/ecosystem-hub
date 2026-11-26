@@ -7,7 +7,7 @@ const sections = [
   ['case-decision', 'Next action'],
   ['case-application', 'Application'],
   ['case-requests', 'Requests'],
-  ['case-evidence', 'Evidence'],
+  ['case-evidence', 'Milestones'],
   ['case-assessment', 'Assessment'],
   ['case-activity', 'Recent activity'],
 ] as const
@@ -18,8 +18,8 @@ function isSection(value: string): value is Section {
   return sections.some(([id]) => id === value)
 }
 
-export function StaffCaseTabs({ panels }: { panels: Record<Section, ReactNode> }) {
-  const [active, setActive] = useState<Section>('case-decision')
+export function StaffCaseTabs({ panels, initialSection = 'case-decision' }: { panels: Record<Section, ReactNode>; initialSection?: Section }) {
+  const [active, setActive] = useState<Section>(initialSection)
   const focusTarget = useRef<Section | null>(null)
 
   const focusSection = useCallback((id: Section) => {
@@ -37,12 +37,12 @@ export function StaffCaseTabs({ panels }: { panels: Record<Section, ReactNode> }
     const syncFragment = (event?: HashChangeEvent) => {
       const fragment = window.location.hash.slice(1)
       if (isSection(fragment)) focusSection(fragment)
-      else if (!fragment && event) focusSection('case-decision')
+      else if (!fragment && event) focusSection(initialSection)
     }
     syncFragment()
     window.addEventListener('hashchange', syncFragment)
     return () => window.removeEventListener('hashchange', syncFragment)
-  }, [focusSection])
+  }, [focusSection, initialSection])
 
   useEffect(() => {
     if (focusTarget.current === active) {

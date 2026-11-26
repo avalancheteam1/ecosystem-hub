@@ -3,10 +3,10 @@ import { canonical } from '@/lib/metadata'
 import Link from 'next/link'
 import { isFlagOn } from '@/lib/flag-store'
 import Image from 'next/image'
-import { Layers, UsersRound, Globe } from 'lucide-react'
+import { ChevronDown, Layers, UsersRound } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { BuilderHubGrantsLink, RoundIntakeStatus } from './_components/navigation'
+import { RoundIntakeStatus } from './_components/navigation'
 import { publishedRounds } from './_lib/queries'
 
 export const metadata: Metadata = {
@@ -15,8 +15,19 @@ export const metadata: Metadata = {
   ...canonical('/grants'),
 }
 export const dynamic = 'force-dynamic'
+function ProgrammeDetails({ children }: { children: React.ReactNode }) {
+  return (
+    <details className="group mt-6">
+      <summary className={buttonVariants({ variant: 'outline', className: 'min-h-11 w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden' })}>
+        Programme details <ChevronDown aria-hidden className="transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-4 space-y-3 border-t border-line pt-4 text-sm text-fg-muted">{children}</div>
+    </details>
+  )
+}
+
 export default async function GrantsPage() {
-  const continuous = await isFlagOn('miniGrantsIntake')
+  const [continuous, acceleratorOn] = await Promise.all([isFlagOn('miniGrantsIntake'), isFlagOn('acceleratorGrants')])
   const rounds = continuous ? [] : await publishedRounds()
   return (
     <>
@@ -36,12 +47,17 @@ export default async function GrantsPage() {
                 ? 'For builders with a working project or prototype and a concrete Avalanche outcome. Apply anytime.'
                 : 'For early-stage builders and community initiatives with a concrete Avalanche outcome.'}
             </p>
-            <Link className={buttonVariants({ className: 'mt-6' })} href="/grants/mini-grants">
-              View programme
-            </Link>
+            <ProgrammeDetails>
+              <p>{continuous
+                ? 'Use your Hub project to share a working demo and propose up to three milestones.'
+                : 'Use your Hub project to describe the proposed work and how reviewers can verify it.'}</p>
+              <Link className="inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4" href="/grants/mini-grants">
+                Open Mini Grants
+              </Link>
+            </ProgrammeDetails>
           </CardContent>
         </Card>
-        <Card className="overflow-hidden border-line bg-surface-2 pt-0">
+        {acceleratorOn && <Card className="overflow-hidden border-line bg-surface-2 pt-0">
           <div className="relative aspect-[2/1] overflow-hidden bg-surface-1">
             <Image src="/grants/builder.jpg" alt="" fill sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" />
           </div>
@@ -56,24 +72,12 @@ export default async function GrantsPage() {
             <p className="mt-6 max-w-prose text-base text-fg-muted">
               Projects are proposed and voted on by the committee. Strong projects can be fast-tracked without a Mini Grant.
             </p>
-            <Link href="/grants/how-it-works" className="mt-6 inline-flex min-h-11 items-center text-fg-heading underline underline-offset-4">
-              How selection works
-            </Link>
+            <ProgrammeDetails>
+              <p>The Grants Committee nominates projects and votes on which ones to support.</p>
+            </ProgrammeDetails>
           </CardContent>
-        </Card>
+        </Card>}
       </section>
-      <Card className="mt-6 border-line bg-surface-2">
-        <CardContent className="flex flex-wrap items-center gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-lg bg-surface-1">
-            <Globe className="size-6 text-brand" aria-hidden />
-          </div>
-          <div className="min-w-0 flex-1 basis-48">
-            <h2 className="text-lg">Avalanche Builder Hub grants</h2>
-            <p className="text-sm text-fg-muted">Explore grant programmes across the broader Avalanche ecosystem.</p>
-          </div>
-          <BuilderHubGrantsLink />
-        </CardContent>
-      </Card>
       <p className="mt-6 text-sm text-fg-muted">Participation does not guarantee funding.</p>
     </>
   )

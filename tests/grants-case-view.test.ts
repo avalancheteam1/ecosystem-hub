@@ -81,6 +81,7 @@ function renderStaffCase(state: GrantState, decide = true, tab?: string, verify 
     ...applicantCase(applicantProjection(state), false), staff: true, state,
     userId: 'reviewer', owners: [{ value: 'reviewer', label: 'Synthetic reviewer' }],
     capabilities: { review: true, decide, verify, payments: false, manage: false },
+    committeeWorkflow: { required: false, configured: false, canShortlist: false, canPropose: false, canVote: false, canDecide: decide },
   }
   return renderToStaticMarkup(createElement(GrantCaseView, { data, requestedTab: tab }))
 }
@@ -371,6 +372,15 @@ describe('Normal v3 staff case entry', () => {
     expect(page).toContain('Application submitted')
     expect(renderStaffCase(submitted, true, 'Application')).toMatch(/href="\/admin\/grants\/applications\/case-1"[^>]*>Case overview/)
     expect(page).toContain('Recent activity')
+    expect(page).toMatch(/aria-controls="case-evidence"[^>]*>Milestones<\/button>/)
+    expect(page).not.toContain('More case records')
+    expect(page).not.toContain('>Milestone evidence</h2>')
+    expect(page).toContain('Application history')
+    expect(page).toContain('Impact updates')
+    expect(page).toContain('Review proposed changes to agreed terms.')
+    expect(page).toContain('Track external payments.')
+    expect(renderStaffCase(submitted, true, 'Follow-ups')).toMatch(/aria-selected="true"[^>]*aria-controls="case-decision"/)
+    expect(renderStaffCase(submitted, true, 'Impact')).toMatch(/aria-selected="true"[^>]*aria-controls="case-activity"/)
     for (const command of ['request_evidence', 'save_assessment', 'clear_milestone']) {
       expect(page.match(new RegExp('data-command="' + command + '"', 'g'))).toHaveLength(1)
     }

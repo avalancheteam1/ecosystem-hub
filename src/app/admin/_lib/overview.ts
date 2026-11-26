@@ -3,6 +3,7 @@ import { campusOverview } from '@/app/(app)/campus/_lib/overview'
 import { referralsOverview } from '@/app/(app)/referrals/_lib/overview'
 import { eventsOverview } from '@/app/(site)/events/_lib/overview'
 import { toolingOverview } from '@/app/(site)/tooling/_lib/overview'
+import { grantsOverview } from '@/app/(site)/grants/_lib/overview'
 import { prisma } from '@/lib/db'
 import { can, type AuthzUser } from '@/lib/permissions'
 
@@ -42,7 +43,7 @@ const systemOverview: OverviewSource = {
   },
 }
 
-export const ADMIN_OVERVIEW: OverviewSource[] = [usersOverview, ...eventsOverview, ...referralsOverview, ...campusOverview, ...toolingOverview, systemOverview]
+export const ADMIN_OVERVIEW: OverviewSource[] = [usersOverview, ...eventsOverview, ...referralsOverview, ...campusOverview, ...toolingOverview, grantsOverview, systemOverview]
 
 /** Everything `user` may see, loaded in parallel. */
 export async function loadOverview(user: AuthzUser) {

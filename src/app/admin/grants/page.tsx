@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { PageHeader } from '@/components/layout/page-header'
-import { OperationsNav } from '@/app/(site)/grants/_components/navigation'
+import { OperationsNav } from './_components/operations-nav'
 import { ReviewQueue } from '@/app/(site)/grants/_components/review-queue'
 import { parseReviewQueue, type ReviewQueueSearchParams } from '@/app/(site)/grants/_lib/review-queue'
 import { readReviewQueue } from '@/app/(site)/grants/_lib/review-queue-queries'
