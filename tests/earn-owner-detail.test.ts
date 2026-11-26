@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it, vi } from 'vitest'
 
-const getOwnReceipt = vi.hoisted(() => vi.fn())
+type GetOwnReceipt = typeof import('@/app/(site)/earn/_lib/workflow-queries').getOwnReceipt
+type ReceiptStatus = NonNullable<Awaited<ReturnType<GetOwnReceipt>>>['status']
+
+const getOwnReceipt = vi.hoisted(() => vi.fn<GetOwnReceipt>())
 vi.mock('@/app/(site)/earn/_lib/workflow-queries', () => ({ getOwnReceipt }))
 vi.mock('@/app/(site)/earn/_lib/workflow-actions', () => ({ reviseStage: vi.fn(), submitStage: vi.fn(), withdrawStage: vi.fn() }))
 vi.mock('next/navigation', async (original) => ({
@@ -19,16 +22,21 @@ const revision = {
   termsVersion: 3, acceptedAt: new Date('2026-11-24T12:00Z'), withdrawnAt: null, withdrawalReason: null,
 }
 
-async function detail(status: string, version: number) {
+async function detail(status: ReceiptStatus, version: number) {
+  const stage = { id: '4f1a1aff-0e83-47df-b238-58c04948beac', position: 2, title: 'Synthetic final' }
+  const createdAt = new Date('2026-11-23T12:00Z')
   getOwnReceipt.mockResolvedValueOnce({
     id: entryId, status, version, revision: 2, final: true, stageApproved: false, award: null, hasMore: false,
+    createdAt, lineage: [{ id: entryId, revision: 2, createdAt, stage }],
+    canRevise: status !== 'rejected', canWithdraw: true,
     previousSubmissionId: null, revisions: [revision], reviews: [],
     stage: {
-      id: '4f1a1aff-0e83-47df-b238-58c04948beac', position: 2, title: 'Synthetic final', submissionPolicy: 'multiple',
+      ...stage, submissionPolicy: 'multiple',
       requiresPullRequest: false,
       bounty: {
         title: 'Synthetic bounty', terms: 'Synthetic additional terms', termsVersion: 3, githubIssueUrl: null,
         deadline: new Date(Date.now() + 60_000), cancelledAt: null, resultsAnnouncedAt: null,
+        _count: { stages: 2 },
       },
     },
   })
