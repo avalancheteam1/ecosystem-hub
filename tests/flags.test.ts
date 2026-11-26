@@ -18,3 +18,19 @@ test('isFlag: only registry keys, not prototype names', () => {
   assert.equal(isFlag('nope'), false)
   assert.equal(isFlag('toString'), false)
 })
+
+test('US-1: continuous Mini Grants defaults off independently of the public Grants flag', () => {
+  assert.equal(flagOn(new Map(), 'miniGrantsIntake'), false)
+  assert.equal(flagOn(new Map([['miniGrantsIntake', true]]), 'miniGrantsIntake'), true)
+  assert.equal(flagForPath('/grants/applications/a'), 'grants')
+})
+
+test('US-F3: Grants is opt-in with separate rollout controls and no admin proxy routing', () => {
+  assert.equal(flagForPath('/grants'), 'grants')
+  assert.equal(flagForPath('/admin/grants'), null)
+  assert.equal(flagForPath('/grants-other'), null)
+  for (const key of ['grants', 'acceleratorGrants', 'grantsRoundManagement', 'grantsCommitteeReview', 'grantsCommitteeInvitations', 'miniGrantsIntake', 'miniGrantsReapplication'] as const) {
+    assert.equal(flagOn(new Map(), key), false)
+    assert.equal(flagOn(new Map([[key, true]]), key), true)
+  }
+})

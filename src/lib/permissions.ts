@@ -20,6 +20,7 @@ export type PermissionDef = {
   requires?: readonly string[]
 }
 
+import { grantPermissions } from '@/app/(site)/grants/_lib/permissions'
 import { eventPermissions } from '@/app/(site)/events/_lib/permissions'
 import { referralPermissions } from '@/app/(app)/referrals/_lib/permissions'
 import { campusPermissions } from '@/app/(app)/campus/_lib/permissions'
@@ -32,6 +33,7 @@ const corePermissions = {
 export const PERMISSIONS = {
   ...corePermissions,
   ...eventPermissions,
+  ...grantPermissions,
   ...referralPermissions,
   ...campusPermissions,
   ...toolingPermissions,

@@ -128,6 +128,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 
 ## Areas
 Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads it via the area's `CLAUDE.md` when you work there). Read it first when you touch the area from elsewhere (`/manage`, `/judge`, admin pages, another area's flow):
+- **Grants** - `src/app/(site)/grants/AGENTS.md` (applicant records, review, delivery, external payment evidence and outcomes)
 - **Events + hackathons** - `src/app/(site)/events/AGENTS.md` (hackathon logic in `_lib/hackathons/`, organiser console `/manage`, judges `/judge`, admin `/admin/events`)
 - **Projects** - `src/app/(app)/projects/AGENTS.md` (roles, draft/sealed versions - also what a hackathon team and submission are)
 - **Referrals & groups** - `src/app/(app)/referrals/AGENTS.md` (`/groups/[slug]`, `/admin/groups`)

@@ -13,7 +13,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
 export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const toolsOn = await isFlagOn('tooling')
+  const [toolsOn, grantsOn] = await Promise.all([isFlagOn('tooling'), isFlagOn('grants')])
   const [events, tools] = await Promise.all([prisma.event.findMany({ where: { status: 'published' }, select: { slug: true, updatedAt: true } }), toolsOn ? listPublicToolSlugs() : []])
   return [
     { url: siteUrl, changeFrequency: 'weekly', priority: 1 },
@@ -21,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...events.map((e) => ({ url: `${siteUrl}/events/${e.slug}`, lastModified: e.updatedAt })),
     { url: `${siteUrl}/education`, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${siteUrl}/ecosystem`, changeFrequency: 'monthly', priority: 0.8 },
+    ...(grantsOn ? ['/grants', '/grants/mini-grants', '/grants/how-it-works'].map((path) => ({ url: `${siteUrl}${path}`, changeFrequency: 'monthly' as const, priority: 0.7 })) : []),
     ...ACADEMIES.flatMap((a) => [
       { url: `${siteUrl}${academyHref(a)}`, changeFrequency: 'monthly' as const, priority: 0.8 },
       ...a.courses.map((c) => ({ url: `${siteUrl}${courseHref(a, c)}`, changeFrequency: 'monthly' as const })),

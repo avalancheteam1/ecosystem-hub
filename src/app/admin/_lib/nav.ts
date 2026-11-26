@@ -3,6 +3,7 @@ import { Activity, KeyRound, LayoutDashboard, ScrollText, ShieldCheck, ToggleRig
 import { referralsAdminNav } from '@/app/(app)/referrals/_lib/nav'
 import { campusAdminNav } from '@/app/(app)/campus/_lib/nav'
 import { eventsAdminNav } from '@/app/(site)/events/_lib/nav'
+import { grantsAdminNav } from '@/app/(site)/grants/_lib/nav'
 import { toolingAdminNav } from '@/app/(site)/tooling/_lib/nav'
 import { can, type AuthzUser } from '@/lib/permissions'
 
@@ -17,7 +18,7 @@ const superAdmin = (u: AuthzUser) => u.isSuperAdmin
 
 export const ADMIN_NAV: AdminNavGroup[] = [
   { items: [{ href: '/admin', label: 'Overview', icon: LayoutDashboard, show: () => true }] },
-  { label: 'Programs', items: [...eventsAdminNav, ...referralsAdminNav, ...toolingAdminNav] },
+  { label: 'Programs', items: [...eventsAdminNav, ...grantsAdminNav, ...referralsAdminNav, ...toolingAdminNav] },
   { label: 'Campus', items: [...campusAdminNav] },
   { label: 'People', items: [{ href: '/admin/users', label: 'Users', icon: Users, show: (u) => can(u, 'users.view') }] },
   {

@@ -57,6 +57,7 @@ model User {
   quizPasses         QuizPass[]
   quizAttempts       QuizAttempt[]
   certificates       Certificate[]
+  grantCommitteeSeat GrantCommitteeSeat?
 
   // campus (campus.prisma, organizations.prisma)
   campusProfile         CampusProfile?

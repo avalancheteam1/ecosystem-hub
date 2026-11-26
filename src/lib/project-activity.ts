@@ -8,6 +8,7 @@ import type { Prisma } from '@prisma/client'
 /** Programs a project takes part in. Keys are persisted - only add. `staff`: who acts on the other side, shown to the team instead of a name. */
 export const PROJECT_PROGRAMS = {
   hackathon: { label: 'Hackathon', staff: 'the organisers' },
+  grants: { label: 'Mini Grants', staff: 'the grants team' },
   tooling: { label: 'Developer Tooling', staff: 'team1' },
 } as const
 export type ProjectProgram = keyof typeof PROJECT_PROGRAMS
@@ -25,11 +26,19 @@ export const PROJECT_ACTIVITY_EVENTS = {
   unadvanced: 'Advance taken back',
   disqualified: 'Disqualified',
   reinstated: 'Reinstated',
+  grant_plan_approved: 'Milestone plan approved',
+  grant_evidence_submitted: 'Milestone evidence submitted',
+  grant_milestone_verified: 'Milestone verified',
+  grant_evidence_returned: 'Milestone evidence returned',
+  grant_held: 'Application put on hold',
+  grant_declined: 'Application declined',
+  grant_reopened: 'Application reopened',
+  grant_award_issued: 'Award issued',
 } as const
 export type ProjectActivityEvent = keyof typeof PROJECT_ACTIVITY_EVENTS
 
 /** Done by the team itself (their name is shown); `replaced` follows from another event (no one shown); the rest is the program's staff. */
-const TEAM_EVENTS: ReadonlySet<string> = new Set<ProjectActivityEvent>(['submitted', 'withdrawn', 'unlisted'])
+const TEAM_EVENTS: ReadonlySet<string> = new Set<ProjectActivityEvent>(['submitted', 'withdrawn', 'unlisted', 'grant_evidence_submitted'])
 const NO_ACTOR: ReadonlySet<string> = new Set<ProjectActivityEvent>(['replaced'])
 
 export type ProjectActivityInput = {

@@ -29,6 +29,14 @@ const schema = z.object({
   SENTRY_ORG: opt(z.string()),
   SENTRY_PROJECT: opt(z.string()),
   SENTRY_AUTH_TOKEN: opt(z.string()),
+  GRANTS_SHORT_INTAKE_ENABLED: opt(z.enum(['true', 'false'])),
+  GRANTS_MILESTONE_FIRST_ENABLED: opt(z.enum(['true', 'false'])),
+  GRANTS_SYNTHETIC_PAYOUT_ENABLED: opt(z.enum(['true', 'false'])),
+  GRANTS_SHORTLISTER_ID: opt(z.string().trim().min(1)),
+  GRANTS_COMMITTEE_MEMBER_IDS: opt(z.string().refine((value) => {
+    const ids = value.split(',').map((id) => id.trim())
+    return ids.length <= 32 && ids.every(Boolean) && new Set(ids).size === ids.length
+  }, 'provide 1 to 32 distinct, comma-separated Hub user IDs')),
   DB_POOL_MAX: opt(int),
   DB_POOL_IDLE_MS: opt(int),
   DB_POOL_CONNECT_MS: opt(int),

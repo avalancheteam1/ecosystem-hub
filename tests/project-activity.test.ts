@@ -35,6 +35,7 @@ test('activityHref: hackathon event page; tooling tool page only for the listed 
   assert.equal(activityHref({ program: 'hackathon', targetId: 'gone', versionId: 'v3' }, c), null)
   assert.equal(activityHref({ program: 'tooling', targetId: 'l1', versionId: 'v4' }, c), '/tooling/kit')
   assert.equal(activityHref({ program: 'tooling', targetId: 'l1', versionId: 'v5' }, c), '/tooling/submit')
+  assert.equal(activityHref({ program: 'grants', targetId: 'g1', versionId: 'v5' }, c), '/grants/applications/g1')
   assert.equal(activityHref({ program: 'grant', targetId: 'g1', versionId: 'v5' }, c), null)
 })
 

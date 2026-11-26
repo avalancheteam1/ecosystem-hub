@@ -1,11 +1,14 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient; prismaDatabaseUrl?: string }
+
+// Keep the URL paired with the cached client across development reloads.
+export const prismaDatabaseUrl = globalForPrisma.prisma ? globalForPrisma.prismaDatabaseUrl : process.env.DATABASE_URL
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: prismaDatabaseUrl,
     // Pool sized for Railway Postgres. Tune via env if needed.
     // Hobby plan caps connections low - keep this conservative.
     // Other tooling (migrations, prisma studio, monitoring) also consumes connections.
@@ -20,4 +23,7 @@ function createPrismaClient() {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+  globalForPrisma.prismaDatabaseUrl = prismaDatabaseUrl
+}

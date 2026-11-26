@@ -44,22 +44,27 @@ async function requestIp(): Promise<string | null> {
 
 const json = (v: unknown) => (v === undefined ? undefined : (v as Prisma.InputJsonValue))
 
-/** Persist an audit entry. Never throws - an audit failure must not break the action. */
-export async function recordAudit(args: AuditArgs): Promise<void> {
+/** Use in a transaction when the change and its audit entry must commit together. */
+export async function writeAudit(db: Pick<Prisma.TransactionClient, 'auditLog'>, args: AuditArgs): Promise<void> {
   let { before, after } = args
   if (isPlainObject(before) && isPlainObject(after)) ({ before, after } = diffObjects(before, after))
+  await db.auditLog.create({
+    data: {
+      actorId: args.actorId,
+      action: args.action,
+      entityType: args.entityType,
+      entityId: args.entityId ?? null,
+      before: json(before),
+      after: json(after),
+      ip: await requestIp(),
+    },
+  })
+}
+
+/** Persist an audit entry. Never throws - an audit failure must not break the action. */
+export async function recordAudit(args: AuditArgs): Promise<void> {
   try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: args.actorId,
-        action: args.action,
-        entityType: args.entityType,
-        entityId: args.entityId ?? null,
-        before: json(before),
-        after: json(after),
-        ip: await requestIp(),
-      },
-    })
+    await writeAudit(prisma, args)
   } catch (err) {
     logger.error({ err }, '[audit] failed to write entry')
   }

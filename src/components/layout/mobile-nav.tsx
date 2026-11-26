@@ -5,7 +5,7 @@ import { Menu } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 /** Main nav below `md` - the inline links don't fit next to the logo on phones. */
-export function MobileNav({ signedIn }: { signedIn: boolean }) {
+export function MobileNav({ signedIn, grantsOn }: { signedIn: boolean; grantsOn: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex size-11 items-center justify-center rounded-lg text-fg-muted hover:text-fg-heading md:hidden" aria-label="Open menu">
@@ -15,9 +15,7 @@ export function MobileNav({ signedIn }: { signedIn: boolean }) {
         <DropdownMenuItem asChild><Link href="/events">Events</Link></DropdownMenuItem>
         <DropdownMenuItem asChild><Link href="/education">Education</Link></DropdownMenuItem>
         <DropdownMenuItem asChild><Link href="/ecosystem">Ecosystem</Link></DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer">Grants</a>
-        </DropdownMenuItem>
+        {grantsOn && <DropdownMenuItem asChild><Link href="/grants">Grants</Link></DropdownMenuItem>}
         {signedIn && (
           <>
             <DropdownMenuSeparator />

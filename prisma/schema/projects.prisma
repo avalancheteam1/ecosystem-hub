@@ -19,6 +19,7 @@ model Project {
   milestones  ProjectMilestone[]
   toolingListing ToolingListing?
   activities  ProjectActivity[]
+  grantApplications GrantApplication[]
 
   @@map("projects")
 }
@@ -73,6 +74,7 @@ model ProjectVersion {
   toolingApproved ToolingListing[] @relation("ToolingApproved")
   toolingPending  ToolingListing[] @relation("ToolingPending")
   activities      ProjectActivity[]
+  grantApplications GrantApplication[]
 
   @@unique([projectId, number])
   @@map("project_versions")

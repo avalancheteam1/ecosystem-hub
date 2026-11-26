@@ -1,0 +1,56 @@
+[
+  [
+    "Avalanche is demonstrably incompatible, nominal or marginal.",
+    "Intention without a concrete Avalanche component.",
+    "Specific credible Avalanche deliverable, dependencies and intended benefit.",
+    "Execution of that Avalanche scope and its benefit are verified."
+  ],
+  [
+    "Need materially contradicted or reachable beneficiaries demonstrably absent.",
+    "Generic problem or vague audience.",
+    "Concrete need and identifiable, reachable beneficiaries.",
+    "Independent validation or observed beneficiary value."
+  ],
+  [
+    "Materially contradicted originality, ownership or delivery capability.",
+    "Relevant delivery evidence is limited.",
+    "Relevant original artifact appropriate to the proposed work is inspected.",
+    "Relevant deliveries and capability for the milestone are independently verifiable."
+  ],
+  [
+    "Request pays completed or already-funded work without a distinct remaining outcome.",
+    "New work or its funding dependency is unclear.",
+    "Completed, funded and requested work are separated; remaining outcome is clear.",
+    "Funding dependency and reconciliation of overlapping support are demonstrated."
+  ],
+  [
+    "Complete application has no verifiable milestone.",
+    "Activities are vague or dates/acceptance conditions are missing.",
+    "Output, measurable acceptance condition and date are defined.",
+    "Standalone useful output, verifier, dependencies and explicit acceptance conditions are defined."
+  ],
+  [
+    "Verified incoherent/duplicate costs or negligible eligible Avalanche benefit relative to the request.",
+    "Unsupported total, unclear attribution or vague benefit for the amount.",
+    "Itemized remaining milestone cost is proportionate to a concrete Avalanche benefit.",
+    "Cost basis, alternatives and co-funding are corroborated; high value for the justified cost is credible."
+  ],
+  [
+    "Verified abandonment without maintenance ownership, or materially deceptive metrics.",
+    "Maintainer, meaningful measures or support is unclear.",
+    "Accountable maintainer, relevant metrics and measurement method are defined.",
+    "Maintenance resources, baselines and verifiable 30/90-day outcome checks are defined."
+  ],
+  [
+    "Confirmed blocking risk without mitigation.",
+    "Material risks or dependencies are unaddressed.",
+    "Principal risks and plausible mitigations are identified.",
+    "Dependencies, mitigation owners and verifiable release/payment conditions are clear."
+  ],
+  [
+    "Affirmative evidence of no relevant Avalanche activity, or materially contradicted outcome claims.",
+    "Verified activity below scale, or declared/potential activity marked S.",
+    "Verified sustained Avalanche outcomes meet at least one level-2 threshold.",
+    "Verified level-3 magnitude with unchanged duration, or level 2 plus verified spillover."
+  ]
+]
