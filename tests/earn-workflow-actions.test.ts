@@ -438,13 +438,17 @@ describe('Earn action boundaries', () => {
       expect(mocks.audit).toHaveBeenCalledOnce()
     })
 
-    it('US-09 held for official copy: accepts current terms when the bounty has no additional terms', async () => {
+    // Restore the RED assertion from 7abf292421df04037febaf717f1b54f6be3cd37f once Team1-approved default terms are available.
+    it.todo('US-09 accepts current Team1-approved default terms when the bounty has no additional terms')
+
+    it('US-09 denies submission without effective terms despite current acceptance', async () => {
       mocks.bounty.mockResolvedValue({ ...openFinal(), terms: null })
 
-      expect(await submitStage(submit)).toEqual({ ok: true, data: { id } })
-      expect(mocks.createRevision).toHaveBeenCalledWith({
-        data: expect.objectContaining({ submissionId: id, number: 1, termsVersion: bounty.termsVersion }),
-      })
+      expect(await submitStage(submit)).toEqual({ ok: false, error: 'Reload and accept the current bounty terms before submitting.' })
+      expect(mocks.lock).toHaveBeenCalledOnce()
+      expect(mocks.createSubmission).not.toHaveBeenCalled()
+      expect(mocks.createRevision).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
     })
 
     it('US-09 rejects unchecked acceptance and stale terms without writing', async () => {
