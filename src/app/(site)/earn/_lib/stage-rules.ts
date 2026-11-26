@@ -10,13 +10,6 @@ type StageAttempt = { stageId: string; status: EarnSubmissionStatus }
 
 export const activeContinuationStatuses = ['pending', 'needs_review', 'changes_requested', 'approved'] as const
 
-export function previousStageError(stage: StageGate, stages: StageGate[], entries: StageAttempt[]) {
-  if (!stage.requiresPrevApproval) return null
-  const approved = new Set(entries.filter((entry) => entry.status === 'approved').map((entry) => entry.stageId))
-  const missing = stages.find((earlier) => earlier.position < stage.position && !approved.has(earlier.id))
-  return missing ? `Unlocks after approval of “${missing.title}”.` : null
-}
-
 export function newSubmissionError(stage: StageGate, isFinal: boolean, entries: StageAttempt[]) {
   if (stage.submissionPolicy === 'multiple') return null
   const attempts = entries.filter((entry) => entry.stageId === stage.id)
