@@ -16,22 +16,38 @@ const lineageFields = {
   id: true, revision: true, createdAt: true, stage: { select: { id: true, title: true, position: true } },
 } satisfies Prisma.EarnSubmissionSelect
 type LineageNode = Prisma.EarnSubmissionGetPayload<{ select: typeof lineageFields }>
+type LineageRow = Omit<LineageNode, 'stage'> & { stageId: string; stageTitle: string; stagePosition: number }
 
 async function readLineage(bountyId: string, contributorId: string, current: LineageNode, previousId: string | null) {
-  const chain = [current]
-  let position = current.stage.position - 1
-  while (previousId && position > 0 && chain.length < 20) {
-    const previous = await prisma.earnSubmission.findUnique({
-      where: { id: previousId, contributorId, stage: { ...historicalStage, bountyId, position } },
-      select: { ...lineageFields, previousSubmissionId: true },
-    })
-    if (!previous) break
-    const { previousSubmissionId, ...label } = previous
-    chain.push(label)
-    previousId = previousSubmissionId
-    position--
-  }
-  return chain.reverse()
+  if (!previousId || current.stage.position <= 1) return [current]
+  // Stage positions decrease at each hop, preventing cycles. The stage schema caps the chain at 20 entries including the root.
+  const rows = await prisma.$queryRaw<LineageRow[]>`
+    WITH RECURSIVE lineage AS (
+      SELECT submission.id, submission.revision, submission."createdAt", submission."previousSubmissionId",
+        submission."contributorId", stage."bountyId", stage.id AS "stageId", stage.title AS "stageTitle",
+        stage.position AS "stagePosition", 1 AS depth
+      FROM "earn_submissions" AS submission
+      JOIN "earn_stages" AS stage ON stage.id = submission."stageId"
+      JOIN "earn_bounties" AS bounty ON bounty.id = stage."bountyId"
+      WHERE submission.id = ${current.id}::uuid AND submission."contributorId" = ${contributorId}::text
+        AND bounty.id = ${bountyId}::uuid AND stage.position = ${current.stage.position}::integer
+        AND (bounty."publishedAt" IS NOT NULL OR bounty."cancelledAt" IS NOT NULL)
+      UNION ALL
+      SELECT parent.id, parent.revision, parent."createdAt", parent."previousSubmissionId",
+        parent."contributorId", stage."bountyId", stage.id, stage.title, stage.position, lineage.depth + 1
+      FROM lineage
+      JOIN "earn_submissions" AS parent ON parent.id = lineage."previousSubmissionId"
+        AND parent."contributorId" = lineage."contributorId"
+      JOIN "earn_stages" AS stage ON stage.id = parent."stageId" AND stage."bountyId" = lineage."bountyId"
+        AND stage.position = lineage."stagePosition" - 1
+      WHERE lineage.depth < 20 AND stage.position > 0
+    )
+    SELECT id, revision, "createdAt", "stageId", "stageTitle", "stagePosition"
+    FROM lineage WHERE depth > 1 ORDER BY "stagePosition" ASC
+  `
+  return [...rows.map(({ id, revision, createdAt, stageId, stageTitle, stagePosition }) => ({
+    id, revision, createdAt, stage: { id: stageId, title: stageTitle, position: stagePosition },
+  })), current]
 }
 
 export async function getContributorProgress(bountyId: string, stageId: string, page: number) {
@@ -235,7 +251,7 @@ export async function getSubmissionForReview(id: string, page: number) {
 }
 
 export async function listPrivateSelections(bountyId: string, page: number) {
-  await requirePermission('earn.review')
+  const user = await requirePermission('earn.review')
   await requirePermission('earn.finalize')
   if (!bountyIdSchema.safeParse(bountyId).success) return { rows: [], hasMore: false }
   const final = await prisma.earnStage.findFirst({
@@ -243,13 +259,16 @@ export async function listPrivateSelections(bountyId: string, page: number) {
     orderBy: { position: 'desc' },
     select: { submissions: {
       where: { status: 'approved' },
-      select: { id: true, revision: true, version: true, contributor: { select: { name: true } } },
+      select: { id: true, revision: true, version: true, contributorId: true, contributor: { select: { name: true } } },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       skip: (page - 1) * EARN_PAGE_SIZE, take: EARN_PAGE_SIZE + 1,
     } },
   })
   const rows = final?.submissions ?? []
-  return { rows: rows.slice(0, EARN_PAGE_SIZE), hasMore: rows.length > EARN_PAGE_SIZE }
+  return {
+    rows: rows.slice(0, EARN_PAGE_SIZE).map(({ contributorId, ...row }) => ({ ...row, canRemove: contributorId !== user.id })),
+    hasMore: rows.length > EARN_PAGE_SIZE,
+  }
 }
 
 export async function getResultsForPublishing(bountyId: string, page: number) {

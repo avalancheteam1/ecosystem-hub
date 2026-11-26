@@ -108,9 +108,17 @@ export const saveBountyDraft = action(
       if (before.publishedAt) {
         requireNativeTerms(stages?.length ?? before.stages.length, draft.terms === undefined ? before.terms : draft.terms)
       }
-      for (const { saved, data } of plan ?? []) {
-        if (activity && saved && data.approvalLimit !== null && data.approvalLimit !== saved.approvalLimit &&
-            await tx.earnSubmission.count({ where: { stageId: saved.id, status: 'approved' } }) > data.approvalLimit) {
+      const changedCaps = activity ? (plan ?? []).flatMap(({ saved, data: { approvalLimit } }) =>
+        saved && approvalLimit !== null && approvalLimit !== saved.approvalLimit ? [{ id: saved.id, approvalLimit }] : [],
+      ) : []
+      if (changedCaps.length) {
+        const counts = await tx.earnSubmission.groupBy({
+          by: ['stageId'],
+          where: { stageId: { in: changedCaps.map(({ id }) => id) }, status: 'approved' },
+          _count: { _all: true },
+        })
+        const approvedByStage = new Map(counts.map(({ stageId, _count }) => [stageId, _count._all]))
+        if (changedCaps.some(({ id, approvalLimit }) => (approvedByStage.get(id) ?? 0) > approvalLimit)) {
           throw new ActionError('The approval limit cannot be below the number already approved.')
         }
       }
