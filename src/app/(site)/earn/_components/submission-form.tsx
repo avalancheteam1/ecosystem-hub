@@ -7,14 +7,17 @@ import { Field } from '@/components/field'
 import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
+import { formatUtc } from '@/lib/dates'
 import { githubReference } from '../_lib/github'
 import { requiredNote, revisionEvidenceSchema } from '../_lib/schemas'
 import { stageEvidenceError } from '../_lib/stage-rules'
 import { reviseStage, submitStage } from '../_lib/workflow-actions'
 
 const fieldIds = {
+  previousSubmissionId: 'earn-previous-submission',
   pullRequests: 'earn-prs',
   links: 'earn-links',
   notes: 'earn-notes',
@@ -23,28 +26,40 @@ const fieldIds = {
 } as const
 
 type SubmissionField = keyof typeof fieldIds
+type EligibleParent = { id: string; revision: number; createdAt: Date; stage: { title: string; position: number } }
+const chooseParent = 'Choose an approved submission from the previous stage.'
+const chooseParentAgain = 'That submission is no longer eligible. Choose another approved submission to continue.'
 
-export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubIssueUrl, terms, termsVersion, revision }: {
+export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubIssueUrl, terms, termsVersion, revision, eligibleParents }: {
   bountyId: string; stageId: string; requiresPullRequest: boolean; githubIssueUrl: string | null; terms: string; termsVersion: number
   revision?: { id: string; version: number; notes: string; links: string[]; pullRequests: string[] }
+  eligibleParents?: EligibleParent[]
 }) {
   const router = useRouter()
   const { run, pending } = useActionToast()
   const [accepted, setAccepted] = useState(false)
+  const [parentId, setParentId] = useState(() => eligibleParents?.length === 1 ? eligibleParents[0].id : '')
+  const [rejectedParents, setRejectedParents] = useState<string[]>([])
   const [errors, setErrors] = useState<Partial<Record<SubmissionField, string>>>({})
   const [error, setError] = useState('')
   const id = useRef<string | null>(null)
   const repository = githubIssueUrl ? githubReference(githubIssueUrl, 'issues')?.repository : undefined
+  const availableParents = eligibleParents?.filter((parent) => !rejectedParents.includes(parent.id))
+  const selectedParent = availableParents?.some((parent) => parent.id === parentId) ? parentId : ''
+  const unavailableParent = !!parentId && !selectedParent
+  const noParents = availableParents?.length === 0
 
-  function feedbackProps(field: SubmissionField, hint = false) {
+  function feedbackProps(field: SubmissionField, hint = false, message = errors[field]) {
     const fieldId = fieldIds[field]
-    const description = [hint && `${fieldId}-hint`, errors[field] && `${fieldId}-error`].filter(Boolean).join(' ')
-    return { 'aria-invalid': !!errors[field] || undefined, 'aria-describedby': description || undefined }
+    const description = [hint && `${fieldId}-hint`, message && `${fieldId}-error`].filter(Boolean).join(' ')
+    return { 'aria-invalid': !!message || undefined, 'aria-describedby': description || undefined }
   }
 
   function fieldError(field: SubmissionField) {
     return errors[field] && <p id={`${fieldIds[field]}-error`} className="text-sm text-destructive">{errors[field]}</p>
   }
+
+  const parentError = unavailableParent ? chooseParentAgain : errors.previousSubmissionId
 
   return (
     <form noValidate className="space-y-5" onSubmit={async (event) => {
@@ -60,6 +75,7 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
       const parsed = revisionEvidenceSchema.safeParse(evidence)
       const issues = parsed.success ? {} : flattenError(parsed.error).fieldErrors
       const nextErrors = {
+        previousSubmissionId: eligibleParents && !selectedParent ? parentError ?? chooseParent : undefined,
         pullRequests: issues.pullRequests?.[0] ?? stageEvidenceError(requiresPullRequest, githubIssueUrl, evidence.pullRequests) ?? undefined,
         links: issues.links?.[0],
         notes: issues.notes?.[0],
@@ -81,14 +97,38 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
       await run(async () => {
         const result = revision
           ? await reviseStage({ bountyId, id: revision.id, version: revision.version, evidence: validatedEvidence, changeNote })
-          : await submitStage({ bountyId, stageId, id: id.current ??= crypto.randomUUID(), evidence: validatedEvidence })
-        if (!result.ok) setError(result.error)
-        else if (!revision) router.push(`/earn/${bountyId}/receipts/${result.data.id}`)
+          : await submitStage({ bountyId, stageId, id: id.current ??= crypto.randomUUID(), evidence: validatedEvidence, ...(selectedParent ? { previousSubmissionId: selectedParent } : {}) })
+        if (!result.ok) {
+          if (selectedParent && (result.error === chooseParent || result.error === 'This previous submission already has an active continuation.')) {
+            setRejectedParents((current) => [...current, selectedParent])
+            requestAnimationFrame(() => form.querySelector<HTMLElement>(`#${fieldIds.previousSubmissionId}`)?.focus())
+          } else {
+            setError(result.error)
+          }
+        } else if (!revision) {
+          router.push(`/earn/${bountyId}/receipts/${result.data.id}`)
+        }
         return result
       }, revision ? 'Revision received' : 'Submission received', revision
         ? () => router.replace(`/earn/${bountyId}/receipts/${revision.id}`)
         : undefined)
     }}>
+      {availableParents && <Field id={fieldIds.previousSubmissionId} label="Previous submission" required>
+        <NativeSelect id={fieldIds.previousSubmissionId} required disabled={noParents} value={selectedParent}
+          onChange={(event) => {
+            setParentId(event.target.value)
+            setErrors((current) => ({ ...current, previousSubmissionId: undefined }))
+          }} {...feedbackProps('previousSubmissionId', true, parentError)}>
+          <option value="">Choose a submission</option>
+          {availableParents.map((parent, index) => <option key={parent.id} value={parent.id}>
+            {index + 1}. Stage {parent.stage.position}: {parent.stage.title} · revision {parent.revision} · {formatUtc(parent.createdAt)}
+          </option>)}
+        </NativeSelect>
+        <p id={`${fieldIds.previousSubmissionId}-hint`} className="text-sm text-fg-muted">
+          {noParents ? 'Submissions for this stage are locked until an approved submission from the previous stage is available.' : 'Continue work from an approved submission in the previous stage.'}
+        </p>
+        {parentError && <p id={`${fieldIds.previousSubmissionId}-error`} role={unavailableParent ? 'alert' : undefined} className="text-sm text-destructive">{parentError}</p>}
+      </Field>}
       {requiresPullRequest && <Field id={fieldIds.pullRequests} label="GitHub pull requests" required>
         <Textarea id={fieldIds.pullRequests} name="pullRequests" defaultValue={revision?.pullRequests.join('\n')} required maxLength={5010} rows={3} {...feedbackProps('pullRequests', true)} />
         <div id="earn-prs-hint" className="space-y-1 text-sm text-fg-muted">
@@ -124,7 +164,7 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
         {fieldError('accepted')}
       </div>
       {error && <p role="alert" className="text-destructive">{error}</p>}
-      <Button type="submit" disabled={pending}>{pending ? 'Saving…' : revision ? 'Save revision' : 'Submit work'}</Button>
+      <Button type="submit" disabled={pending || noParents}>{pending ? 'Saving…' : revision ? 'Save revision' : 'Submit work'}</Button>
     </form>
   )
 }

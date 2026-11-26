@@ -11,7 +11,8 @@ import { pageParam } from '@/lib/params'
 import { can } from '@/lib/permissions'
 import { requirePermission } from '@/lib/guards'
 import { isFlagOn } from '@/lib/flag-store'
-import { getResultsForPublishing } from '@/app/(site)/earn/_lib/workflow-queries'
+import { approvedNoticeCopy } from '@/app/(site)/earn/_lib/result-notices'
+import { getResultsForPublishing, listPrivateSelections } from '@/app/(site)/earn/_lib/workflow-queries'
 import { ResultsAction } from '../_components/results-action'
 import { formatUtc } from '@/lib/dates'
 import { getBountyForPublishing, listEarnOrganizationOptions } from '@/app/(site)/earn/_lib/queries'
@@ -32,7 +33,11 @@ export default async function ManageBountyPage({ params, searchParams }: { param
   const result = (published || editable) && bounty.stages.length ? await getResultsForPublishing(id, page) : null
   const organizations = editable ? await listEarnOrganizationOptions() : []
   const activity = !!resultsAnnouncedAt || !!result?.submitted
-  const afterDeadline = bounty.deadline <= new Date()
+  const early = bounty.deadline > new Date()
+  const final = bounty.stages.at(-1)
+  const canReview = can(user, 'earn.review')
+  const selections = published && editable && final && canReview && can(user, 'earn.finalize') ? await listPrivateSelections(id, page) : null
+  const noticeCopyAvailable = published && editable && final ? approvedNoticeCopy() !== null : false
   return (
     <>
       <BackLink href="/admin/earn">Earn publishing</BackLink>
@@ -55,11 +60,28 @@ export default async function ManageBountyPage({ params, searchParams }: { param
           </li>)}</ol>
         </SectionCard>}
         {published && result && !cancelledAt && <SectionCard title={resultsAnnouncedAt ? 'Announced awards' : 'Results'}>
-          <p className="mb-4 text-sm text-fg-body">{resultsAnnouncedAt ? `Announced ${formatUtc(resultsAnnouncedAt)}` : afterDeadline ? `${result.selected} privately selected · ${result.submitted} total entries` : 'Final selection opens after the deadline.'}</p>
+          {resultsAnnouncedAt ? <p className="mb-4 text-sm text-fg-body">Announced {formatUtc(resultsAnnouncedAt)}</p> : (
+            <div className="mb-4 space-y-1 text-sm text-fg-body">
+              <p>{result.selected} privately selected · {result.submitted} total entries</p>
+              <p>{final?.approvalLimit == null ? 'Final-stage approval limit is unset.' : `Final-stage approval limit: ${final.approvalLimit}`}</p>
+              <p>{noticeCopyAvailable ? 'Approved result notices are configured.' : 'Result notices are unavailable until approved copy is available.'}</p>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
-            {can(user, 'earn.review') && <Button asChild variant="outline"><Link href={`/admin/earn/review?bounty=${id}`}>Review submissions</Link></Button>}
-            {user.isSuperAdmin && !resultsAnnouncedAt && afterDeadline && <ResultsAction action="announce" id={id} revision={bounty.revision} selected={result.selected} />}
+            {canReview && <Button asChild variant="outline"><Link href={`/admin/earn/review?bounty=${id}`}>Review submissions</Link></Button>}
+            {user.isSuperAdmin && !resultsAnnouncedAt && <ResultsAction action="announce" id={id} revision={bounty.revision} selected={result.selected} deadline={formatUtc(bounty.deadline)} early={early} />}
           </div>
+          {selections && <div className="mt-4">
+            <h3 className="text-lg">Private selections</h3>
+            {!selections.rows.length && <p className="mt-2 text-sm text-fg-muted">No private selections on this page.</p>}
+            <ul className="divide-y divide-line">{selections.rows.map((entry) => <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <p className="wrap-anywhere">{entry.contributor.name} · revision {entry.revision}</p>
+              <Button asChild variant="outline" className="min-h-11">
+                <Link href={`/admin/earn/review/${entry.id}#remove-selection`} aria-label={`Review selection for ${entry.contributor.name}, revision ${entry.revision}`}>Review selection</Link>
+              </Button>
+            </li>)}</ul>
+            <Pager page={page} hasMore={selections.hasMore} params={{}} />
+          </div>}
           {resultsAnnouncedAt && <ul className="mt-4 divide-y divide-line">{result.rows.map((award) => <li key={award.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="min-w-0"><p className="break-words">{award.submission?.contributor.name ?? 'Former contributor'} · {award.reward}</p><p className="text-sm text-fg-muted">{award.rewardedAt ? `Recorded ${formatUtc(award.rewardedAt)}` : 'Awaiting external reward'}</p>{award.rewardNote && <p className="mt-2 whitespace-pre-wrap break-words text-sm">Staff note · {award.rewardNote}</p>}</div>
             {!award.rewardedAt && <ResultsAction action="reward" id={award.id} bountyId={id} />}

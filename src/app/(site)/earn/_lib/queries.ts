@@ -51,7 +51,7 @@ export async function getPublicBounty(id: string) {
 export async function listEarnSitemapEntries() {
   return prisma.earnBounty.findMany({
     where: published,
-    select: { id: true, publishedAt: true, resultsAnnouncedAt: true },
+    select: { id: true, publishedAt: true, resultsAnnouncedAt: true, updatedAt: true },
     orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
     take: 10000,
   })

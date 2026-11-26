@@ -10,9 +10,10 @@ import { requirePermission } from '@/lib/guards'
 import { pageParam } from '@/lib/params'
 import { can } from '@/lib/permissions'
 import { RevisionEvidence } from '@/app/(site)/earn/_components/revision-evidence'
+import { SubmissionLineage } from '@/app/(site)/earn/_components/submission-lineage'
 import { submissionLabels } from '@/app/(site)/earn/_lib/stage-rules'
 import { getSubmissionForReview } from '@/app/(site)/earn/_lib/workflow-queries'
-import { RemoveSelection, ReviewForm } from '../../_components/review-form'
+import { RemoveSelection, ReviewForm, SelectWinner } from '../../_components/review-form'
 
 export const metadata: Metadata = { title: 'Review submission' }
 
@@ -21,13 +22,17 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
   const page = pageParam((await searchParams).page)
   const view = await getSubmissionForReview((await params).id, page)
   if (!view) notFound()
-  const { row, user, reviews, hasMore } = view
+  const { row, user, reviews, lineage, hasMore } = view
   const { stage } = row
   const final = stage.position === stage.bounty._count.stages
   const afterDeadline = stage.bounty.deadline <= new Date()
   const authorized = user.id !== row.contributorId && !stage.bounty.resultsAnnouncedAt && !stage.bounty.cancelledAt
   const canReview = authorized && (row.status === 'pending' || row.status === 'needs_review')
-  const canRemove = authorized && final && row.status === 'approved' && can(user, 'earn.finalize')
+  const canFinalize = final && can(user, 'earn.finalize')
+  const { approvalLimit } = stage
+  const canSelect = canReview && canFinalize && approvalLimit !== null
+  const canRemove = authorized && canFinalize && row.status === 'approved'
+  const actionProps = { id: row.id, bountyId: stage.bountyId, version: row.version }
   const status = stage.bounty.cancelledAt ? 'Bounty cancelled' : final && row.status === 'approved' ? stage.bounty.resultsAnnouncedAt ? 'Awarded' : 'Selected privately' : submissionLabels[row.status]
   return (
     <>
@@ -36,16 +41,19 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
       <div className="space-y-6">
         <SectionCard title="Review this revision">
           {stage.deliverables && <Markdown className="mb-3 wrap-anywhere">{stage.deliverables}</Markdown>}
-          {canReview && final && !afterDeadline && <p className="mb-3 text-sm text-fg-muted">Final selection opens after the deadline.</p>}
-          {canReview && final && afterDeadline && !can(user, 'earn.finalize') && <p className="mb-3 text-sm text-fg-muted">Final selection requires the award selection permission.</p>}
+          {canReview && final && !canFinalize && <p className="mb-3 text-sm text-fg-muted">Final selection requires the award selection permission.</p>}
+          {canReview && canFinalize && approvalLimit === null && <p className="mb-3 text-sm text-fg-muted">Set an approval limit on the bounty before selecting winners.</p>}
           {canReview && page === 1 && (
-            <ReviewForm key={row.version} id={row.id} bountyId={stage.bountyId} version={row.version} afterDeadline={afterDeadline} alreadyInReview={row.status === 'needs_review'}
-              canApprove={!final || (afterDeadline && can(user, 'earn.finalize'))} final={final} />
+            <div className="flex flex-wrap gap-2">
+              <ReviewForm key={row.version} {...actionProps} afterDeadline={afterDeadline} alreadyInReview={row.status === 'needs_review'} final={final} />
+              {canSelect && <SelectWinner key={`select-${row.version}`} {...actionProps} approvalLimit={approvalLimit} />}
+            </div>
           )}
           {user.id === row.contributorId && <p>You cannot review your own submission.</p>}
-          {canRemove && <RemoveSelection key={row.version} id={row.id} bountyId={stage.bountyId} version={row.version} />}
+          {canRemove && <RemoveSelection key={row.version} {...actionProps} />}
           {!canReview && !canRemove && user.id !== row.contributorId && <p>This revision is closed to review.</p>}
         </SectionCard>
+        <SubmissionLineage entries={lineage} hrefPrefix="/admin/earn/review" />
         <SectionCard title="Revision and decision history">
           {!row.revisions.length && <p>No revisions on this page.</p>}
           <ol className="space-y-4">{row.revisions.map((item) => (

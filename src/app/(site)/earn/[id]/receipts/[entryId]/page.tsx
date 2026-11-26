@@ -9,9 +9,10 @@ import { Button } from '@/components/ui/button'
 import { pageParam } from '@/lib/params'
 import { RevisionEvidence } from '../../../_components/revision-evidence'
 import { SubmissionForm } from '../../../_components/submission-form'
+import { SubmissionLineage } from '../../../_components/submission-lineage'
 import { SubmissionStatusPill } from '../../../_components/submission-status-pill'
 import { WithdrawButton } from '../../../_components/withdraw-button'
-import { contributorStatus, revisionAllowed, submissionLabels } from '../../../_lib/stage-rules'
+import { contributorStatus, submissionLabels } from '../../../_lib/stage-rules'
 import { getOwnReceipt } from '../../../_lib/workflow-queries'
 
 export const metadata: Metadata = { title: 'Submission', robots: { index: false } }
@@ -27,13 +28,11 @@ export default async function ReceiptPage({ params, searchParams }: {
   if (!entry) notFound()
   const { stage } = entry
   const bounty = stage.bounty
-  const open = !bounty.cancelledAt && !bounty.resultsAnnouncedAt && bounty.deadline > new Date()
   const latest = page === 1 && entry.revisions[0]?.number === entry.revision ? entry.revisions[0] : undefined
-  const revisionForm = latest && bounty.terms && open && !entry.stageApproved && revisionAllowed(stage.submissionPolicy, entry.status)
+  const revisionForm = latest && bounty.terms && entry.canRevise
     ? { terms: bounty.terms, revision: { ...latest, id: entry.id, version: entry.version } }
     : null
   const editing = edit === '1' ? revisionForm : null
-  const canWithdraw = open && entry.status !== 'approved' && entry.status !== 'withdrawn'
   const status = contributorStatus(entry.status, { final: entry.final, announced: !!bounty.resultsAnnouncedAt, awarded: !!entry.award, cancelled: !!bounty.cancelledAt })
   const receiptPage = `?page=${page}`
   const editAction = revisionForm && !editing && (
@@ -49,10 +48,11 @@ export default async function ReceiptPage({ params, searchParams }: {
       <div className="space-y-6">
         {bounty.cancelledAt && <SectionCard title="Bounty cancelled"><p>{bounty.title} is closed. Your submission and its history are still available.</p></SectionCard>}
         {entry.award && <SectionCard title="Your award"><p className="break-words">{entry.award.reward}</p><p className="mt-2 text-sm">{entry.award.rewardedAt ? 'External reward recorded' : 'Awaiting external reward'}</p></SectionCard>}
-        <SectionCard title="Revision history" actions={editAction || canWithdraw ? (
+        <SubmissionLineage entries={entry.lineage} hrefPrefix={`/earn/${id}/receipts`} />
+        <SectionCard title="Revision history" actions={editAction || entry.canWithdraw ? (
           <>
             {editAction}
-            {canWithdraw && <WithdrawButton key={entry.version} bountyId={id} id={entry.id} version={entry.version} />}
+            {entry.canWithdraw && <WithdrawButton key={entry.version} bountyId={id} id={entry.id} version={entry.version} />}
           </>
         ) : undefined}>
           {entry.revisions.length === 0 && <p>No revisions on this page.</p>}

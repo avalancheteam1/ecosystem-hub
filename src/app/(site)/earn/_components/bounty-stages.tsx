@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/session'
 import { formatUtc } from '@/lib/dates'
 import { getContributorProgress } from '../_lib/workflow-queries'
-import { contributorStatus, newSubmissionError, previousStageError, type StageGate } from '../_lib/stage-rules'
+import { contributorStatus, newSubmissionError, type StageGate } from '../_lib/stage-rules'
 import { SubmissionForm } from './submission-form'
 import { SubmissionStatusPill } from './submission-status-pill'
 
@@ -20,9 +20,8 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
   const stage = stages.find((item) => item.id === active) ?? stages[0]
   const finalId = stages.at(-1)?.id
   const isFinal = stage.id === finalId
-  const progress = user ? await getContributorProgress(id, stage.id, page) : { attempts: [], rows: [], hasMore: false }
-  const prerequisite = previousStageError(stage, stages, progress.attempts)
-  const blocked = open ? prerequisite ?? newSubmissionError(stage, isFinal, progress.attempts) : 'Submissions are closed.'
+  const progress = user ? await getContributorProgress(id, stage.id, page) : { attempts: [], rows: [], hasMore: false, eligibleParents: [] }
+  const blocked = open ? newSubmissionError(stage, isFinal, progress.attempts) : 'Submissions are closed.'
   const signIn = `/sign-in?next=${encodeURIComponent(`/earn/${id}?stage=${stage.id}`)}`
 
   return (
@@ -30,8 +29,9 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
       <SectionCard title={stages.length > 1 ? 'Bounty stages' : 'Submission'}>
         <Markdown className="mb-4 wrap-anywhere">{instructions}</Markdown>
         {stages.length > 1 && <ol className="mb-5 grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
-          {stages.map((item) => {
-            const locked = previousStageError(item, stages, progress.attempts)
+          {stages.map((item, index) => {
+            const previous = stages[index - 1]
+            const locked = previous && !progress.attempts.some((entry) => entry.stageId === previous.id && entry.status === 'approved')
             const approved = item.id !== finalId && progress.attempts.some((entry) => entry.stageId === item.id && entry.status === 'approved')
             const Icon = approved ? Check : locked ? LockKeyhole : ArrowRight
             return (
@@ -40,7 +40,7 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
                   <span className="flex justify-between gap-2 text-sm">Stage {item.position}{item.id === finalId ? ' · Final' : ''}<Icon className="size-4" aria-hidden /></span>
                   <span className="break-words font-medium text-fg-heading">{item.title}</span>
                   {item.requiresPullRequest && <span className="text-sm">GitHub PR</span>}
-                  {(approved || locked) && <span className="text-sm">{approved ? 'Approved' : locked}</span>}
+                  {(approved || locked) && <span className="text-sm">{approved ? 'Approved' : `Unlocks after approval of “${previous.title}”.`}</span>}
                 </Link>
               </li>
             )
@@ -48,7 +48,7 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
         </ol>}
         <h3 className="mb-2 text-lg">{stage.title}</h3>
         {stage.deliverables && <Markdown className="wrap-anywhere">{stage.deliverables}</Markdown>}
-        {open && blocked && !prerequisite && <p className="mt-3 text-sm text-fg-body">{blocked}</p>}
+        {open && blocked && <p className="mt-3 text-sm text-fg-body">{blocked}</p>}
         {open && !user && <Button asChild className="mt-4"><Link href={signIn}>Sign in to contribute</Link></Button>}
       </SectionCard>
       {progress.rows.length > 0 && <SectionCard title="Your submissions">
@@ -69,7 +69,8 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
         <div className="[&_a]:min-h-11 [&_a]:min-w-11"><Pager page={page} hasMore={false} params={{ stage: stage.id }} /></div>
       )}
       {user && !blocked && <SectionCard title="Submit stage work">
-        <SubmissionForm key={stage.id} bountyId={id} stageId={stage.id} requiresPullRequest={stage.requiresPullRequest} githubIssueUrl={githubIssueUrl} terms={terms} termsVersion={termsVersion} />
+        <SubmissionForm key={stage.id} bountyId={id} stageId={stage.id} requiresPullRequest={stage.requiresPullRequest} githubIssueUrl={githubIssueUrl} terms={terms} termsVersion={termsVersion}
+          eligibleParents={stage.id === stages[0].id ? undefined : progress.eligibleParents} />
       </SectionCard>}
     </div>
   )
