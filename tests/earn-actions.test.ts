@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   updateMany: vi.fn(),
   auditLogCreate: vi.fn(),
   findUnique: vi.fn(),
+  findSubmission: vi.fn(),
   revalidatePath: vi.fn(),
 }))
 
@@ -27,7 +28,12 @@ const draft = {
   hubModule: null, githubIssueUrl: null,
 }
 const publish = { id, revision: 1, publish: true }
-const tx = { $queryRaw: vi.fn(async () => []), earnBounty: { findUnique: state.findUnique, updateMany: state.updateMany }, auditLog: { create: state.auditLogCreate } }
+const tx = {
+  $queryRaw: vi.fn(async () => []),
+  earnBounty: { findUnique: state.findUnique, updateMany: state.updateMany },
+  earnSubmission: { findFirst: state.findSubmission },
+  auditLog: { create: state.auditLogCreate },
+}
 
 describe('native Earn publishing boundaries', () => {
   beforeEach(() => {
@@ -59,6 +65,29 @@ describe('native Earn publishing boundaries', () => {
     })
     expect(state.auditLogCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ actorId: publisher.id, action: 'earn.listing.publish', entityId: id }),
+    })
+  })
+
+  it('#33 keeps a bounty with submission activity published and allows unpublishing without activity', async () => {
+    state.user = publisher
+    state.findUnique.mockResolvedValue({ publishedAt: new Date(0), deadline: new Date(Date.now() + 60_000), resultsAnnouncedAt: null })
+    state.findSubmission.mockResolvedValueOnce({ id: '17f149fa-6932-4c27-85f5-096379ba4db6' }).mockResolvedValueOnce(null)
+    state.updateMany.mockResolvedValue({ count: 1 })
+    const unpublish = { ...publish, publish: false }
+
+    expect(await setBountyPublication(unpublish)).toEqual({ ok: false, error: 'This bounty has recorded activity and must stay published.' })
+    expect(state.findSubmission).toHaveBeenCalledExactlyOnceWith({ where: { stage: { bountyId: id } }, select: { id: true } })
+    expect(state.updateMany).not.toHaveBeenCalled()
+    expect(state.auditLogCreate).not.toHaveBeenCalled()
+    expect(state.revalidatePath).not.toHaveBeenCalled()
+
+    expect(await setBountyPublication(unpublish)).toEqual({ ok: true, data: { id } })
+    expect(state.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id, revision: unpublish.revision },
+      data: { publishedAt: null, revision: { increment: 1 } },
+    })
+    expect(state.auditLogCreate).toHaveBeenCalledExactlyOnceWith({
+      data: expect.objectContaining({ actorId: publisher.id, action: 'earn.listing.unpublish', entityId: id }),
     })
   })
 })

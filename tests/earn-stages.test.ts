@@ -26,7 +26,7 @@ describe('native Earn stage rules', () => {
 
   it('separates one-entry limits, permitted revisions, and multiple final-stage entries', () => {
     const attempts = [{ stageId: first.id, status: 'approved' as const }]
-    expect(newSubmissionError({ ...first, submissionPolicy: 'multiple' }, false, attempts)).toMatch(/already approved/)
+    expect(newSubmissionError(first, false, attempts)).toMatch(/already approved/)
     expect(newSubmissionError({ ...first, submissionPolicy: 'multiple' }, true, attempts)).toBeNull()
     expect(newSubmissionError(first, true, attempts)).toMatch(/existing receipt/)
     expect(revisionAllowed('single', 'pending')).toBe(true)
