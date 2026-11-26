@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+import { EARN_PAGE_SIZE } from '@/app/(site)/earn/_lib/rules'
 import * as workflowQueries from '@/app/(site)/earn/_lib/workflow-queries'
 
 const { getOwnReceipt, getSubmissionForReview } = workflowQueries
@@ -23,6 +24,7 @@ const bountyId = '83a2f90c-8226-400c-8df0-19fe4827db49'
 const id = '17f149fa-6932-4c27-85f5-096379ba4db6'
 const stageId = '4f1a1aff-0e83-47df-b238-58c04948beac'
 const ownerId = 'synthetic-history-owner'
+const reviewerId = 'synthetic-reviewer'
 // The same-revision approvals share a timestamp and need distinct decision identities.
 const decisionTime = new Date('2026-11-23T12:00:00Z')
 const denied = 'NEXT_HTTP_ERROR_FALLBACK;404'
@@ -158,7 +160,10 @@ function historyFixture(history: History, state: State, selection: Selection = '
     const { id, revision, decision, feedback, createdAt } = approved
     return [{ id, revision, decision, feedback, createdAt }]
   })
-  const shortlist = [{ id, revision, version: row.version, contributor: row.contributor }]
+  const shortlist = [
+    { id: '13c9d7eb-fe8f-4df2-b3aa-351c42404fd1', revision: 2, version: 6, contributorId: reviewerId, contributor: { name: 'Synthetic Reviewer' } },
+    { id, revision, version: row.version, contributorId: row.contributorId, contributor: row.contributor },
+  ]
   db.finalStage.mockResolvedValue({ submissions: shortlist })
   return { ordinary, cleared, winning, unrelated, decisions, revisions, shortlist }
 }
@@ -245,7 +250,7 @@ describe('Earn final-stage owner history', () => {
 
   it.each([false, true])('retains all review decisions for staff with finalize grant %s', async (finalize) => {
     const { decisions, shortlist } = historyFixture('winning revision', 'unannounced')
-    signedIn('synthetic-reviewer', 'earn.review', ...(finalize ? ['earn.finalize'] : []))
+    signedIn(reviewerId, 'earn.review', ...(finalize ? ['earn.finalize'] : []))
     const staff = await getSubmissionForReview(id, 1)
 
     expect(staff?.row).toMatchObject({ status: 'approved', version: 5 })
@@ -255,7 +260,22 @@ describe('Earn final-stage owner history', () => {
     const listPrivateSelections: unknown = Reflect.get(workflowQueries, 'listPrivateSelections')
     if (typeof listPrivateSelections !== 'function') throw new Error('The pinned staff shortlist query is unavailable')
     if (finalize) {
-      expect(await listPrivateSelections(bountyId, 1)).toEqual({ rows: shortlist, hasMore: false })
+      const [own, other] = shortlist
+      expect(await listPrivateSelections(bountyId, 1)).toEqual({
+        rows: [
+          { id: own.id, revision: own.revision, version: own.version, contributor: own.contributor, canRemove: false },
+          { id: other.id, revision: other.revision, version: other.version, contributor: other.contributor, canRemove: true },
+        ],
+        hasMore: false,
+      })
+      expect(db.finalStage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        orderBy: { position: 'desc' },
+        select: { submissions: {
+          where: { status: 'approved' },
+          select: { id: true, revision: true, version: true, contributorId: true, contributor: { select: { name: true } } },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], skip: 0, take: EARN_PAGE_SIZE + 1,
+        } },
+      }))
     } else {
       await expect(listPrivateSelections(bountyId, 1)).rejects.toThrow(denied)
       expect(db.finalStage).not.toHaveBeenCalled()
