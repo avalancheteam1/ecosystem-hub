@@ -7,12 +7,14 @@ import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
 import { formatUtc } from '@/lib/dates'
+import { requirePermission } from '@/lib/guards'
 import { pageParam } from '@/lib/params'
 import { listBountiesForPublishing } from '@/app/(site)/earn/_lib/queries'
 
 export const metadata: Metadata = { title: 'Earn publishing' }
 
 export default async function EarnAdminPage({ searchParams }: { searchParams: Promise<{ page?: string | string[] }> }) {
+  await requirePermission('earn.publish')
   const page = pageParam((await searchParams).page)
   const { rows, hasMore } = await listBountiesForPublishing(page)
   return (

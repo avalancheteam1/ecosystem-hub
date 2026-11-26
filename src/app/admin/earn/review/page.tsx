@@ -8,6 +8,7 @@ import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
 import { NativeSelect } from '@/components/ui/native-select'
+import { requirePermission } from '@/lib/guards'
 import { pageParam, textParam } from '@/lib/params'
 import { bountyIdSchema } from '@/app/(site)/earn/_lib/schemas'
 import { submissionLabels } from '@/app/(site)/earn/_lib/stage-rules'
@@ -16,6 +17,7 @@ import { listReviewQueue } from '@/app/(site)/earn/_lib/workflow-queries'
 export const metadata: Metadata = { title: 'Earn review queue' }
 
 export default async function ReviewQueue({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  await requirePermission('earn.review')
   const input = await searchParams
   const page = pageParam(input.page)
   const id = bountyIdSchema.safeParse(textParam(input.bounty))

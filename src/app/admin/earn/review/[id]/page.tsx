@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Pager } from '@/components/layout/pager'
 import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
+import { requirePermission } from '@/lib/guards'
 import { pageParam } from '@/lib/params'
 import { can } from '@/lib/permissions'
 import { RevisionEvidence } from '@/app/(site)/earn/_components/revision-evidence'
@@ -15,6 +16,7 @@ import { RemoveSelection, ReviewForm } from '../../_components/review-form'
 export const metadata: Metadata = { title: 'Review submission' }
 
 export default async function ReviewPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ page?: string | string[] }> }) {
+  await requirePermission('earn.review')
   const page = pageParam((await searchParams).page)
   const view = await getSubmissionForReview((await params).id, page)
   if (!view) notFound()
