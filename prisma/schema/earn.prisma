@@ -84,6 +84,7 @@ model EarnSubmission {
   revision      Int                     @default(1)
   version       Int                     @default(1)
   ownerVersion  Int?
+  selectedReviewId String?
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
   stage         EarnStage               @relation(fields: [stageId], references: [id], onDelete: Restrict)
@@ -92,6 +93,7 @@ model EarnSubmission {
   continuations EarnSubmission[]         @relation("EarnSubmissionLineage")
   revisions     EarnSubmissionRevision[]
   reviews       EarnReview[]
+  selectedReview EarnReview? @relation("EarnSelectedReview", fields: [selectedReviewId], references: [id], onDelete: SetNull)
   award         EarnAward?
 
   @@index([stageId, contributorId])
@@ -129,6 +131,7 @@ model EarnReview {
   internalNote String?
   createdAt    DateTime           @default(now())
   submission   EarnSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  selectedBy   EarnSubmission[]   @relation("EarnSelectedReview")
   reviewer     User?              @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
 
   @@index([submissionId, revision, createdAt])

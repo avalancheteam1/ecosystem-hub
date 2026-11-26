@@ -91,7 +91,7 @@ export async function getOwnReceipt(bountyId: string, id: string, page: number) 
   const row = await prisma.earnSubmission.findUnique({
     where: { id, contributorId: user.id, stage: { ...historicalStage, bountyId } },
     select: {
-      id: true, status: true, revision: true, version: true, ownerVersion: true, createdAt: true, previousSubmissionId: true,
+      id: true, status: true, revision: true, version: true, ownerVersion: true, createdAt: true, previousSubmissionId: true, selectedReviewId: true,
       stage: { select: {
         id: true, title: true, position: true, submissionPolicy: true, requiresPullRequest: true,
         bounty: { select: {
@@ -106,22 +106,60 @@ export async function getOwnReceipt(bountyId: string, id: string, page: number) 
   if (!row) return null
   const final = row.stage.position === row.stage.bounty._count.stages
   const pendingAnnouncement = final && !row.stage.bounty.resultsAnnouncedAt
-  // Decisions and messages that could expose a private final selection are withheld.
+  const { ownerVersion, previousSubmissionId, selectedReviewId, ...entry } = row
+  const revisionNumbers = row.revisions.map((revision) => revision.number)
+  // Only an independently confirmed intermediate stage can show ordinary approval feedback.
   const reviews = await prisma.earnReview.findMany({
     where: {
       submissionId: id,
-      revision: { in: row.revisions.map((revision) => revision.number) },
+      revision: { in: revisionNumbers },
       feedback: { not: null },
-      ...(final && (pendingAnnouncement || !row.award) ? { decision: { not: 'approved' as const } } : {}),
+      ...(final || row.award ? { decision: { not: 'approved' as const } } : {
+        OR: [
+          { decision: { not: 'approved' } },
+          { submission: { contributorId: user.id, stage: {
+            id: row.stage.id, bountyId, position: row.stage.position,
+            bounty: { stages: { some: { position: { gt: row.stage.position } } } },
+          } } },
+        ],
+      }),
     },
-    select: { id: true, revision: true, decision: true, feedback: true },
+    select: { id: true, revision: true, decision: true, feedback: true, createdAt: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   })
+  if (final && !pendingAnnouncement && row.award && selectedReviewId && revisionNumbers.includes(row.revision)) {
+    // Authorize the feedback and read it in the same PostgreSQL statement snapshot.
+    // Announcement awards the current revision and closes all subsequent revision writes.
+    const [approved] = await prisma.$queryRaw<typeof reviews>`
+      SELECT review.id, review.revision, review.decision, review.feedback, review."createdAt"
+      FROM "earn_submissions" AS submission
+      JOIN "earn_stages" AS stage ON stage.id = submission."stageId"
+      JOIN "earn_bounties" AS bounty ON bounty.id = stage."bountyId"
+      JOIN "earn_awards" AS award ON award."submissionId" = submission.id AND award."bountyId" = bounty.id
+      JOIN "earn_reviews" AS review ON review.id = submission."selectedReviewId"
+        AND review."submissionId" = submission.id AND review.revision = submission.revision
+      JOIN "earn_submission_revisions" AS revision ON revision."submissionId" = submission.id
+        AND revision.number = submission.revision
+      WHERE submission.id = ${id}::uuid
+        AND submission."contributorId" = ${user.id}
+        AND submission.status = 'approved' AND submission.revision = ${row.revision}
+        AND bounty.id = ${bountyId}::uuid AND bounty."resultsAnnouncedAt" IS NOT NULL
+        AND bounty."publishedAt" IS NOT NULL AND bounty."cancelledAt" IS NULL
+        AND review.id = ${selectedReviewId} AND review.decision = 'approved' AND review.feedback IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "earn_stages" AS later
+          WHERE later."bountyId" = bounty.id AND later.position > stage.position
+        )
+    `
+    if (approved) {
+      reviews.push(approved)
+      reviews.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+    }
+  }
   const stageApproved = !final && row.stage.submissionPolicy !== 'multiple' && !!await prisma.earnSubmission.findFirst({
     where: { stageId: row.stage.id, contributorId: user.id, status: 'approved' },
     select: { id: true },
   })
-  const { ownerVersion, previousSubmissionId, ...entry } = row
   const lineage = await readLineage(bountyId, user.id, {
     id, revision: row.revision, createdAt: row.createdAt,
     stage: { id: row.stage.id, title: row.stage.title, position: row.stage.position },
@@ -137,7 +175,8 @@ export async function getOwnReceipt(bountyId: string, id: string, page: number) 
   }
   return {
     ...entry, status, version: ownerVersion ?? row.version, award: pendingAnnouncement ? null : row.award,
-    final, stageApproved, reviews, hasMore: row.revisions.length > EARN_PAGE_SIZE, revisions: row.revisions.slice(0, EARN_PAGE_SIZE),
+    final, stageApproved, reviews: reviews.map(({ createdAt: _createdAt, ...review }) => review),
+    hasMore: row.revisions.length > EARN_PAGE_SIZE, revisions: row.revisions.slice(0, EARN_PAGE_SIZE),
     previousSubmissionId: lineage.at(-2)?.id ?? null, lineage, canRevise,
     canWithdraw: open && status !== 'approved' && status !== 'withdrawn',
   }

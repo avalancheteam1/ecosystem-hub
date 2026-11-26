@@ -65,6 +65,7 @@ CREATE TABLE "earn_submissions" (
     "revision" INTEGER NOT NULL DEFAULT 1,
     "version" INTEGER NOT NULL DEFAULT 1,
     "ownerVersion" INTEGER,
+    "selectedReviewId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -175,6 +176,9 @@ ALTER TABLE "earn_submission_revisions" ADD CONSTRAINT "earn_submission_revision
 
 -- AddForeignKey
 ALTER TABLE "earn_reviews" ADD CONSTRAINT "earn_reviews_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "earn_submissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "earn_submissions" ADD CONSTRAINT "earn_submissions_selectedReviewId_fkey" FOREIGN KEY ("selectedReviewId") REFERENCES "earn_reviews"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "earn_reviews" ADD CONSTRAINT "earn_reviews_reviewerId_fkey" FOREIGN KEY ("reviewerId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

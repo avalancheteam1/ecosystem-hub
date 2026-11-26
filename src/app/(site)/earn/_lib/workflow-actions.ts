@@ -63,7 +63,7 @@ function limitContributorWrite(userId: string) {
 async function getOwnedSubmission(tx: Prisma.TransactionClient, id: string, bountyId: string, contributorId: string, version: number) {
   const entry = await tx.earnSubmission.findUnique({
     where: { id, contributorId, stage: { bountyId } },
-    select: { id: true, stageId: true, revision: true, version: true, ownerVersion: true, status: true, previousSubmissionId: true },
+    select: { id: true, stageId: true, revision: true, version: true, ownerVersion: true, status: true, previousSubmissionId: true, selectedReviewId: true },
   })
   if (!entry) throw new ForbiddenError('This submission is unavailable.')
   if ((entry.ownerVersion ?? entry.version) !== version) throw new ActionError('This submission changed. Reload and try again.')
@@ -171,7 +171,13 @@ export const reviseStage = action({
     const data = revisionData(evidence, stage, bounty)
     const number = entry.revision + 1
     const displacesSelection = final && entry.status === 'approved'
-    await tx.earnSubmission.update({ where: { id }, data: { status: 'pending', revision: number, version: { increment: 1 }, ...advanceOwnerVersion(entry) } })
+    await tx.earnSubmission.update({
+      where: { id },
+      data: {
+        status: 'pending', revision: number, version: { increment: 1 }, ...advanceOwnerVersion(entry),
+        ...(entry.selectedReviewId != null ? { selectedReviewId: null } : {}),
+      },
+    })
     await tx.earnSubmissionRevision.create({ data: { ...data, submissionId: id, number, changeNote } })
     if (displacesSelection) await invalidateShortlist(tx, bountyId, bounty.updatedAt)
     await recordAudit({
@@ -197,7 +203,13 @@ export const withdrawStage = action({
     const final = entry.stageId === bounty.stages.at(-1)?.id
     const status = ownerSubmissionStatus(entry.status, final)
     if (status === 'approved' || status === 'withdrawn') throw new ActionError('This submission cannot be withdrawn.')
-    await tx.earnSubmission.update({ where: { id }, data: { status: 'withdrawn', version: { increment: 1 }, ...advanceOwnerVersion(entry) } })
+    await tx.earnSubmission.update({
+      where: { id },
+      data: {
+        status: 'withdrawn', version: { increment: 1 }, ...advanceOwnerVersion(entry),
+        ...(entry.selectedReviewId != null ? { selectedReviewId: null } : {}),
+      },
+    })
     await tx.earnSubmissionRevision.update({
       where: { submissionId_number: { submissionId: id, number: entry.revision } },
       data: { withdrawnAt: new Date(), withdrawalReason: reason },
@@ -215,7 +227,7 @@ export const reviewStage = action({ permission: 'earn.review', schema: reviewSch
     if (bounty.resultsAnnouncedAt) throw new ActionError('Results have already been announced.')
     const entry = await tx.earnSubmission.findUnique({
       where: { id, stage: { bountyId } },
-      select: { contributorId: true, stageId: true, version: true, ownerVersion: true, revision: true, status: true, updatedAt: true },
+      select: { contributorId: true, stageId: true, version: true, ownerVersion: true, revision: true, status: true, updatedAt: true, selectedReviewId: true },
     })
     if (!entry) throw new ActionError('Submission not found.')
     if (entry.contributorId === user.id) throw new ForbiddenError('You cannot review your own submission.')
@@ -244,15 +256,17 @@ export const reviewStage = action({ permission: 'earn.review', schema: reviewSch
       }
     }
     const privateChange = isFinal && (decision === 'approved' || removingSelection)
+    const review = await tx.earnReview.create({ data: { submissionId: id, reviewerId: user.id, revision: entry.revision, decision, feedback: feedback || null, internalNote: internalNote || null } })
+    const selectedReviewId = isFinal && decision === 'approved' ? review.id : null
     await tx.earnSubmission.update({
       where: { id },
       data: {
         status: decision, version: { increment: 1 },
         ...(privateChange ? { ownerVersion: entry.ownerVersion ?? entry.version, updatedAt: entry.updatedAt } : advanceOwnerVersion(entry)),
+        ...(selectedReviewId !== null || (removingSelection && entry.selectedReviewId != null) ? { selectedReviewId } : {}),
       },
     })
     if (privateChange) await invalidateShortlist(tx, bountyId, bounty.updatedAt)
-    await tx.earnReview.create({ data: { submissionId: id, reviewerId: user.id, revision: entry.revision, decision, feedback: feedback || null, internalNote: internalNote || null } })
     await recordAudit({ actorId: user.id, action: removingSelection ? 'earn.submission.unselect' : 'earn.submission.review', entityType: 'EarnSubmission', entityId: id, before: { status: entry.status }, after: { revision: entry.revision, status: decision } }, tx)
   })
   refreshWorkflow(bountyId, id)
