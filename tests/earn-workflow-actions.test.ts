@@ -23,6 +23,7 @@ import { rateLimit } from '@/lib/rate-limit'
 const bountyId = '83a2f90c-8226-400c-8df0-19fe4827db49'
 const id = '17f149fa-6932-4c27-85f5-096379ba4db6'
 const stageId = '4f1a1aff-0e83-47df-b238-58c04948beac'
+const selectedReviewId = 'synthetic-review-1'
 const reviewer = { id: 'staff', isSuperAdmin: false, permissions: new Set(['earn.review']) }
 const contributor = { id: 'contributor', isSuperAdmin: false, permissions: new Set() }
 const entry = {
@@ -64,6 +65,7 @@ describe('Earn action boundaries', () => {
     }))
     mocks.bounty.mockResolvedValue(bounty)
     mocks.entry.mockResolvedValue(entry)
+    mocks.review.mockImplementation(async () => ({ id: `synthetic-review-${mocks.review.mock.calls.length}` }))
   })
 
   it('blocks contributor writes before any transaction when Earn is off', async () => {
@@ -343,8 +345,14 @@ describe('Earn action boundaries', () => {
 
       expect(await reviewStage(review)).toEqual({ ok: true, data: { id } })
       expect(mocks.update).toHaveBeenCalledWith({
-        where: { id }, data: expect.objectContaining({ status: 'approved', updatedAt: entry.updatedAt }),
+        where: { id }, data: expect.objectContaining({
+          status: 'approved', version: { increment: 1 }, updatedAt: entry.updatedAt, selectedReviewId,
+        }),
       })
+      expect(mocks.lock).toHaveBeenCalledBefore(mocks.review)
+      expect(mocks.review).toHaveBeenCalledBefore(mocks.update)
+      expect(mocks.update).toHaveBeenCalledBefore(mocks.complete)
+      expect(mocks.complete).toHaveBeenCalledBefore(mocks.audit)
       expect(mocks.update.mock.calls[0][0].data.ownerVersion ?? entry.ownerVersion).toBe(entry.ownerVersion)
       expect(mocks.award).not.toHaveBeenCalled()
       expect(mocks.complete).toHaveBeenCalledWith({
@@ -356,7 +364,7 @@ describe('Earn action boundaries', () => {
     })
 
     it.each(['edit', 'withdraw'] as const)('US-06 accepts an owner form opened before private selection (%s)', async (operation) => {
-      mocks.entry.mockResolvedValue({ ...entry, id, status: 'approved', ownerVersion: 4, version: 5 })
+      mocks.entry.mockResolvedValue({ ...entry, id, status: 'approved', ownerVersion: 4, version: 5, selectedReviewId })
       const opened = { id, bountyId, version: 4 }
       const updated = operation === 'edit'
         ? await reviseStage({ ...opened, evidence, changeNote: 'Synthetic revision' })
@@ -364,7 +372,9 @@ describe('Earn action boundaries', () => {
       const status = operation === 'edit' ? 'pending' : 'withdrawn'
 
       expect(updated).toEqual({ ok: true, data: { id } })
-      expect(mocks.update).toHaveBeenCalledWith({ where: { id }, data: expect.objectContaining({ status }) })
+      expect(mocks.update).toHaveBeenCalledWith({
+        where: { id }, data: expect.objectContaining({ status, selectedReviewId: null }),
+      })
       expect(mocks.complete).toHaveBeenCalledWith({
         where: { id: bountyId }, data: expect.objectContaining({ revision: { increment: 1 }, updatedAt: bounty.updatedAt }),
       })
@@ -580,13 +590,16 @@ describe('Earn action boundaries', () => {
 
   it('releases a private selection with finalize permission and invalidates the announcement confirmation', async () => {
     const remove = { ...review, decision: 'needs_review' as const, feedback: '', internalNote: 'Fix the selection' }
-    mocks.entry.mockResolvedValue({ ...entry, status: 'approved' })
+    mocks.entry.mockResolvedValue({ ...entry, status: 'approved', selectedReviewId })
+    mocks.review.mockResolvedValueOnce({ id: 'synthetic-review-revocation' })
     expect(await reviewStage(remove)).toEqual({ ok: false, error: 'You do not have permission to select award recipients.' })
     mocks.user = { ...reviewer, permissions: new Set(['earn.review', 'earn.finalize']) }
     expect(await reviewStage({ ...remove, internalNote: '' })).toMatchObject({ ok: false })
     expect(await reviewStage(remove)).toEqual({ ok: true, data: { id } })
     expect.soft(mocks.update).toHaveBeenCalledWith({
-      where: { id }, data: expect.objectContaining({ status: 'needs_review', version: { increment: 1 }, updatedAt: entry.updatedAt }),
+      where: { id }, data: expect.objectContaining({
+        status: 'needs_review', version: { increment: 1 }, updatedAt: entry.updatedAt, selectedReviewId: null,
+      }),
     })
     expect(mocks.update.mock.calls[0][0].data.ownerVersion ?? entry.ownerVersion).toBe(entry.ownerVersion)
     expect.soft(mocks.complete).toHaveBeenCalledWith({

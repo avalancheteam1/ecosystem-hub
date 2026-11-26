@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const db = vi.hoisted(() => ({ entry: vi.fn(), reviews: vi.fn(), finalStage: vi.fn() }))
+const db = vi.hoisted(() => ({ entry: vi.fn(), reviews: vi.fn(), finalStage: vi.fn(), raw: vi.fn() }))
 const session = vi.hoisted(() => ({ getAuthState: vi.fn() }))
 vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
@@ -8,6 +8,7 @@ vi.mock('@/lib/security-events', () => ({ securityEvent: vi.fn() }))
 vi.mock('@/lib/session', () => ({ getAuthState: session.getAuthState }))
 vi.mock('@/lib/db', () => ({
   prisma: {
+    $queryRaw: db.raw,
     earnSubmission: { findUnique: db.entry },
     earnReview: { findMany: db.reviews },
     earnStage: { findFirst: db.finalStage },
@@ -27,6 +28,7 @@ const decisionTime = new Date('2026-11-23T12:00:00Z')
 const denied = 'NEXT_HTTP_ERROR_FALLBACK;404'
 type History = 'prior revision' | 'winning revision' | 'winning decision only'
 type State = 'unannounced' | 'awarded' | 'nonwinner'
+type Selection = 'current' | 'wrong' | 'missing' | 'foreign' | 'legacy null' | 'old revision' | 'nonapproval'
 type Decision = 'approved' | 'needs_review'
 type Review = {
   id: string
@@ -68,7 +70,7 @@ function signedIn(actor: string, ...permissions: string[]) {
   })
 }
 
-function historyFixture(history: History, state: State, selection: 'current' | 'wrong' | 'legacy null' = 'current') {
+function historyFixture(history: History, state: State, selection: Selection = 'current') {
   const revision = history === 'prior revision' ? 2 : 1
   const ordinary = {
     id: 'synthetic-01-public', submissionId: id, revision: 1, decision: 'needs_review' as const,
@@ -93,14 +95,19 @@ function historyFixture(history: History, state: State, selection: 'current' | '
   const decisions = history === 'winning decision only'
     ? [ordinary, winning]
     : [ordinary, cleared, revocation, ...(state === 'nonwinner' ? [] : [winning])]
+  const reviewRows = [...decisions, unrelated]
   const revisions = Array.from({ length: revision }, (_, index) => ({
     number: revision - index, notes: `Synthetic evidence for revision ${revision - index}`,
   }))
+  const selectedReviewIds = {
+    current: winning.id, wrong: winning.id, missing: 'synthetic-missing-selection', foreign: unrelated.id,
+    'legacy null': null, 'old revision': cleared.id, nonapproval: ordinary.id,
+  }
   const row = {
     id, contributorId: ownerId, contributor: { name: 'Synthetic Owner' },
     status: state === 'nonwinner' ? 'needs_review' : 'approved',
     revision, version: 5, ownerVersion: 4, createdAt: decisionTime, previousSubmissionId: null,
-    selectedReviewId: state === 'nonwinner' || selection === 'legacy null' ? null : selection === 'wrong' ? unrelated.id : winning.id,
+    selectedReviewId: state === 'nonwinner' ? null : selectedReviewIds[selection],
     award: state === 'awarded' ? { reward: 'Synthetic recognition', rewardedAt: null } : null,
     stage: {
       id: stageId, bountyId, position: 2, title: 'Synthetic final', submissionPolicy: 'multiple',
@@ -121,8 +128,36 @@ function historyFixture(history: History, state: State, selection: 'current' | '
       ? selectedFields(row, select) : null,
   )
   db.reviews.mockImplementation(async ({ where, select }: { where: ReviewWhere; select: Record<string, unknown> }) =>
-    [...decisions, unrelated].filter((review) => matchesReview(review, where)).map((review) => selectedFields(review, select)),
+    reviewRows.filter((review) => matchesReview(review, where)).map((review) => selectedFields(review, select)),
   )
+  // A second snapshot can have a different selection even on the same revision.
+  const currentSelection = selection === 'wrong' ? cleared.id : row.selectedReviewId
+  const award = row.award && { submissionId: row.id, bountyId }
+  db.raw.mockImplementation(async (strings: TemplateStringsArray, ...bindings: unknown[]) => {
+    expect(bindings).toEqual([row.id, row.contributorId, row.revision, row.stage.bountyId, row.selectedReviewId])
+    const sql = String.raw(strings, ...bindings.map((_, index) => `$${index + 1}`)).replace(/\s+/g, ' ')
+    expect(sql).toContain('JOIN "earn_stages" AS stage ON stage.id = submission."stageId"')
+    expect(sql).toContain('JOIN "earn_bounties" AS bounty ON bounty.id = stage."bountyId"')
+    expect(sql).toContain('JOIN "earn_awards" AS award ON award."submissionId" = submission.id AND award."bountyId" = bounty.id')
+    expect(sql).toContain('JOIN "earn_reviews" AS review ON review.id = submission."selectedReviewId" AND review."submissionId" = submission.id AND review.revision = submission.revision')
+    expect(sql).toContain('JOIN "earn_submission_revisions" AS revision ON revision."submissionId" = submission.id AND revision.number = submission.revision')
+    expect(sql).toContain('WHERE submission.id = $1::uuid AND submission."contributorId" = $2 AND submission.status = \'approved\' AND submission.revision = $3')
+    expect(sql).toContain('AND bounty.id = $4::uuid AND bounty."resultsAnnouncedAt" IS NOT NULL AND bounty."publishedAt" IS NOT NULL AND bounty."cancelledAt" IS NULL')
+    expect(sql).toContain("AND review.id = $5 AND review.decision = 'approved' AND review.feedback IS NOT NULL")
+    expect(sql).toContain('AND NOT EXISTS ( SELECT 1 FROM "earn_stages" AS later WHERE later."bountyId" = bounty.id AND later.position > stage.position )')
+
+    const [submissionId, contributorId, currentRevision, requestedBountyId, reviewId] = bindings
+    if (submissionId !== row.id || contributorId !== row.contributorId || currentRevision !== row.revision ||
+        row.status !== 'approved' || requestedBountyId !== row.stage.bountyId || !row.stage.bounty.resultsAnnouncedAt ||
+        row.stage.bounty.cancelledAt || row.stage.position !== row.stage.bounty._count.stages ||
+        !award || award.submissionId !== submissionId || award.bountyId !== requestedBountyId ||
+        !reviewId || reviewId !== currentSelection || !revisions.some(({ number }) => number === currentRevision)) return []
+    const approved = reviewRows.find((review) => review.id === reviewId && review.submissionId === submissionId &&
+      review.revision === currentRevision && review.decision === 'approved' && review.feedback !== null)
+    if (!approved) return []
+    const { id, revision, decision, feedback, createdAt } = approved
+    return [{ id, revision, decision, feedback, createdAt }]
+  })
   const shortlist = [{ id, revision, version: row.version, contributor: row.contributor }]
   db.finalStage.mockResolvedValue({ submissions: shortlist })
   return { ordinary, cleared, winning, unrelated, decisions, revisions, shortlist }
@@ -143,6 +178,7 @@ describe('Earn final-stage owner history', () => {
     expect(receipt).toMatchObject({ status: 'approved', version: 4, revisions, award: { reward: 'Synthetic recognition' } })
     expect(receipt?.reviews.map(({ feedback }) => feedback)).toEqual(expect.arrayContaining([ordinary.feedback, winning.feedback]))
     expect(JSON.stringify(receipt).includes(cleared.feedback), cleared.feedback).toBe(false)
+    expect(db.raw).toHaveBeenCalledOnce()
   })
 
   it('keeps ordinary feedback and the exact awarded approval visible', async () => {
@@ -152,6 +188,8 @@ describe('Earn final-stage owner history', () => {
     expect(receipt?.reviews.map(({ id, feedback }) => ({ id, feedback }))).toEqual([
       { id: ordinary.id, feedback: ordinary.feedback }, { id: winning.id, feedback: winning.feedback },
     ])
+    expect(receipt).not.toHaveProperty('selectedReviewId')
+    expect(db.raw).toHaveBeenCalledOnce()
   })
 
   it.each(clearedHistories)('masks every private approval before announcement with a cleared %s', async (history) => {
@@ -162,6 +200,7 @@ describe('Earn final-stage owner history', () => {
     expect(receipt?.reviews.map(({ feedback }) => feedback)).toEqual([ordinary.feedback])
     expect(JSON.stringify(receipt)).not.toContain(cleared.feedback)
     expect(JSON.stringify(receipt)).not.toContain(winning.feedback)
+    expect(db.raw).not.toHaveBeenCalled()
   })
 
   it('masks approval history for an announced nonwinner without an award', async () => {
@@ -171,10 +210,12 @@ describe('Earn final-stage owner history', () => {
     expect(receipt).toMatchObject({ status: 'needs_review', version: 4, award: null })
     expect(receipt?.reviews.map(({ feedback }) => feedback)).toEqual([ordinary.feedback])
     expect(JSON.stringify(receipt)).not.toContain(cleared.feedback)
+    expect(db.raw).not.toHaveBeenCalled()
   })
 
-  it.each(['wrong', 'legacy null'] as const)('withholds approvals on an announced award with a %s selected review ID', async (selection) => {
-    const { ordinary, cleared, winning, unrelated } = historyFixture('winning revision', 'awarded', selection)
+  it.each(['wrong', 'missing', 'foreign', 'legacy null', 'old revision', 'nonapproval'] as const)('withholds approvals on an announced award (%s selection)', async (selection) => {
+    const history = selection === 'old revision' ? 'prior revision' : 'winning revision'
+    const { ordinary, cleared, winning, unrelated } = historyFixture(history, 'awarded', selection)
     const receipt = await getOwnReceipt(bountyId, id, 1)
 
     expect(receipt?.award).toMatchObject({ reward: 'Synthetic recognition' })
@@ -183,6 +224,9 @@ describe('Earn final-stage owner history', () => {
     expect.soft(returned.includes(cleared.feedback), cleared.feedback).toBe(false)
     expect.soft(returned.includes(winning.feedback), winning.feedback).toBe(false)
     expect(returned).not.toContain(unrelated.feedback)
+    expect(receipt?.reviews).toHaveLength(1)
+    if (selection === 'legacy null') expect(db.raw).not.toHaveBeenCalled()
+    else expect(db.raw).toHaveBeenCalledOnce()
   })
 
   it('scopes owner history to its contributor and denies an ordinary owner staff history', async () => {
@@ -196,6 +240,7 @@ describe('Earn final-stage owner history', () => {
       where: expect.objectContaining({ id, contributorId: 'synthetic-unrelated-owner', stage: expect.objectContaining({ bountyId }) }),
     }))
     expect(db.reviews).not.toHaveBeenCalled()
+    expect(db.raw).not.toHaveBeenCalled()
   })
 
   it.each([false, true])('retains all review decisions for staff with finalize grant %s', async (finalize) => {
