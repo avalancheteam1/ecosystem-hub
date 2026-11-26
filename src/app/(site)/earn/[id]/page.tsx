@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import { ExternalLink } from 'lucide-react'
@@ -38,8 +39,11 @@ export default async function BountyPage({ params, searchParams }: {
   return (
     <div className="container-page max-w-4xl py-10 sm:py-14 [&_h1]:wrap-anywhere">
       <BackLink href="/earn">All bounties</BackLink>
-      <PageHeader title={bounty.title} description={`team1 · ${bounty.category}`}>
-        <StatusPill tone={open ? 'success' : 'neutral'}>{status}</StatusPill>
+      <PageHeader title={bounty.title} description={`${bounty.organization.name} · ${bounty.category}`}>
+        <div className="flex items-center gap-2">
+          {bounty.logoUrl && <Image src={bounty.logoUrl} alt="" width={48} height={48} className="size-12 shrink-0 rounded-lg object-cover" />}
+          <StatusPill tone={open ? 'success' : 'neutral'}>{status}</StatusPill>
+        </div>
       </PageHeader>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">

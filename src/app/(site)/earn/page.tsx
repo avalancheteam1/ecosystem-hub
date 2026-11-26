@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Code2 } from 'lucide-react'
 import { EmptyState } from '@/components/empty-state'
@@ -66,8 +67,13 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
                   <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
                   {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
                 </div>
-                <p className="text-sm text-fg-muted">{bounty.category}</p>
-                <h2 id={`bounty-title-${bounty.id}`} className="mb-4 text-xl wrap-anywhere">{bounty.title}</h2>
+                <div className="mb-4 flex items-start gap-3">
+                  {bounty.logoUrl && <Image src={bounty.logoUrl} alt="" width={48} height={48} className="size-12 shrink-0 rounded-lg object-cover" />}
+                  <div className="min-w-0">
+                    <p className="text-sm wrap-anywhere text-fg-muted">{bounty.organization.name} · {bounty.category}</p>
+                    <h2 id={`bounty-title-${bounty.id}`} className="text-xl wrap-anywhere">{bounty.title}</h2>
+                  </div>
+                </div>
                 {bounty.hubModule && <p className="mb-4 break-words text-sm text-fg-body">{bounty.hubModule}</p>}
                 <dl className="mt-auto flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-line pt-4">
                   <div className="min-w-0"><dt className="text-sm text-fg-muted">Reward</dt><dd className="break-words text-fg-heading">{bounty.reward}</dd></div>

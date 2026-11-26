@@ -14,21 +14,23 @@ import { isFlagOn } from '@/lib/flag-store'
 import { getResultsForPublishing } from '@/app/(site)/earn/_lib/workflow-queries'
 import { ResultsAction } from '../_components/results-action'
 import { formatUtc } from '@/lib/dates'
-import { getBountyForPublishing } from '@/app/(site)/earn/_lib/queries'
+import { getBountyForPublishing, listEarnOrganizationOptions } from '@/app/(site)/earn/_lib/queries'
 import { BountyForm } from '../_components/bounty-form'
 import { PublicationButton } from '../_components/publication-button'
 
 export const metadata: Metadata = { title: 'Manage bounty' }
 
 export default async function ManageBountyPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ page?: string | string[] }> }) {
+  const user = await requirePermission('earn.publish')
   const bounty = await getBountyForPublishing((await params).id)
   if (!bounty) notFound()
   const published = Boolean(bounty.publishedAt)
-  const user = await requirePermission('earn.publish')
   const earnOn = await isFlagOn('earn')
   const page = pageParam((await searchParams).page)
-  const result = published && bounty.stages.length ? await getResultsForPublishing(bounty.id, page) : null
   const { publishedAt, id, resultsAnnouncedAt, cancelledAt, cancellationReason, ...draft } = bounty
+  const editable = !cancelledAt && !resultsAnnouncedAt
+  const result = (published || editable) && bounty.stages.length ? await getResultsForPublishing(id, page) : null
+  const organizations = editable ? await listEarnOrganizationOptions() : []
   const activity = !!resultsAnnouncedAt || !!result?.submitted
   const afterDeadline = bounty.deadline <= new Date()
   return (
@@ -38,21 +40,21 @@ export default async function ManageBountyPage({ params, searchParams }: { param
         {earnOn && published && !cancelledAt && <Button asChild variant="outline"><Link href={`/earn/${bounty.id}`}>View public brief</Link></Button>}
       </PageHeader>
       <div className="space-y-6">
-        <SectionCard title="Publication" description={published && !activity && !cancelledAt ? 'Unpublish to make changes to the brief.' : !published ? 'Publishing uses the last saved draft.' : undefined}>
+        <SectionCard title="Publication" description={published && editable ? 'You can edit this brief until results are announced.' : !published ? 'Publishing uses the last saved draft.' : undefined}>
           {cancelledAt ? <p className="whitespace-pre-wrap break-words">Staff reason · {cancellationReason}</p> : (
             <div className="flex flex-wrap items-center gap-3">
-              {activity ? <p>The brief and stages are locked because the bounty has recorded activity.</p> : <PublicationButton key={bounty.revision} id={id} revision={bounty.revision} published={published} />}
+              {published && activity ? <p>This bounty has recorded activity and must stay published.</p> : <PublicationButton key={bounty.revision} id={id} revision={bounty.revision} published={published} />}
               {published && user.isSuperAdmin && !resultsAnnouncedAt && <ResultsAction action="cancel" id={id} revision={bounty.revision} />}
             </div>
           )}
         </SectionCard>
-        {(published || cancelledAt) && bounty.stages.length > 0 && <SectionCard title="Stages">
+        {!editable && bounty.stages.length > 0 && <SectionCard title="Stages">
           <ol className="space-y-3">{bounty.stages.map((stage) => <li key={stage.id} className="break-words">
             <p>{stage.position}. {stage.title}{stage.requiresPullRequest ? ' · GitHub PR' : ''}</p>
             {stage.deliverables && <Markdown className="wrap-anywhere text-sm">{stage.deliverables}</Markdown>}
           </li>)}</ol>
         </SectionCard>}
-        {result && !cancelledAt && <SectionCard title={resultsAnnouncedAt ? 'Announced awards' : 'Results'}>
+        {published && result && !cancelledAt && <SectionCard title={resultsAnnouncedAt ? 'Announced awards' : 'Results'}>
           <p className="mb-4 text-sm text-fg-body">{resultsAnnouncedAt ? `Announced ${formatUtc(resultsAnnouncedAt)}` : afterDeadline ? `${result.selected} privately selected · ${result.submitted} total entries` : 'Final selection opens after the deadline.'}</p>
           <div className="flex flex-wrap gap-2">
             {can(user, 'earn.review') && <Button asChild variant="outline"><Link href={`/admin/earn/review?bounty=${id}`}>Review submissions</Link></Button>}
@@ -64,7 +66,7 @@ export default async function ManageBountyPage({ params, searchParams }: { param
           </li>)}</ul>}
           {resultsAnnouncedAt && <Pager page={page} hasMore={result.hasMore} params={{}} />}
         </SectionCard>}
-        {!published && !cancelledAt && <BountyForm key={bounty.revision} id={id} initial={draft} />}
+        {editable && <BountyForm key={bounty.revision} id={id} initial={draft} organizations={organizations} published={published} stagesLocked={activity} />}
       </div>
     </>
   )
