@@ -85,7 +85,9 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
         if (!result.ok) setError(result.error)
         else if (!revision) router.push(`/earn/${bountyId}/receipts/${result.data.id}`)
         return result
-      }, revision ? 'Revision received' : 'Submission received')
+      }, revision ? 'Revision received' : 'Submission received', revision
+        ? () => router.replace(`/earn/${bountyId}/receipts/${revision.id}`)
+        : undefined)
     }}>
       {requiresPullRequest && <Field id={fieldIds.pullRequests} label="GitHub pull requests" required>
         <Textarea id={fieldIds.pullRequests} name="pullRequests" defaultValue={revision?.pullRequests.join('\n')} required maxLength={5010} rows={3} {...feedbackProps('pullRequests', true)} />
