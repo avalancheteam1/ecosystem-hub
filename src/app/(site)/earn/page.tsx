@@ -27,7 +27,7 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
   const [{ rows, hasMore }, user] = await Promise.all([listPublicBounties({ ...filters, page }, now), getCurrentUser()])
 
   return (
-    <EarnDirectory current="/earn" signedIn={!!user}>
+    <EarnDirectory signedIn={!!user}>
       <form id="earn-reset-filters" action="/earn" method="get" />
       <form action="/earn" role="search" aria-label="Filter bounties" className="mb-8 grid items-end gap-4 rounded-xl border border-line bg-surface-1 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Field id="earn-search" label="Search bounties" className="sm:col-span-2">
@@ -56,20 +56,24 @@ export default async function EarnPage({ searchParams }: { searchParams: Promise
       {rows.length ? (
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {rows.map((bounty) => (
-            <li key={bounty.id} className="flex min-w-0 flex-col rounded-xl border border-line bg-surface-2 p-6">
-              <div className="mb-3 flex flex-wrap gap-2">
-                <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
-                {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
-              </div>
-              <p className="text-sm text-fg-muted">{bounty.category}</p>
-              <h2 className="mb-4 break-words text-xl">
-                <Link href={`/earn/${bounty.id}`} className="inline-flex min-h-11 items-center hover:text-brand">{bounty.title}</Link>
-              </h2>
-              {bounty.hubModule && <p className="mb-4 break-words text-sm text-fg-body">{bounty.hubModule}</p>}
-              <dl className="mt-auto flex justify-between gap-4 border-t border-line pt-4">
-                <div className="min-w-0"><dt className="text-sm text-fg-muted">Reward</dt><dd className="break-words text-fg-heading">{bounty.reward}</dd></div>
-                <div className="shrink-0 text-right"><dt className="text-sm text-fg-muted">Deadline</dt><dd><time dateTime={bounty.deadline.toISOString()}>{formatShortDate(bounty.deadline, 'UTC', now)} UTC</time></dd></div>
-              </dl>
+            <li key={bounty.id} className="min-w-0">
+              <Link
+                href={`/earn/${bounty.id}`}
+                aria-labelledby={`bounty-title-${bounty.id}`}
+                className="flex h-full flex-col rounded-xl border border-line bg-surface-2 p-6 hover:border-brand hover:shadow-glow focus-visible:border-brand focus-visible:outline-brand motion-safe:transition motion-safe:duration-200 motion-safe:hover:-translate-y-0.5"
+              >
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <StatusPill tone={bounty.deadline > now ? 'success' : 'neutral'}>{bounty.resultsAnnouncedAt ? 'Results announced' : bounty.deadline > now ? 'Accepting submissions' : 'Submissions closed'}</StatusPill>
+                  {bounty.hubModule && <StatusPill tone="info"><Code2 className="mr-1 size-3" aria-hidden /> Hub feature</StatusPill>}
+                </div>
+                <p className="text-sm text-fg-muted">{bounty.category}</p>
+                <h2 id={`bounty-title-${bounty.id}`} className="mb-4 text-xl wrap-anywhere">{bounty.title}</h2>
+                {bounty.hubModule && <p className="mb-4 break-words text-sm text-fg-body">{bounty.hubModule}</p>}
+                <dl className="mt-auto flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-line pt-4">
+                  <div className="min-w-0"><dt className="text-sm text-fg-muted">Reward</dt><dd className="break-words text-fg-heading">{bounty.reward}</dd></div>
+                  <div><dt className="text-sm text-fg-muted">Deadline</dt><dd><time dateTime={bounty.deadline.toISOString()}>{formatShortDate(bounty.deadline, 'UTC', now)} UTC</time></dd></div>
+                </dl>
+              </Link>
             </li>
           ))}
         </ul>

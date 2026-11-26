@@ -34,22 +34,11 @@ export default async function BountyPage({ params, searchParams }: {
   const status = bounty.resultsAnnouncedAt ? 'Results announced' : open ? 'Accepting submissions' : 'Submissions closed'
 
   return (
-    <div className="container-page py-10 sm:py-14">
+    <div className="container-page max-w-4xl py-10 sm:py-14 [&_h1]:wrap-anywhere">
       <BackLink href="/earn">All bounties</BackLink>
       <PageHeader title={bounty.title} description={`team1 · ${bounty.category}`}>
         <StatusPill tone={open ? 'success' : 'neutral'}>{status}</StatusPill>
       </PageHeader>
-      <p className="mb-6 text-sm text-fg-body">
-        {bounty.resultsAnnouncedAt ? (
-          <>Announced <time dateTime={bounty.resultsAnnouncedAt.toISOString()}>{formatUtc(bounty.resultsAnnouncedAt)}</time>.</>
-        ) : (
-          <>
-            {open ? 'Submit work by ' : 'Deadline was '}
-            <time dateTime={bounty.deadline.toISOString()}>{formatUtc(bounty.deadline)}</time>.
-            {!open && bounty.stages.length > 0 && ' Review is underway. Results will appear here when announced.'}
-          </>
-        )}
-      </p>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
           <SectionCard title="The bounty"><p className="whitespace-pre-wrap break-words">{bounty.description}</p></SectionCard>
@@ -74,9 +63,23 @@ export default async function BountyPage({ params, searchParams }: {
             ) : <p>This bounty’s deadline has passed.</p>}
           </SectionCard>}
         </div>
-        <aside className="space-y-6" aria-label="Bounty details">
-          <SectionCard title="Reward">
-            <p className="break-words text-2xl text-fg-heading">{bounty.reward}</p>
+        <aside className="min-w-0 space-y-6" aria-label="Bounty details">
+          <SectionCard>
+            <dl className="space-y-4">
+              <div>
+                <dt className="text-sm text-fg-muted">Submission deadline</dt>
+                <dd className="text-fg-heading"><time dateTime={bounty.deadline.toISOString()}>{formatUtc(bounty.deadline)}</time></dd>
+                {bounty.resultsAnnouncedAt ? (
+                  <dd className="mt-1 text-sm">Announced <time dateTime={bounty.resultsAnnouncedAt.toISOString()}>{formatUtc(bounty.resultsAnnouncedAt)}</time>.</dd>
+                ) : !open && bounty.stages.length > 0 && (
+                  <dd className="mt-1 text-sm">Review is underway. Results will appear here when announced.</dd>
+                )}
+              </div>
+              <div>
+                <dt className="text-sm text-fg-muted">Reward</dt>
+                <dd className="break-words text-2xl text-fg-heading">{bounty.reward}</dd>
+              </div>
+            </dl>
           </SectionCard>
           {bounty.hubModule && bounty.githubIssueUrl && (
             <SectionCard title="Hub feature">

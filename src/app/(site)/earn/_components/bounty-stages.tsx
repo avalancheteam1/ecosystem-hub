@@ -2,13 +2,13 @@ import Link from 'next/link'
 import { ArrowRight, Check, LockKeyhole } from 'lucide-react'
 import { Pager } from '@/components/layout/pager'
 import { SectionCard } from '@/components/section-card'
-import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/session'
 import { formatUtc } from '@/lib/dates'
 import { getContributorProgress } from '../_lib/workflow-queries'
 import { contributorStatus, newSubmissionError, previousStageError, type StageGate } from '../_lib/stage-rules'
 import { SubmissionForm } from './submission-form'
+import { SubmissionStatusPill } from './submission-status-pill'
 
 type Stage = StageGate & { deliverables: string; requiresPullRequest: boolean }
 
@@ -58,13 +58,15 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
                 <span className="break-words underline underline-offset-4">{stage.title} · revision {entry.revision}</span>
                 <span className="text-sm text-fg-muted">Submitted <time dateTime={entry.createdAt.toISOString()}>{formatUtc(entry.createdAt)}</time></span>
               </Link>
-              <StatusPill>{contributorStatus(entry.status, { final: isFinal, announced: resultsAnnounced, awarded: !!entry.award, cancelled: false })}</StatusPill>
+              <SubmissionStatusPill label={contributorStatus(entry.status, { final: isFinal, announced: resultsAnnounced, awarded: !!entry.award, cancelled: false })} />
             </li>
           ))}
         </ul>
-        <Pager page={page} hasMore={progress.hasMore} params={{ stage: stage.id }} />
+        <div className="[&_a]:min-h-11 [&_a]:min-w-11"><Pager page={page} hasMore={progress.hasMore} params={{ stage: stage.id }} /></div>
       </SectionCard>}
-      {!progress.rows.length && page > 1 && <Pager page={page} hasMore={false} params={{ stage: stage.id }} />}
+      {!progress.rows.length && page > 1 && (
+        <div className="[&_a]:min-h-11 [&_a]:min-w-11"><Pager page={page} hasMore={false} params={{ stage: stage.id }} /></div>
+      )}
       {user && !blocked && <SectionCard title="Submit stage work">
         <SubmissionForm key={stage.id} bountyId={id} stageId={stage.id} requiresPullRequest={stage.requiresPullRequest} githubIssueUrl={githubIssueUrl} terms={terms} termsVersion={termsVersion} />
       </SectionCard>}

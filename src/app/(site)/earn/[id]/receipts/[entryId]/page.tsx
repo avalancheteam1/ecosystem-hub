@@ -4,10 +4,10 @@ import { BackLink } from '@/components/back-link'
 import { PageHeader } from '@/components/layout/page-header'
 import { Pager } from '@/components/layout/pager'
 import { SectionCard } from '@/components/section-card'
-import { StatusPill } from '@/components/status-pill'
 import { pageParam } from '@/lib/params'
 import { RevisionEvidence } from '../../../_components/revision-evidence'
 import { SubmissionForm } from '../../../_components/submission-form'
+import { SubmissionStatusPill } from '../../../_components/submission-status-pill'
 import { WithdrawButton } from '../../../_components/withdraw-button'
 import { contributorStatus, revisionAllowed, submissionLabels } from '../../../_lib/stage-rules'
 import { getOwnReceipt } from '../../../_lib/workflow-queries'
@@ -33,7 +33,7 @@ export default async function ReceiptPage({ params, searchParams }: {
   return (
     <div className="container-page max-w-4xl py-10">
       <BackLink href={bounty.cancelledAt ? '/earn/submissions' : `/earn/${id}?stage=${stage.id}`}>{bounty.cancelledAt ? 'My submissions' : bounty.title}</BackLink>
-      <PageHeader title="Your submission receipt" description={`${stage.title} · revision ${entry.revision}`}><StatusPill>{status}</StatusPill></PageHeader>
+      <PageHeader title="Your submission receipt" description={`${stage.title} · revision ${entry.revision}`}><SubmissionStatusPill label={status} /></PageHeader>
       <div className="space-y-6">
         {bounty.cancelledAt && <SectionCard title="Bounty cancelled"><p>{bounty.title} is closed. Your receipt and its history are still available.</p></SectionCard>}
         {entry.award && <SectionCard title="Your award"><p className="break-words">{entry.award.reward}</p><p className="mt-2 text-sm">{entry.award.rewardedAt ? 'External reward recorded' : 'Awaiting external reward'}</p></SectionCard>}
@@ -48,7 +48,7 @@ export default async function ReceiptPage({ params, searchParams }: {
               ))}
             </li>
           ))}</ol>
-          <Pager page={page} hasMore={entry.hasMore} params={{}} />
+          <div className="[&_a]:min-h-11 [&_a]:min-w-11"><Pager page={page} hasMore={entry.hasMore} params={{}} /></div>
         </SectionCard>
         {canRevise && bounty.terms && <SectionCard title="Revise your submission">
           <SubmissionForm key={entry.version} bountyId={id} stageId={stage.id} requiresPullRequest={stage.requiresPullRequest} githubIssueUrl={bounty.githubIssueUrl} terms={bounty.terms} termsVersion={bounty.termsVersion} revision={{ ...latest, id: entry.id, version: entry.version }} />
