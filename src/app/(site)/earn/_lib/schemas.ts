@@ -24,6 +24,7 @@ const publicIssue = z.string().trim().max(500)
 
 export const submissionPolicies = ['single', 'resubmit', 'multiple'] as const
 export const reviewDecisions = ['needs_review', 'changes_requested', 'rejected', 'approved'] as const
+export const bountyIdSchema = z.uuid()
 const stageSchema = z.strictObject({
   title: z.string().trim().min(1).max(160),
   deliverables: z.string().trim().max(6000),
@@ -34,7 +35,7 @@ const stageSchema = z.strictObject({
 })
 export type EarnStageInput = z.infer<typeof stageSchema>
 
-export const bountyDraftSchema = z.strictObject({
+const bountyFields = z.strictObject({
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().min(1).max(6000),
   deliverables: z.string().trim().min(1).max(6000),
@@ -45,11 +46,13 @@ export const bountyDraftSchema = z.strictObject({
   deadline: z.iso.datetime().transform((value) => new Date(value)),
   hubModule: z.string().trim().min(1).max(160).nullable(),
   githubIssueUrl: publicIssue.nullable(),
-  stages: z.array(stageSchema).max(20).optional(),
-  terms: z.string().trim().min(1).max(6000).nullable().optional(),
-}).superRefine((value, ctx) => {
+  terms: z.string().trim().max(6000).transform((value) => value || null).nullable().optional(),
+  organizationId: z.string().trim().min(1).max(100).optional(),
+  logoUrl: z.string().trim().min(1).max(2000).nullable().optional(),
+})
+
+function validateBounty(value: z.output<typeof bountyFields> & { stages?: EarnStageInput[] }, ctx: z.RefinementCtx) {
   const stages = value.stages ?? []
-  if (stages.length && !value.terms) ctx.addIssue({ code: 'custom', path: ['terms'], message: 'Add terms contributors can accept.' })
   if (stages.length > 1 && stages.some((stage) => !stage.deliverables)) ctx.addIssue({ code: 'custom', path: ['stages'], message: 'Describe the deliverables for each stage.' })
   if (stages.length && stages.filter((stage) => stage.requiresPullRequest).length !== Number(!!value.hubModule)) {
     ctx.addIssue({ code: 'custom', path: ['stages'], message: value.hubModule ? 'Choose one stage for GitHub pull requests.' : 'A pull request stage requires a Hub feature bounty.' })
@@ -57,9 +60,19 @@ export const bountyDraftSchema = z.strictObject({
   if (Boolean(value.hubModule) !== Boolean(value.githubIssueUrl)) {
     ctx.addIssue({ code: 'custom', path: ['githubIssueUrl'], message: 'Specify both a Hub module and a public GitHub issue for feature bounties.' })
   }
-})
+}
 
-export const bountyIdSchema = z.uuid()
+export const bountyDraftSchema = bountyFields.extend({ stages: z.array(stageSchema).max(20).optional() })
+  .superRefine(validateBounty)
+  .superRefine(({ stages }, ctx) => {
+    if (stages?.at(-1)?.approvalLimit === null) {
+      ctx.addIssue({ code: 'custom', path: ['stages', stages.length - 1, 'approvalLimit'], message: 'Set an approval limit for the final stage.' })
+    }
+  })
+export const bountySaveSchema = bountyFields.extend({
+  stages: z.array(stageSchema.extend({ id: bountyIdSchema.optional() })).max(20).optional(),
+}).superRefine(validateBounty)
+
 export const bountyRevisionSchema = z.strictObject({ id: bountyIdSchema, revision: z.number().int().min(1).max(2147483646) })
 
 export const requiredNote = z.string().trim().min(1, 'Add a reason.').max(6000)

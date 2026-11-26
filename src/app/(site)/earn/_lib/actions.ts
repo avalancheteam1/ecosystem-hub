@@ -1,19 +1,38 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { action, ActionError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
+import { EARN_ORG_TYPES } from '@/lib/campus'
 import { prisma } from '@/lib/db'
-import { bountyDraftSchema, bountyIdSchema, bountyRevisionSchema } from './schemas'
+import { IMAGE_KINDS } from '@/lib/image-kinds'
+import { isOwnUpload } from '@/lib/storage'
+import { bountyDraftSchema, bountyIdSchema, bountyRevisionSchema, bountySaveSchema } from './schemas'
 import { publicationError } from './rules'
 import { lockBounty } from './write-lock'
+
+const DEFAULT_ORGANIZATION_ID = 'team1-central'
+
+async function validateAttribution(tx: Prisma.TransactionClient, bountyId: string, draft: { organizationId?: string; logoUrl?: string | null }) {
+  if (draft.organizationId !== undefined) {
+    const org = await tx.organization.findUnique({ where: { id: draft.organizationId }, select: { type: true, hidden: true } })
+    if (!org || org.hidden || !EARN_ORG_TYPES.some((type) => type === org.type)) {
+      throw new ActionError('Choose an eligible Earn organization.')
+    }
+  }
+  if (draft.logoUrl && !isOwnUpload(draft.logoUrl, IMAGE_KINDS['earn-logo'].category, bountyId)) {
+    throw new ActionError('Upload the logo for this bounty.')
+  }
+}
 
 export const createBountyDraft = action(
   { permission: 'earn.publish', schema: z.strictObject({ id: bountyIdSchema, draft: bountyDraftSchema }) },
   async ({ id, draft: { stages = [], ...draft } }, user) => {
     await prisma.$transaction(async (tx) => {
-      const result = await tx.earnBounty.createMany({ data: { id, ...draft }, skipDuplicates: true })
+      await validateAttribution(tx, id, draft)
+      const result = await tx.earnBounty.createMany({ data: { id, ...draft, organizationId: draft.organizationId ?? DEFAULT_ORGANIZATION_ID }, skipDuplicates: true })
       if (result.count === 0) throw new ActionError('This draft was already saved. Reopen it from the publishing workspace.')
       if (stages.length) await tx.earnStage.createMany({ data: stages.map((stage, index) => ({ ...stage, bountyId: id, position: index + 1 })) })
       await recordAudit({ actorId: user.id, action: 'earn.draft.create', entityType: 'EarnBounty', entityId: id, after: { revision: 1, stages: stages.length } }, tx)
@@ -24,21 +43,84 @@ export const createBountyDraft = action(
 )
 
 export const saveBountyDraft = action(
-  { permission: 'earn.publish', schema: bountyRevisionSchema.extend({ draft: bountyDraftSchema }) },
-  async ({ id, revision, draft: { stages = [], ...draft } }, user) => {
-    await prisma.$transaction(async (tx) => {
+  { permission: 'earn.publish', schema: bountyRevisionSchema.extend({ draft: bountySaveSchema }) },
+  async ({ id, revision, draft: { stages, ...draft } }, user) => {
+    const published = await prisma.$transaction(async (tx) => {
       await lockBounty(tx, id)
-      const before = await tx.earnBounty.findUnique({ where: { id, revision, publishedAt: null, cancelledAt: null }, select: { terms: true } })
-      if (!before) throw new ActionError('The draft changed or was published. Reload it before editing.')
-      const result = await tx.earnBounty.updateMany({
-        where: { id, revision, publishedAt: null, cancelledAt: null },
-        data: { ...draft, revision: { increment: 1 }, ...(draft.terms !== undefined && draft.terms !== before.terms ? { termsVersion: { increment: 1 } } : {}) },
+      const where = { id, revision, cancelledAt: null, resultsAnnouncedAt: null }
+      const before = await tx.earnBounty.findUnique({
+        where,
+        select: {
+          terms: true, publishedAt: true, resultsAnnouncedAt: true, cancelledAt: true,
+          stages: { orderBy: { position: 'asc' }, select: { id: true, position: true, requiresPrevApproval: true, requiresPullRequest: true, approvalLimit: true } },
+        },
       })
-      if (result.count !== 1) throw new ActionError('The draft changed or was published. Reload it before editing.')
-      await tx.earnStage.deleteMany({ where: { bountyId: id } })
-      if (stages.length) await tx.earnStage.createMany({ data: stages.map((stage, index) => ({ ...stage, bountyId: id, position: index + 1 })) })
-      await recordAudit({ actorId: user.id, action: 'earn.draft.update', entityType: 'EarnBounty', entityId: id, before: { revision }, after: { revision: revision + 1, stages: stages.length } }, tx)
+      if (!before || before.cancelledAt || before.resultsAnnouncedAt) throw new ActionError('This bounty changed or is closed for editing. Reload it before continuing.')
+      await validateAttribution(tx, id, draft)
+      const activity = stages !== undefined && !!await tx.earnSubmission.findFirst({ where: { stage: { bountyId: id } }, select: { id: true } })
+      if (activity && (stages.length !== before.stages.length || stages.some((stage, index) => {
+        const saved = before.stages[index]
+        return stage.id !== saved.id || stage.requiresPrevApproval !== saved.requiresPrevApproval || stage.requiresPullRequest !== saved.requiresPullRequest
+      }))) throw new ActionError('Stages and their order must stay fixed after a submission.')
+
+      if (stages === undefined && before.stages.length &&
+          before.stages.filter((stage) => stage.requiresPullRequest).length !== Number(!!draft.hubModule)) {
+        throw new ActionError('Update the bounty stages to match its GitHub requirements.')
+      }
+      const savedById = new Map(before.stages.map((stage) => [stage.id, stage]))
+      const retainedIds = new Set<string>()
+      // The existing unpublished editor submits a positional list without stage IDs.
+      const positionalDraft = !before.publishedAt && !activity && stages?.every((stage) => !stage.id)
+      const plan = stages?.map(({ id: stageId, ...data }, index) => {
+        const saved = stageId ? savedById.get(stageId) : positionalDraft ? before.stages[index] : undefined
+        if ((stageId && !saved) || (saved && retainedIds.has(saved.id))) throw new ActionError('Use each saved stage at most once and only on its own bounty.')
+        if (saved) retainedIds.add(saved.id)
+        if (index === stages.length - 1 && data.approvalLimit === null &&
+            (!saved || saved.id !== before.stages.at(-1)?.id || saved.approvalLimit !== null)) {
+          throw new ActionError('Set an approval limit for the final stage.')
+        }
+        return { saved, data, position: index + 1 }
+      })
+      for (const { saved, data } of plan ?? []) {
+        if (activity && saved && data.approvalLimit !== null && data.approvalLimit !== saved.approvalLimit &&
+            await tx.earnSubmission.count({ where: { stageId: saved.id, status: 'approved' } }) > data.approvalLimit) {
+          throw new ActionError('The approval limit cannot be below the number already approved.')
+        }
+      }
+
+      const termsChanged = draft.terms !== undefined && draft.terms !== (before.terms?.trim() || null)
+      const result = await tx.earnBounty.updateMany({
+        where,
+        data: { ...draft, revision: { increment: 1 }, ...(termsChanged ? { termsVersion: { increment: 1 } } : {}) },
+      })
+      if (result.count !== 1) throw new ActionError('This bounty changed or is closed for editing. Reload it before continuing.')
+      if (plan) {
+        const removed = before.stages.filter((stage) => !retainedIds.has(stage.id)).map((stage) => stage.id)
+        if (removed.length) await tx.earnStage.deleteMany({ where: { bountyId: id, id: { in: removed } } })
+        // Vacate moved positions before assigning any final positions under the unique index.
+        for (const { saved, position } of plan) {
+          if (saved && saved.position !== position) {
+            await tx.earnStage.update({ where: { id: saved.id, bountyId: id }, data: { position: -position } })
+          }
+        }
+        for (const { saved, data, position } of plan) {
+          if (!saved) continue
+          const { requiresPrevApproval, requiresPullRequest, ...editable } = data
+          await tx.earnStage.update({
+            where: { id: saved.id, bountyId: id },
+            data: activity ? editable : { ...editable, requiresPrevApproval, requiresPullRequest, position },
+          })
+        }
+        const added = plan.filter(({ saved }) => !saved).map(({ data, position }) => ({ ...data, position, bountyId: id }))
+        if (added.length) await tx.earnStage.createMany({ data: added })
+      }
+      await recordAudit({ actorId: user.id, action: 'earn.draft.update', entityType: 'EarnBounty', entityId: id, before: { revision }, after: { revision: revision + 1, stages: stages?.length ?? before.stages.length } }, tx)
+      return !!before.publishedAt
     })
+    if (published) {
+      revalidatePath('/earn')
+      revalidatePath(`/earn/${id}`)
+    }
     revalidatePath('/admin/earn')
     revalidatePath(`/admin/earn/${id}`)
     return { id }

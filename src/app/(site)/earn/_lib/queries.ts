@@ -1,5 +1,6 @@
 import 'server-only'
 import type { Prisma } from '@prisma/client'
+import { EARN_ORG_TYPES } from '@/lib/campus'
 import { prisma } from '@/lib/db'
 import { requirePermission } from '@/lib/guards'
 import { EARN_PAGE_SIZE, escapeSearchTerm, type earnCatalogFilters } from './rules'
@@ -10,7 +11,10 @@ const stageFields = {
   id: true, position: true, title: true, deliverables: true, requiresPrevApproval: true,
   requiresPullRequest: true, submissionPolicy: true, approvalLimit: true,
 } satisfies Prisma.EarnStageSelect
-const cardFields = { id: true, title: true, category: true, deadline: true, reward: true, hubModule: true, resultsAnnouncedAt: true } satisfies Prisma.EarnBountySelect
+const cardFields = {
+  id: true, title: true, category: true, deadline: true, reward: true, hubModule: true, resultsAnnouncedAt: true,
+  logoUrl: true, organization: { select: { name: true } },
+} satisfies Prisma.EarnBountySelect
 
 export async function listPublicBounties(filters: ReturnType<typeof earnCatalogFilters>, now: Date) {
   const search = filters.q ? { contains: escapeSearchTerm(filters.q), mode: 'insensitive' as const } : null
@@ -72,8 +76,17 @@ export async function getBountyForPublishing(id: string) {
     select: {
       ...cardFields,
       description: true, deliverables: true, participation: true, participationUrl: true, githubIssueUrl: true,
-      publishedAt: true, revision: true, terms: true, cancelledAt: true, cancellationReason: true,
+      publishedAt: true, revision: true, terms: true, cancelledAt: true, cancellationReason: true, organizationId: true,
       stages: { orderBy: { position: 'asc' }, select: stageFields },
     },
+  })
+}
+
+export async function listEarnOrganizationOptions() {
+  await requirePermission('earn.publish')
+  return prisma.organization.findMany({
+    where: { type: { in: [...EARN_ORG_TYPES] }, hidden: false },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    select: { id: true, name: true, type: true },
   })
 }

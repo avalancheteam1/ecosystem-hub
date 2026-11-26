@@ -58,6 +58,7 @@ model User {
   quizAttempts       QuizAttempt[]
   certificates       Certificate[]
 
+  // earn (earn.prisma)
   earnSubmissions EarnSubmission[]
   earnReviews     EarnReview[]
 

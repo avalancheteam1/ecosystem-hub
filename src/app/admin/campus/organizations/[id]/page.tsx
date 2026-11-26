@@ -5,6 +5,7 @@ import { BackLink } from '@/components/back-link'
 import { PageHeader } from '@/components/layout/page-header'
 import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
+import { CAMPUS_ORG_TYPES } from '@/lib/campus'
 import { countryName } from '@/lib/countries'
 import { prisma } from '@/lib/db'
 import { requirePermission } from '@/lib/guards'
@@ -17,8 +18,8 @@ export default async function CampusOrganizationPage({ params }: { params: Promi
   const user = await requirePermission('campus.manage')
   const { id } = await params
   const org = await prisma.organization.findUnique({
-    where: { id },
-    include: { parent: { select: { id: true, name: true } }, children: { orderBy: { name: 'asc' }, select: { id: true, name: true, hidden: true } }, createdBy: { select: { name: true } }, _count: { select: { members: true, clubMembers: true } } },
+    where: { id, type: { in: [...CAMPUS_ORG_TYPES] } },
+    include: { parent: { select: { id: true, name: true } }, children: { where: { type: 'blockchain_club' }, orderBy: { name: 'asc' }, select: { id: true, name: true, hidden: true } }, createdBy: { select: { name: true } }, _count: { select: { members: true, clubMembers: true } } },
   })
   if (!org) notFound()
   // ponytail: every same-type entry as merge target - fine for a few thousand

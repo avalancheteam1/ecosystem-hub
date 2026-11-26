@@ -7,6 +7,10 @@ CREATE TYPE "EarnSubmissionStatus" AS ENUM ('pending', 'needs_review', 'changes_
 -- CreateEnum
 CREATE TYPE "EarnReviewDecision" AS ENUM ('needs_review', 'changes_requested', 'rejected', 'approved');
 
+-- Seed the canonical issuer before the bounty default references it.
+INSERT INTO "organizations" ("id", "type", "name", "normalizedName", "verified", "updatedAt")
+VALUES ('team1-central', 'team1', 'team1', 'team1', true, CURRENT_TIMESTAMP);
+
 -- CreateTable
 CREATE TABLE "earn_bounties" (
     "id" UUID NOT NULL,
@@ -17,6 +21,8 @@ CREATE TABLE "earn_bounties" (
     "participationUrl" TEXT,
     "category" TEXT NOT NULL,
     "reward" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL DEFAULT 'team1-central',
+    "logoUrl" TEXT,
     "deadline" TIMESTAMP(3) NOT NULL,
     "hubModule" TEXT,
     "githubIssueUrl" TEXT,
@@ -54,6 +60,7 @@ CREATE TABLE "earn_submissions" (
     "id" UUID NOT NULL,
     "stageId" UUID NOT NULL,
     "contributorId" TEXT NOT NULL,
+    "previousSubmissionId" UUID,
     "status" "EarnSubmissionStatus" NOT NULL DEFAULT 'pending',
     "revision" INTEGER NOT NULL DEFAULT 1,
     "version" INTEGER NOT NULL DEFAULT 1,
@@ -115,10 +122,16 @@ CREATE INDEX "earn_bounties_deadline_id_idx" ON "earn_bounties"("deadline", "id"
 CREATE INDEX "earn_bounties_updatedAt_id_idx" ON "earn_bounties"("updatedAt", "id");
 
 -- CreateIndex
+CREATE INDEX "earn_bounties_organizationId_idx" ON "earn_bounties"("organizationId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "earn_stages_bountyId_position_key" ON "earn_stages"("bountyId", "position");
 
 -- CreateIndex
 CREATE INDEX "earn_submissions_stageId_contributorId_idx" ON "earn_submissions"("stageId", "contributorId");
+
+-- CreateIndex
+CREATE INDEX "earn_submissions_previousSubmissionId_idx" ON "earn_submissions"("previousSubmissionId");
 
 -- CreateIndex
 CREATE INDEX "earn_submissions_contributorId_updatedAt_id_idx" ON "earn_submissions"("contributorId", "updatedAt", "id");
@@ -142,6 +155,9 @@ CREATE UNIQUE INDEX "earn_awards_submissionId_key" ON "earn_awards"("submissionI
 CREATE INDEX "earn_awards_bountyId_id_idx" ON "earn_awards"("bountyId", "id");
 
 -- AddForeignKey
+ALTER TABLE "earn_bounties" ADD CONSTRAINT "earn_bounties_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "earn_stages" ADD CONSTRAINT "earn_stages_bountyId_fkey" FOREIGN KEY ("bountyId") REFERENCES "earn_bounties"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -149,6 +165,9 @@ ALTER TABLE "earn_submissions" ADD CONSTRAINT "earn_submissions_stageId_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "earn_submissions" ADD CONSTRAINT "earn_submissions_contributorId_fkey" FOREIGN KEY ("contributorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "earn_submissions" ADD CONSTRAINT "earn_submissions_previousSubmissionId_fkey" FOREIGN KEY ("previousSubmissionId") REFERENCES "earn_submissions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "earn_submission_revisions" ADD CONSTRAINT "earn_submission_revisions_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "earn_submissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;

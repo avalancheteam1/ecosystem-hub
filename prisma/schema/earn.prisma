@@ -8,6 +8,8 @@ model EarnBounty {
   participationUrl  String?
   category          String
   reward            String
+  organizationId    String    @default("team1-central")
+  logoUrl           String?
   deadline          DateTime
   hubModule         String?
   githubIssueUrl    String?
@@ -23,9 +25,11 @@ model EarnBounty {
   cancelledAt        DateTime?
   cancellationReason String?
 
-  stages EarnStage[]
-  awards EarnAward[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  stages       EarnStage[]
+  awards       EarnAward[]
 
+  @@index([organizationId])
   @@index([publishedAt, deadline, id])
   @@index([deadline, id])
   @@index([updatedAt, id])
@@ -75,6 +79,7 @@ model EarnSubmission {
   id            String                  @id @db.Uuid
   stageId       String                  @db.Uuid
   contributorId String
+  previousSubmissionId String? @db.Uuid
   status        EarnSubmissionStatus    @default(pending)
   revision      Int                     @default(1)
   version       Int                     @default(1)
@@ -82,11 +87,14 @@ model EarnSubmission {
   updatedAt     DateTime                @updatedAt
   stage         EarnStage               @relation(fields: [stageId], references: [id], onDelete: Restrict)
   contributor   User                    @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  previousSubmission EarnSubmission?     @relation("EarnSubmissionLineage", fields: [previousSubmissionId], references: [id], onDelete: SetNull)
+  continuations EarnSubmission[]         @relation("EarnSubmissionLineage")
   revisions     EarnSubmissionRevision[]
   reviews       EarnReview[]
   award         EarnAward?
 
   @@index([stageId, contributorId])
+  @@index([previousSubmissionId])
   @@index([contributorId, updatedAt, id])
   @@index([stageId, status])
   @@index([status, updatedAt, id])

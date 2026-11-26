@@ -48,7 +48,7 @@ export default async function CampusStudentsPage({ searchParams }: { searchParam
         user: { select: { name: true, email: true, country: true, telegramAccount: true, campusProfile: { select: { trackInterests: true, campusCoordinatorInterest: true } } } },
       },
     }),
-    university ? prisma.organization.findUnique({ where: { id: university }, select: { name: true } }) : null,
+    university ? prisma.organization.findUnique({ where: { id: university, type: 'university' }, select: { name: true } }) : null,
   ])
   const list = rows.slice(0, PAGE_SIZE)
   const params = { q, kind, university, coordinator: coordinator ? '1' : undefined }
