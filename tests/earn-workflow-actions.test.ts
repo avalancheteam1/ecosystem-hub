@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   user: null as unknown, tx: vi.fn(), lock: vi.fn(), bounty: vi.fn(), entry: vi.fn(), count: vi.fn(),
   audit: vi.fn(), update: vi.fn(), review: vi.fn(), award: vi.fn(), complete: vi.fn(), selected: vi.fn(),
+  requireFlag: vi.fn(),
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/session', () => ({ getCurrentUser: async () => mocks.user }))
@@ -11,8 +12,10 @@ vi.mock('@/lib/security-events', () => ({ securityEvent: vi.fn() }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 vi.mock('@/lib/db', () => ({ prisma: { $transaction: mocks.tx } }))
+vi.mock('@/lib/flag-store', () => ({ requireFlag: mocks.requireFlag }))
 
-import { announceAwards, cancelEarnBounty, reviewStage, reviseStage } from '@/app/(site)/earn/_lib/workflow-actions'
+import { announceAwards, cancelEarnBounty, reviewStage, reviseStage, submitStage, withdrawStage } from '@/app/(site)/earn/_lib/workflow-actions'
+import { ActionError } from '@/lib/action-error'
 
 const bountyId = '83a2f90c-8226-400c-8df0-19fe4827db49'
 const id = '17f149fa-6932-4c27-85f5-096379ba4db6'
@@ -36,6 +39,19 @@ describe('Earn action boundaries', () => {
     }))
     mocks.bounty.mockResolvedValue(bounty)
     mocks.entry.mockResolvedValue(entry)
+  })
+
+  it('blocks contributor writes before any transaction when Earn is off', async () => {
+    mocks.user = { id: 'contributor', isSuperAdmin: false, permissions: new Set() }
+    mocks.requireFlag.mockRejectedValue(new ActionError('Earn is not available right now'))
+    const evidence = { notes: 'Work', links: [], pullRequests: [], termsVersion: 3, accepted: true as const }
+    const ref = { id, bountyId, version: 4 }
+    const expected = { ok: false, error: 'Earn is not available right now' }
+    expect(await submitStage({ id, bountyId, stageId, evidence })).toEqual(expected)
+    expect(await reviseStage({ ...ref, evidence, changeNote: 'Updated' })).toEqual(expected)
+    expect(await withdrawStage({ ...ref, reason: 'Withdraw' })).toEqual(expected)
+    expect(mocks.requireFlag.mock.calls).toEqual([['earn'], ['earn'], ['earn']])
+    expect(mocks.tx).not.toHaveBeenCalled()
   })
 
   it('requires finalize permission in addition to review, and grants neither through ordinary membership', async () => {

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getCurrentUser, type CurrentUser } from '@/lib/session'
+import { isFlagOn } from '@/lib/flag-store'
 import { getHackathonRoles } from '@/app/(site)/events/_lib/hackathons/queries'
 import { can, holdsAny } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,7 @@ async function userMenuUser(user: CurrentUser): Promise<UserMenuUser> {
 }
 
 export async function SiteHeader() {
-  const user = await getCurrentUser()
+  const [user, earnOn] = await Promise.all([getCurrentUser(), isFlagOn('earn')])
   const menu = user ? await userMenuUser(user) : null
   return (
     <header className="sticky top-0 z-50 h-16 border-b border-line bg-surface-0/80 backdrop-blur-md">
@@ -24,7 +25,7 @@ export async function SiteHeader() {
         <nav aria-label="Main" className="hidden items-center gap-6 text-sm md:flex">
           <Link href="/events" className="text-fg-muted transition-colors hover:text-fg-heading">Events</Link>
           <Link href="/education" className="text-fg-muted transition-colors hover:text-fg-heading">Education</Link>
-          <Link href="/earn" className="text-fg-muted transition-colors hover:text-fg-heading">Earn</Link>
+          {earnOn && <Link href="/earn" className="text-fg-muted transition-colors hover:text-fg-heading">Earn</Link>}
           <Link href="/ecosystem" className="text-fg-muted transition-colors hover:text-fg-heading">Ecosystem</Link>
           {/* ponytail: external until grants live in the hub */}
           <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</a>
@@ -37,7 +38,7 @@ export async function SiteHeader() {
           )}
         </nav>
         <div className="flex items-center gap-1 justify-self-end sm:gap-2">
-          <MobileNav signedIn={!!user} />
+          <MobileNav signedIn={!!user} earnOn={earnOn} />
           <ThemeToggle />
           {menu ? (
             <UserMenu user={menu} />

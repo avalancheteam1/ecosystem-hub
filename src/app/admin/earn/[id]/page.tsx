@@ -9,6 +9,7 @@ import { Pager } from '@/components/layout/pager'
 import { pageParam } from '@/lib/params'
 import { can } from '@/lib/permissions'
 import { requirePermission } from '@/lib/guards'
+import { isFlagOn } from '@/lib/flag-store'
 import { getResultsForPublishing } from '@/app/(site)/earn/_lib/workflow-queries'
 import { ResultsAction } from '../_components/results-action'
 import { formatUtc } from '@/lib/dates'
@@ -23,6 +24,7 @@ export default async function ManageBountyPage({ params, searchParams }: { param
   if (!bounty) notFound()
   const published = Boolean(bounty.publishedAt)
   const user = await requirePermission('earn.publish')
+  const earnOn = await isFlagOn('earn')
   const page = pageParam((await searchParams).page)
   const result = published && bounty.stages.length ? await getResultsForPublishing(bounty.id, page) : null
   const { publishedAt, id, resultsAnnouncedAt, cancelledAt, cancellationReason, ...draft } = bounty
@@ -31,8 +33,8 @@ export default async function ManageBountyPage({ params, searchParams }: { param
   return (
     <>
       <BackLink href="/admin/earn">Earn publishing</BackLink>
-      <PageHeader title={bounty.title} description={cancelledAt ? `Cancelled ${formatUtc(cancelledAt)}` : publishedAt ? `Public since ${formatUtc(publishedAt)}` : 'Private draft'}>
-        {published && !cancelledAt && <Button asChild variant="outline"><Link href={`/earn/${bounty.id}`}>View public brief</Link></Button>}
+      <PageHeader title={bounty.title} description={cancelledAt ? `Cancelled ${formatUtc(cancelledAt)}` : publishedAt ? `Published ${formatUtc(publishedAt)}${earnOn ? '' : ' · Earn is turned off'}` : 'Private draft'}>
+        {earnOn && published && !cancelledAt && <Button asChild variant="outline"><Link href={`/earn/${bounty.id}`}>View public brief</Link></Button>}
       </PageHeader>
       <div className="space-y-6">
         <SectionCard title="Publication" description={published && !activity && !cancelledAt ? 'Unpublish to make changes to the brief.' : !published ? 'Publishing uses the last saved draft.' : undefined}>

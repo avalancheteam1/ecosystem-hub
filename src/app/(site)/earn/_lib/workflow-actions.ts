@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
+import { requireFlag } from '@/lib/flag-store'
 import { can } from '@/lib/permissions'
 import { rateLimit } from '@/lib/rate-limit'
 import { bountyIdSchema, bountyRevisionSchema, requiredNote, reviewSchema, revisionEvidenceSchema, submissionRefSchema } from './schemas'
@@ -72,6 +73,7 @@ export const submitStage = action({
   permission: 'user',
   schema: z.strictObject({ bountyId: bountyIdSchema, stageId: bountyIdSchema, id: bountyIdSchema, evidence: revisionEvidenceSchema }),
 }, async ({ bountyId, stageId, id, evidence }, user) => {
+  await requireFlag('earn')
   limitContributorWrite(user.id)
   await prisma.$transaction(async (tx) => {
     const bounty = await workflow(tx, bountyId)
@@ -98,6 +100,7 @@ export const reviseStage = action({
   permission: 'user',
   schema: submissionRefSchema.extend({ changeNote: requiredNote, evidence: revisionEvidenceSchema }),
 }, async ({ bountyId, id, version, changeNote, evidence }, user) => {
+  await requireFlag('earn')
   limitContributorWrite(user.id)
   await prisma.$transaction(async (tx) => {
     const bounty = await workflow(tx, bountyId)
@@ -122,6 +125,7 @@ export const withdrawStage = action({
   permission: 'user',
   schema: submissionRefSchema.extend({ reason: requiredNote }),
 }, async ({ bountyId, id, version, reason }, user) => {
+  await requireFlag('earn')
   limitContributorWrite(user.id)
   await prisma.$transaction(async (tx) => {
     const bounty = await workflow(tx, bountyId)

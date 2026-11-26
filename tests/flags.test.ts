@@ -18,3 +18,10 @@ test('isFlag: only registry keys, not prototype names', () => {
   assert.equal(isFlag('nope'), false)
   assert.equal(isFlag('toString'), false)
 })
+
+test('Earn defaults off and owns only its public route prefix', () => {
+  assert.equal(flagOn(new Map(), 'earn'), false)
+  assert.equal(flagOn(new Map([['earn', true]]), 'earn'), true)
+  for (const p of ['/earn', '/earn/submissions', '/Earn/bounty/receipts/entry']) assert.equal(flagForPath(p), 'earn', p)
+  for (const p of ['/earning', '/admin/earn', '/admin/earn/review']) assert.equal(flagForPath(p), null, p)
+})

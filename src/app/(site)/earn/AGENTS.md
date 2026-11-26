@@ -1,5 +1,6 @@
 # Earn
 
+- The default-off `earn` flag controls public routes, public links, sitemap entries and contributor actions. Staff can prepare and manage bounties in `/admin/earn` while the flag is off.
 - The public catalog and brief read published rows through server-only queries. Use explicit field projections, apply visibility before pagination, and keep deadlines in UTC.
 - Central team1 publishes through `/admin/earn`. Grant `earn.publish` only to designated staff. Review pages and actions require `earn.review`, and private final selection also requires `earn.finalize`. Only a Hub super admin can cancel a public listing or announce results. Never use Portal membership to grant Hub staff access.
 - Drafts and receipts are private. Put object and owner checks on writes and reads. Participant projections never select internal notes. Private final-stage approval and its feedback stay hidden until announcement.
