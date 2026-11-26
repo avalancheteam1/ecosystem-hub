@@ -2,12 +2,12 @@
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { Field } from '@/components/field'
+import { MarkdownField } from '@/components/markdown-field'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
-import { Textarea } from '@/components/ui/textarea'
 import type { EarnStageInput } from '@/app/(site)/earn/_lib/schemas'
 
 export type DraftStage = EarnStageInput & { id: string }
@@ -16,8 +16,8 @@ export function blankStage(id: string, title = ''): DraftStage {
   return { id, title, deliverables: '', requiresPrevApproval: true, requiresPullRequest: false, submissionPolicy: 'resubmit', approvalLimit: null }
 }
 
-export function StageFields({ enabled, onEnabled, stages, onStages, feature, terms }: {
-  enabled: boolean; onEnabled: (value: boolean) => void; stages: DraftStage[]; onStages: (stages: DraftStage[]) => void; feature: boolean; terms?: string | null
+export function StageFields({ enabled, onEnabled, stages, onStages, feature, terms, onTermsChange }: {
+  enabled: boolean; onEnabled: (value: boolean) => void; stages: DraftStage[]; onStages: (stages: DraftStage[]) => void; feature: boolean; terms: string; onTermsChange: (value: string) => void
 }) {
   const prStage = stages.find((stage) => stage.requiresPullRequest)?.id ?? stages.at(-1)?.id
   function edit(id: string, change: Partial<EarnStageInput>) {
@@ -38,9 +38,7 @@ export function StageFields({ enabled, onEnabled, stages, onStages, feature, ter
       </label>
       {enabled && (
         <div className="mt-4 space-y-5">
-          <Field id="earn-terms" label="Terms contributors must accept" required>
-            <Textarea id="earn-terms" name="terms" defaultValue={terms ?? ''} maxLength={6000} rows={4} required />
-          </Field>
+          <MarkdownField id="earn-terms" label="Terms contributors must accept" value={terms} onChange={onTermsChange} maxLength={6000} rows={4} required />
           {feature && <Field id="earn-pr-stage" label="Stage that collects the GitHub pull request">
             <NativeSelect id="earn-pr-stage" value={prStage} onChange={(event) => onStages(stages.map((stage) => ({ ...stage, requiresPullRequest: stage.id === event.target.value })))}>
               {stages.map((stage, index) => <option key={stage.id} value={stage.id}>{index + 1}. {stage.title || 'Untitled stage'}</option>)}
@@ -61,9 +59,7 @@ export function StageFields({ enabled, onEnabled, stages, onStages, feature, ter
                 <Field id={`${field}-title`} label="Stage title" required>
                   <Input id={`${field}-title`} value={stage.title} maxLength={160} required onChange={(event) => edit(stage.id, { title: event.target.value })} />
                 </Field>
-                <Field id={`${field}-deliverables`} label="Stage deliverables" required={stages.length > 1}>
-                  <Textarea id={`${field}-deliverables`} value={stage.deliverables} maxLength={6000} rows={2} required={stages.length > 1} onChange={(event) => edit(stage.id, { deliverables: event.target.value })} />
-                </Field>
+                <MarkdownField id={`${field}-deliverables`} label="Stage deliverables" value={stage.deliverables} onChange={(value) => edit(stage.id, { deliverables: value })} maxLength={6000} rows={2} required={stages.length > 1} />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field id={`${field}-policy`} label="Submission policy">
                     <NativeSelect id={`${field}-policy`} value={stage.submissionPolicy} onChange={(event) => edit(stage.id, { submissionPolicy: event.target.value as EarnStageInput['submissionPolicy'] })}>

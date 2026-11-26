@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { BackLink } from '@/components/back-link'
 import { PageHeader } from '@/components/layout/page-header'
+import { Markdown } from '@/components/markdown'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { Pager } from '@/components/layout/pager'
@@ -48,7 +49,7 @@ export default async function ManageBountyPage({ params, searchParams }: { param
         {(published || cancelledAt) && bounty.stages.length > 0 && <SectionCard title="Stages">
           <ol className="space-y-3">{bounty.stages.map((stage) => <li key={stage.id} className="break-words">
             <p>{stage.position}. {stage.title}{stage.requiresPullRequest ? ' · GitHub PR' : ''}</p>
-            {stage.deliverables && <p className="text-sm text-fg-muted">{stage.deliverables}</p>}
+            {stage.deliverables && <Markdown className="wrap-anywhere text-sm">{stage.deliverables}</Markdown>}
           </li>)}</ol>
         </SectionCard>}
         {result && !cancelledAt && <SectionCard title={resultsAnnouncedAt ? 'Announced awards' : 'Results'}>

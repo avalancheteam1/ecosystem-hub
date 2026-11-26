@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { BackLink } from '@/components/back-link'
 import { PageHeader } from '@/components/layout/page-header'
 import { Pager } from '@/components/layout/pager'
+import { Markdown } from '@/components/markdown'
 import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
 import { requirePermission } from '@/lib/guards'
@@ -34,7 +35,7 @@ export default async function ReviewPage({ params, searchParams }: { params: Pro
       <PageHeader title={row.contributor.name} description={`${stage.bounty.title} · ${stage.title} · revision ${row.revision}`}><StatusPill>{status}</StatusPill></PageHeader>
       <div className="space-y-6">
         <SectionCard title="Review this revision">
-          {stage.deliverables && <p className="mb-3 whitespace-pre-wrap break-words">{stage.deliverables}</p>}
+          {stage.deliverables && <Markdown className="mb-3 wrap-anywhere">{stage.deliverables}</Markdown>}
           {canReview && final && !afterDeadline && <p className="mb-3 text-sm text-fg-muted">Final selection opens after the deadline.</p>}
           {canReview && final && afterDeadline && !can(user, 'earn.finalize') && <p className="mb-3 text-sm text-fg-muted">Final selection requires the award selection permission.</p>}
           {canReview && page === 1 && (

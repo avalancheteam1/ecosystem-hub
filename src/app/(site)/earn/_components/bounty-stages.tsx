@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, Check, LockKeyhole } from 'lucide-react'
 import { Pager } from '@/components/layout/pager'
+import { Markdown } from '@/components/markdown'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/session'
@@ -27,7 +28,7 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
   return (
     <div className="space-y-6">
       <SectionCard title={stages.length > 1 ? 'Bounty stages' : 'Submission'}>
-        <p className="mb-4 whitespace-pre-wrap break-words">{instructions}</p>
+        <Markdown className="mb-4 wrap-anywhere">{instructions}</Markdown>
         {stages.length > 1 && <ol className="mb-5 grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
           {stages.map((item) => {
             const locked = previousStageError(item, stages, progress.attempts)
@@ -46,7 +47,7 @@ export async function BountyStages({ id, stages, active, page, open, resultsAnno
           })}
         </ol>}
         <h3 className="mb-2 text-lg">{stage.title}</h3>
-        {stage.deliverables && <p className="whitespace-pre-wrap break-words">{stage.deliverables}</p>}
+        {stage.deliverables && <Markdown className="wrap-anywhere">{stage.deliverables}</Markdown>}
         {open && blocked && !prerequisite && <p className="mt-3 text-sm text-fg-body">{blocked}</p>}
         {open && !user && <Button asChild className="mt-4"><Link href={signIn}>Sign in to contribute</Link></Button>}
       </SectionCard>

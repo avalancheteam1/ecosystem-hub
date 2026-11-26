@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
+import { MarkdownField } from '@/components/markdown-field'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
@@ -45,9 +46,11 @@ export function ResultsAction(props: Props) {
     <FormDialog title={label.title} description={label.description}
       trigger={<Button className="min-h-11" variant={action === 'announce' ? 'default' : 'outline'}>{label.title}</Button>}
       submitLabel={label.submit} pending={pending} onSubmit={() => run(save, label.success)}>
-      <Field id={`earn-${action}-${id}`} label={noteLabel} required={required}>
+      {action === 'announce' ? (
+        <MarkdownField id={`earn-${action}-${id}`} label={noteLabel} value={note} onChange={setNote} maxLength={6000} rows={4} required={required} />
+      ) : <Field id={`earn-${action}-${id}`} label={noteLabel} required={required}>
         <Textarea id={`earn-${action}-${id}`} maxLength={6000} required={required} rows={4} value={note} onChange={(event) => setNote(event.target.value)} />
-      </Field>
+      </Field>}
     </FormDialog>
   )
 }

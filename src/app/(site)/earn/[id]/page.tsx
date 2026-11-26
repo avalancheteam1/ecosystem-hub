@@ -4,9 +4,11 @@ import { cache } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { BackLink } from '@/components/back-link'
 import { PageHeader } from '@/components/layout/page-header'
+import { Markdown } from '@/components/markdown'
 import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
 import { pageParam, textParam } from '@/lib/params'
+import { BountyDeadline } from '../_components/bounty-deadline'
 import { BountyStages } from '../_components/bounty-stages'
 import { getAwardSummary } from '../_lib/workflow-queries'
 import { formatUtc } from '@/lib/dates'
@@ -41,11 +43,11 @@ export default async function BountyPage({ params, searchParams }: {
       </PageHeader>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
-          <SectionCard title="The bounty"><p className="whitespace-pre-wrap break-words">{bounty.description}</p></SectionCard>
-          <SectionCard title="What to deliver"><p className="whitespace-pre-wrap break-words">{bounty.deliverables}</p></SectionCard>
+          <SectionCard title="The bounty"><Markdown className="wrap-anywhere">{bounty.description}</Markdown></SectionCard>
+          <SectionCard title="What to deliver"><Markdown className="wrap-anywhere">{bounty.deliverables}</Markdown></SectionCard>
           {bounty.resultsAnnouncedAt && <SectionCard title="Results announced">
             <p>{awardCount ? `${awardCount} ${awardCount === 1 ? 'award' : 'awards'}` : 'No awards were selected.'}</p>
-            {bounty.resultsNote && <p className="mt-2 whitespace-pre-wrap break-words">{bounty.resultsNote}</p>}
+            {bounty.resultsNote && <Markdown className="mt-2 wrap-anywhere">{bounty.resultsNote}</Markdown>}
             <p className="mt-2 text-sm text-fg-muted">Contributors can check their own receipts for award details.</p>
           </SectionCard>}
           {bounty.stages.length > 0 && bounty.terms ? (
@@ -53,7 +55,7 @@ export default async function BountyPage({ params, searchParams }: {
           ) : <SectionCard title="How to participate">
             {open ? (
               <>
-                <p className="whitespace-pre-wrap break-words">{bounty.participation}</p>
+                <Markdown className="wrap-anywhere">{bounty.participation}</Markdown>
                 {bounty.participationUrl && (
                   <a href={bounty.participationUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 underline underline-offset-4">
                     Open participation link <ExternalLink className="size-4" aria-hidden /><span className="sr-only"> (opens in a new tab)</span>
@@ -68,7 +70,7 @@ export default async function BountyPage({ params, searchParams }: {
             <dl className="space-y-4">
               <div>
                 <dt className="text-sm text-fg-muted">Submission deadline</dt>
-                <dd className="text-fg-heading"><time dateTime={bounty.deadline.toISOString()}>{formatUtc(bounty.deadline)}</time></dd>
+                <dd className="text-fg-heading"><BountyDeadline dateTime={bounty.deadline.toISOString()} utc={formatUtc(bounty.deadline)} /></dd>
                 {bounty.resultsAnnouncedAt ? (
                   <dd className="mt-1 text-sm">Announced <time dateTime={bounty.resultsAnnouncedAt.toISOString()}>{formatUtc(bounty.resultsAnnouncedAt)}</time>.</dd>
                 ) : !open && bounty.stages.length > 0 && (

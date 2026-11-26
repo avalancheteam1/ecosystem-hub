@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { flattenError } from 'zod'
 import { Field } from '@/components/field'
+import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
@@ -111,7 +112,7 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
       )}
       <details className="rounded-lg border border-line p-4">
         <summary className="flex min-h-11 cursor-pointer items-center">Bounty terms · version {termsVersion}</summary>
-        <p className="whitespace-pre-wrap break-words">{terms}</p>
+        <Markdown className="wrap-anywhere">{terms}</Markdown>
       </details>
       <div>
         <label htmlFor={fieldIds.accepted} className="flex min-h-11 items-center gap-3">

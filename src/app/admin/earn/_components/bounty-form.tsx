@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DateTimeInput, toUtcIso } from '@/components/date-time-input'
 import { Field } from '@/components/field'
+import { MarkdownField } from '@/components/markdown-field'
 import { SectionCard } from '@/components/section-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
-import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
 import { utcToZoned } from '@/lib/timezones'
 import { createBountyDraft, saveBountyDraft } from '@/app/(site)/earn/_lib/actions'
@@ -35,9 +35,18 @@ export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
   const router = useRouter()
   const { pending, run } = useActionToast()
   const [deadline, setDeadline] = useState(utcToZoned(initial?.deadline, 'UTC'))
-  const [native, setNative] = useState(Boolean(initial?.stages?.length))
+  const [native, setNative] = useState(!initial || Boolean(initial.stages?.length))
   const [stages, setStages] = useState(() => initial?.stages?.length ? initial.stages : [blankStage('first', 'Submission')])
   const [feature, setFeature] = useState(Boolean(initial?.hubModule))
+  const [markdown, setMarkdown] = useState({
+    description: initial?.description ?? '',
+    deliverables: initial?.deliverables ?? '',
+    participation: initial?.participation ?? '',
+    terms: initial?.terms ?? '',
+  })
+  function editMarkdown(field: keyof typeof markdown, value: string) {
+    setMarkdown((current) => ({ ...current, [field]: value }))
+  }
   return (
     <form className="space-y-6" onSubmit={async (event) => {
       event.preventDefault()
@@ -46,16 +55,16 @@ export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
       const prStage = stages.find((stage) => stage.requiresPullRequest)?.id ?? stages.at(-1)?.id
       const draft = {
         title: text('title'),
-        description: text('description'),
-        deliverables: text('deliverables'),
-        participation: text('participation'),
+        description: markdown.description.trim(),
+        deliverables: markdown.deliverables.trim(),
+        participation: markdown.participation.trim(),
         participationUrl: text('participationUrl') || null,
         reward: text('reward'),
         category: text('category') as typeof earnCategories[number],
         deadline: toUtcIso(deadline, 'UTC'),
         hubModule: feature ? text('hubModule') : null,
         githubIssueUrl: feature ? text('githubIssueUrl') : null,
-        terms: native ? text('terms') : null,
+        terms: native ? markdown.terms.trim() : null,
         stages: native ? stages.map((stage) => ({
           title: stage.title, deliverables: stage.deliverables, submissionPolicy: stage.submissionPolicy, approvalLimit: stage.approvalLimit,
           requiresPrevApproval: stage.requiresPrevApproval, requiresPullRequest: feature && stage.id === prStage,
@@ -70,12 +79,11 @@ export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
       <SectionCard title="Bounty brief">
         <div className="grid gap-5 sm:grid-cols-2">
           <Field id="title" label="Title" required className="sm:col-span-2"><Input id="title" name="title" defaultValue={initial?.title} maxLength={160} required className="h-11" /></Field>
-          <Field id="description" label="Description" required className="sm:col-span-2"><Textarea id="description" name="description" defaultValue={initial?.description} maxLength={6000} rows={4} required /></Field>
-          <Field id="deliverables" label="Deliverables" required className="sm:col-span-2"><Textarea id="deliverables" name="deliverables" defaultValue={initial?.deliverables} maxLength={6000} rows={3} required /></Field>
-          <Field id="participation" label="How to participate" required className="sm:col-span-2">
-            <Textarea id="participation" name="participation" defaultValue={initial?.participation} maxLength={4000} rows={3} required />
-            <p className="text-sm text-fg-muted">Explain where contributors should send their work and include any applicable terms.</p>
-          </Field>
+          <div className="space-y-5 sm:col-span-2">
+            <MarkdownField id="description" label="Description" value={markdown.description} onChange={(value) => editMarkdown('description', value)} maxLength={6000} rows={4} required />
+            <MarkdownField id="deliverables" label="Deliverables" value={markdown.deliverables} onChange={(value) => editMarkdown('deliverables', value)} maxLength={6000} rows={3} required />
+            <MarkdownField id="participation" label="How to participate" hint="Explain where contributors should send their work and include any applicable terms." value={markdown.participation} onChange={(value) => editMarkdown('participation', value)} maxLength={4000} rows={3} required />
+          </div>
           <Field id="participation-url" label="Participation link (optional)" className="sm:col-span-2">
             <Input id="participation-url" name="participationUrl" type="url" defaultValue={initial?.participationUrl ?? ''} maxLength={2000} className="h-11" />
           </Field>
@@ -103,7 +111,7 @@ export function BountyForm({ id, initial }: { id: string; initial?: Draft }) {
           )}
         </div>
       </SectionCard>
-      <StageFields enabled={native} onEnabled={setNative} stages={stages} onStages={setStages} feature={feature} terms={initial?.terms} />
+      <StageFields enabled={native} onEnabled={setNative} stages={stages} onStages={setStages} feature={feature} terms={markdown.terms} onTermsChange={(value) => editMarkdown('terms', value)} />
       <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save draft'}</Button>
     </form>
   )
