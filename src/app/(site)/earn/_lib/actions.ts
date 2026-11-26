@@ -15,6 +15,12 @@ import { lockBounty } from './write-lock'
 
 const DEFAULT_ORGANIZATION_ID = 'team1-central'
 
+function requireNativeTerms(stageCount: number, terms: string | null | undefined) {
+  if (stageCount > 0 && !terms?.trim()) {
+    throw new ActionError('Native bounties need approved terms before publishing or saving live.')
+  }
+}
+
 async function validateAttribution(tx: Prisma.TransactionClient, bountyId: string, draft: { organizationId?: string; logoUrl?: string | null }) {
   if (draft.organizationId !== undefined) {
     const org = await tx.organization.findUnique({ where: { id: draft.organizationId }, select: { type: true, hidden: true } })
@@ -43,8 +49,21 @@ export const createBountyDraft = action(
 )
 
 export const saveBountyDraft = action(
-  { permission: 'earn.publish', schema: bountyRevisionSchema.extend({ draft: bountySaveSchema }) },
-  async ({ id, revision, draft: { stages, ...draft } }, user) => {
+  {
+    permission: 'earn.publish',
+    schema: bountyRevisionSchema.extend({
+      draft: bountySaveSchema,
+      removedStageIds: z.array(bountyIdSchema.transform((id) => id.toLowerCase())).max(20).default([]),
+    }).superRefine(({ draft, removedStageIds }, ctx) => {
+      if (new Set(removedStageIds).size !== removedStageIds.length) {
+        ctx.addIssue({ code: 'custom', path: ['removedStageIds'], message: 'List each removed stage only once.' })
+      }
+      if (removedStageIds.length && draft.stages === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['removedStageIds'], message: 'Provide a stage list to confirm removals.' })
+      }
+    }),
+  },
+  async ({ id, revision, removedStageIds, draft: { stages, ...draft } }, user) => {
     const published = await prisma.$transaction(async (tx) => {
       await lockBounty(tx, id)
       const where = { id, revision, cancelledAt: null, resultsAnnouncedAt: null }
@@ -81,6 +100,14 @@ export const saveBountyDraft = action(
         }
         return { saved, data, position: index + 1 }
       })
+      const removed = plan ? before.stages.filter((stage) => !retainedIds.has(stage.id)).map((stage) => stage.id) : []
+      if ((removedStageIds.length > 0 || (before.publishedAt && stages !== undefined)) &&
+          (removedStageIds.length !== removed.length || removed.some((stageId) => !removedStageIds.includes(stageId)))) {
+        throw new ActionError('Confirm stage removals by listing exactly the saved stages omitted from the new stage list.')
+      }
+      if (before.publishedAt) {
+        requireNativeTerms(stages?.length ?? before.stages.length, draft.terms === undefined ? before.terms : draft.terms)
+      }
       for (const { saved, data } of plan ?? []) {
         if (activity && saved && data.approvalLimit !== null && data.approvalLimit !== saved.approvalLimit &&
             await tx.earnSubmission.count({ where: { stageId: saved.id, status: 'approved' } }) > data.approvalLimit) {
@@ -95,7 +122,6 @@ export const saveBountyDraft = action(
       })
       if (result.count !== 1) throw new ActionError('This bounty changed or is closed for editing. Reload it before continuing.')
       if (plan) {
-        const removed = before.stages.filter((stage) => !retainedIds.has(stage.id)).map((stage) => stage.id)
         if (removed.length) await tx.earnStage.deleteMany({ where: { bountyId: id, id: { in: removed } } })
         // Vacate moved positions before assigning any final positions under the unique index.
         for (const { saved, position } of plan) {
@@ -134,12 +160,13 @@ export const setBountyPublication = action(
       await lockBounty(tx, id)
       const row = await tx.earnBounty.findUnique({
         where: { id, revision, cancelledAt: null },
-        select: { publishedAt: true, deadline: true, resultsAnnouncedAt: true },
+        select: { publishedAt: true, deadline: true, resultsAnnouncedAt: true, terms: true, _count: { select: { stages: true } } },
       })
       if (!row) throw new ActionError('This bounty changed. Reload it before continuing.')
       const now = new Date()
       const error = publicationError(row.publishedAt, row.deadline, publish, now)
       if (error) throw new ActionError(error)
+      if (publish) requireNativeTerms(row._count.stages, row.terms)
       if (!publish && (row.resultsAnnouncedAt || await tx.earnSubmission.findFirst({ where: { stage: { bountyId: id } }, select: { id: true } }))) {
         throw new ActionError('This bounty has recorded activity and must stay published.')
       }
