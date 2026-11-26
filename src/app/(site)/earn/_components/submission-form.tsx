@@ -37,12 +37,15 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
 }) {
   const router = useRouter()
   const { run, pending } = useActionToast()
-  const [accepted, setAccepted] = useState(false)
+  const [consent, setConsent] = useState({ termsVersion, checked: false })
   const [parentId, setParentId] = useState(() => eligibleParents?.length === 1 ? eligibleParents[0].id : '')
   const [rejectedParents, setRejectedParents] = useState<string[]>([])
   const [errors, setErrors] = useState<Partial<Record<SubmissionField, string>>>({})
   const [error, setError] = useState('')
   const id = useRef<string | null>(null)
+  const currentTerms = consent.termsVersion === termsVersion
+  const accepted = currentTerms && consent.checked
+  if (!currentTerms) setConsent({ termsVersion, checked: false })
   const repository = githubIssueUrl ? githubReference(githubIssueUrl, 'issues')?.repository : undefined
   const availableParents = eligibleParents?.filter((parent) => !rejectedParents.includes(parent.id))
   const selectedParent = availableParents?.some((parent) => parent.id === parentId) ? parentId : ''
@@ -158,7 +161,7 @@ export function SubmissionForm({ bountyId, stageId, requiresPullRequest, githubI
       </details>
       <div>
         <label htmlFor={fieldIds.accepted} className="flex min-h-11 items-center gap-3">
-          <Checkbox id={fieldIds.accepted} required checked={accepted} onCheckedChange={(value) => setAccepted(value === true)} {...feedbackProps('accepted')} />
+          <Checkbox id={fieldIds.accepted} required checked={accepted} onCheckedChange={(value) => setConsent({ termsVersion, checked: value === true })} {...feedbackProps('accepted')} />
           I accept the bounty terms for this work.
         </label>
         {fieldError('accepted')}
