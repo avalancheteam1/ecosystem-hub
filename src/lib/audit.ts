@@ -44,7 +44,10 @@ async function requestIp(): Promise<string | null> {
 
 const json = (v: unknown) => (v === undefined ? undefined : (v as Prisma.InputJsonValue))
 
-/** Pass a transaction when the change must roll back if its audit entry cannot be written. */
+/**
+ * Without `tx`, audit write failures are logged without throwing.
+ * With `tx`, an audit write failure propagates so the enclosing transaction rolls back.
+ */
 export async function recordAudit(args: AuditArgs, tx?: Prisma.TransactionClient): Promise<void> {
   let { before, after } = args
   if (isPlainObject(before) && isPlainObject(after)) ({ before, after } = diffObjects(before, after))
