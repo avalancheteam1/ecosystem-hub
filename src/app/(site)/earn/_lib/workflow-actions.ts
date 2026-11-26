@@ -108,7 +108,11 @@ export const reviseStage = action({
     const entry = await getOwnedSubmission(tx, id, bountyId, user.id, version)
     const stage = bounty.stages.find((item) => item.id === entry.stageId)
     if (!stage || !revisionAllowed(stage.submissionPolicy, entry.status)) throw new ActionError('This stage does not allow another revision.')
-    if (stage.id !== bounty.stages.at(-1)?.id && await tx.earnSubmission.findFirst({ where: { stageId: stage.id, contributorId: user.id, status: 'approved' }, select: { id: true } })) {
+    if (
+      stage.submissionPolicy !== 'multiple' &&
+      stage.id !== bounty.stages.at(-1)?.id &&
+      await tx.earnSubmission.findFirst({ where: { stageId: stage.id, contributorId: user.id, status: 'approved' }, select: { id: true } })
+    ) {
       throw new ActionError('This stage is already approved.')
     }
     const data = revisionData(evidence, stage, bounty)
@@ -137,7 +141,7 @@ export const withdrawStage = action({
       where: { submissionId_number: { submissionId: id, number: entry.revision } },
       data: { withdrawnAt: new Date(), withdrawalReason: reason },
     })
-    await recordAudit({ actorId: user.id, action: 'earn.submission.withdraw', entityType: 'EarnSubmission', entityId: id, after: { revision: entry.revision, status: 'withdrawn' } }, tx)
+    await recordAudit({ actorId: user.id, action: 'earn.submission.withdraw', entityType: 'EarnSubmission', entityId: id, before: { status: entry.status }, after: { revision: entry.revision, status: 'withdrawn' } }, tx)
   })
   refreshWorkflow(bountyId, id)
   return { id }
@@ -165,7 +169,11 @@ export const reviewStage = action({ permission: 'earn.review', schema: reviewSch
     const error = reviewError(entry.status, decision, isFinal, bounty.deadline, new Date())
     if (error) throw new ActionError(error)
     if (decision === 'approved') {
-      if (!isFinal && await tx.earnSubmission.findFirst({ where: { stageId: stage.id, contributorId: entry.contributorId, status: 'approved' }, select: { id: true } })) {
+      if (
+        stage.submissionPolicy !== 'multiple' &&
+        !isFinal &&
+        await tx.earnSubmission.findFirst({ where: { stageId: stage.id, contributorId: entry.contributorId, status: 'approved' }, select: { id: true } })
+      ) {
         throw new ActionError('This contributor already has an approval for the stage.')
       }
       if (stage.approvalLimit !== null && await tx.earnSubmission.count({ where: { stageId: stage.id, status: 'approved' } }) >= stage.approvalLimit) {

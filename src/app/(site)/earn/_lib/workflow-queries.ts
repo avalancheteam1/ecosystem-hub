@@ -58,7 +58,7 @@ export async function getOwnReceipt(bountyId: string, id: string, page: number) 
     select: { id: true, revision: true, decision: true, feedback: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   })
-  const stageApproved = !final && !!await prisma.earnSubmission.findFirst({
+  const stageApproved = !final && row.stage.submissionPolicy !== 'multiple' && !!await prisma.earnSubmission.findFirst({
     where: { stageId: row.stage.id, contributorId: user.id, status: 'approved' },
     select: { id: true },
   })

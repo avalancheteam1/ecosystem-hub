@@ -16,9 +16,10 @@ export function previousStageError(stage: StageGate, stages: StageGate[], entrie
 }
 
 export function newSubmissionError(stage: StageGate, isFinal: boolean, entries: StageAttempt[]) {
+  if (stage.submissionPolicy === 'multiple') return null
   const attempts = entries.filter((entry) => entry.stageId === stage.id)
   if (!isFinal && attempts.some((entry) => entry.status === 'approved')) return 'This stage is already approved.'
-  if (attempts.length && stage.submissionPolicy !== 'multiple') return 'Continue from your existing receipt for this stage.'
+  if (attempts.length) return 'Continue from your existing receipt for this stage.'
   return null
 }
 
