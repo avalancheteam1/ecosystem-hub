@@ -201,3 +201,39 @@ export async function getJudgeQueue(hackathonId: string, userId: string) {
   })
   return { judge, assignments }
 }
+
+/**
+ * Find a team: active participants of this hackathon who are looking, except the viewer and anyone already on a team
+ * with an active submission here (they drop off on their own). Profile fields only - never emails.
+ */
+export async function listTeamSeekers(hackathonId: string, viewerId: string) {
+  const rows = await prisma.teamSeeker.findMany({
+    where: {
+      participant: {
+        hackathonId,
+        status: 'active',
+        userId: { not: viewerId },
+        user: { projectMembers: { none: { role: { in: TEAM_ROLES }, project: { submissions: { some: { hackathonId, status: 'active' } } } } } },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: { note: true, trackIds: true, participant: { select: { user: { select: { id: true, name: true, image: true, country: true, builderRoles: true, skills: true } } } } },
+  })
+  return rows.map((r) => ({ ...r.participant.user, note: r.note, trackIds: r.trackIds }))
+}
+
+/** The viewer's own find-a-team row (null = not looking), the projects they own (to invite to) and their open invites by user id. */
+export async function getMyTeamFinder(hackathonId: string, userId: string) {
+  const [me, owned] = await Promise.all([
+    prisma.participant.findUnique({ where: { hackathonId_userId: { hackathonId, userId } }, select: { teamSeeker: { select: { note: true, trackIds: true } } } }),
+    prisma.project.findMany({
+      where: { archivedAt: null, members: { some: { userId, role: 'owner' } } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, currentVersion: { select: { name: true } }, invites: { where: { inviteeUserId: { not: null }, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, select: { inviteeUserId: true } }, members: { select: { userId: true } } },
+    }),
+  ])
+  return {
+    seeker: me?.teamSeeker ?? null,
+    projects: owned.map((p) => ({ id: p.id, name: p.currentVersion?.name ?? 'Untitled project', invited: p.invites.map((i) => i.inviteeUserId!), members: p.members.map((m) => m.userId) })),
+  }
+}

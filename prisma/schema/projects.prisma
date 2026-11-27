@@ -97,8 +97,11 @@ model ProjectInvite {
   id          String    @id @default(cuid())
   projectId   String
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  /// lowercased
-  email       String
+  /// lowercased; null for an invite by user id (find-a-team), so the address is never stored or shown
+  email       String?
+  /// set for an invite by user id: only this user may accept it (checked on accept, no email match)
+  inviteeUserId String?
+  inviteeUser   User?   @relation("ProjectInvitesReceived", fields: [inviteeUserId], references: [id], onDelete: Cascade)
   /// Role given on accept: writer | reader (ASSIGNABLE_ROLES)
   role        String    @default("writer")
   tokenHash   String    @unique
@@ -111,6 +114,7 @@ model ProjectInvite {
 
   @@index([projectId])
   @@index([email])
+  @@index([inviteeUserId])
   @@map("project_invites")
 }
 

@@ -217,7 +217,7 @@ export const revokeInvite = action({ schema: z.object({ inviteId: z.string().min
   if (!invite) throw new ActionError('Invite not found')
   await requireOwner(invite.projectId, user.id)
   await prisma.projectInvite.update({ where: { id: inviteId }, data: { revokedAt: new Date() } })
-  await recordAudit({ actorId: user.id, action: 'project.invite.revoke', entityType: 'Project', entityId: invite.projectId, before: { email: invite.email } })
+  await recordAudit({ actorId: user.id, action: 'project.invite.revoke', entityType: 'Project', entityId: invite.projectId, before: invite.inviteeUserId ? { inviteeUserId: invite.inviteeUserId } : { email: invite.email } })
   revalidatePath(`/projects/${invite.project.slug}`)
   return null
 })
@@ -226,21 +226,26 @@ export const acceptInvite = action({ schema: z.object({ token: z.string().min(20
   joinViaInvite(await prisma.projectInvite.findUnique({ where: { tokenHash: hashToken(token) }, include: { project: { select: { slug: true, archivedAt: true } } } }), user),
 )
 
-/** In-app accept (dashboard, projects list): the verified-email check below is what the emailed token proves too. */
+/** In-app accept (dashboard, projects list): the checks below are what the emailed token proves too. */
 export const acceptInviteById = action({ schema: z.object({ inviteId: z.string().min(1) }), permission: 'user' }, async ({ inviteId }, user) =>
-  // Scoped to my own email, so a foreign invite id reveals nothing about who it was for.
-  joinViaInvite(await prisma.projectInvite.findFirst({ where: { id: inviteId, email: user.email.toLowerCase() }, include: { project: { select: { slug: true, archivedAt: true } } } }), user),
+  // Scoped to my own email or user id, so a foreign invite id reveals nothing about who it was for.
+  joinViaInvite(await prisma.projectInvite.findFirst({ where: { id: inviteId, OR: [{ email: user.email.toLowerCase() }, { inviteeUserId: user.id }] }, include: { project: { select: { slug: true, archivedAt: true } } } }), user),
 )
 
-type InviteRow = { id: string; projectId: string; email: string; role: string; acceptedAt: Date | null; revokedAt: Date | null; expiresAt: Date; project: { slug: string; archivedAt: Date | null } }
+type InviteRow = { id: string; projectId: string; email: string | null; inviteeUserId: string | null; role: string; acceptedAt: Date | null; revokedAt: Date | null; expiresAt: Date; project: { slug: string; archivedAt: Date | null } }
 
 async function joinViaInvite(invite: InviteRow | null, user: { id: string }) {
   if (!invite || invite.revokedAt || invite.project.archivedAt) throw new ActionError('This invite is no longer valid')
   if (invite.acceptedAt) throw new ActionError('This invite was already used')
   if (invite.expiresAt < new Date()) throw new ActionError('This invite has expired - ask the team for a new one')
-  const me = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true, emailVerified: true } })
-  if (!me?.emailVerified || me.email.toLowerCase() !== invite.email) {
-    throw new ActionError(`This invite is for ${invite.email}. Sign in with that email to accept it.`)
+  if (invite.inviteeUserId) {
+    // An invite by user id (find a team): only that account, never matched by email.
+    if (invite.inviteeUserId !== user.id) throw new ActionError('This invite is for another account. Sign in with the account it was sent to.')
+  } else {
+    const me = await prisma.user.findUnique({ where: { id: user.id }, select: { email: true, emailVerified: true } })
+    if (!me?.emailVerified || me.email.toLowerCase() !== invite.email) {
+      throw new ActionError(`This invite is for ${invite.email}. Sign in with that email to accept it.`)
+    }
   }
   if (canEditProject(invite.role)) await assertCanJoinTeam(invite.projectId, user.id) // readers aren't on the hackathon team
   await prisma.$transaction([

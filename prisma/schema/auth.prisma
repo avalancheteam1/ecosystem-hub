@@ -43,6 +43,7 @@ model User {
   projectVersions    ProjectVersion[]
   projectMembers     ProjectMember[]
   projectInvites     ProjectInvite[]      @relation("ProjectInvitesSent")
+  projectInvitesReceived ProjectInvite[]  @relation("ProjectInvitesReceived")
   organizerOf        HackathonOrganizer[] @relation("OrganizerOf")
   judgeOf            HackathonJudge[]     @relation("JudgeOf")
   participations     Participant[]

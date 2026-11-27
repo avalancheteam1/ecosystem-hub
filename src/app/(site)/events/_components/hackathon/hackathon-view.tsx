@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import type { Event as DbEvent } from '@prisma/client'
-import { ArrowUpRight, ExternalLink, Trophy } from 'lucide-react'
+import { ArrowUpRight, ExternalLink, Trophy, Users } from 'lucide-react'
 import type { getMySubmissions, PublicHackathon } from '@/app/(site)/events/_lib/hackathons/queries'
 import { advancedStageIds, pickOpenStage, placeTitle, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { EventCover } from '@/components/event-cover'
@@ -91,6 +91,11 @@ export function HackathonView({ event, h, signedIn, mine, share, manage }: { eve
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
               {step.href ? <Button asChild size="lg"><Link href={step.href}>{step.label}</Link></Button> : <p className="text-fg-body">{step.label}</p>}
               {share}
+              {h.joined && !h.resultsPublishedAt && (
+                <Link href={`/events/${event.slug}/team`} className="inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">
+                  <Users className="size-4" aria-hidden /> Find a team
+                </Link>
+              )}
               {h.joined && !mine.length && !h.resultsPublishedAt && <LeaveHackathonButton hackathonId={h.id} />}
               {event.lumaUrl && (
                 <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="group inline-flex min-h-11 items-center gap-1.5 text-sm text-fg-muted hover:text-fg-heading">

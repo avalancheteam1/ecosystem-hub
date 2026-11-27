@@ -26,7 +26,7 @@ export const getProjectForMember = cache(async (slug: string, userId: string) =>
       currentVersion: true,
       milestones: { orderBy: [{ targetDate: 'asc' }, { createdAt: 'asc' }] },
       members: { include: { user: { select: { id: true, name: true, email: true, image: true } } }, orderBy: { createdAt: 'asc' } },
-      invites: { where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, select: { id: true, email: true, role: true } },
+      invites: { where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, select: { id: true, email: true, role: true, inviteeUser: { select: { name: true } } } },
       toolingListing: { select: { approvedVersionId: true, pendingVersionId: true } },
       versions: {
         orderBy: { number: 'desc' },
@@ -64,12 +64,11 @@ export async function listProjectActivityForTeam(project: { id: string; slug: st
   })
 }
 
-/** Open project invites to my (verified) email - accepted in-app via acceptInviteById. */
+/** Open project invites to my (verified) email or to my user id (find a team) - accepted in-app via acceptInviteById. */
 export async function listMyInvites(userId: string) {
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true } })
-  if (!me?.emailVerified) return []
   return prisma.projectInvite.findMany({
-    where: { email: me.email.toLowerCase(), acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() }, project: { archivedAt: null } },
+    where: { OR: [{ inviteeUserId: userId }, ...(me?.emailVerified ? [{ email: me.email.toLowerCase() }] : [])], acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() }, project: { archivedAt: null } },
     orderBy: { createdAt: 'desc' },
     select: { id: true, role: true, project: { select: { currentVersion: { select: { name: true } } } } },
   })

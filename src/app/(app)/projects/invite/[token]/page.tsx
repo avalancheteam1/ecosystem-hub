@@ -83,8 +83,10 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             <p className="text-left text-sm text-fg-muted">{teamLine}</p>
           </div>
 
-          {invite.email !== user.email.toLowerCase() && (
-            <p className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-3 text-left text-sm">This invite is for {invite.email}. You&apos;re signed in as {user.email}.</p>
+          {(invite.inviteeUserId ? invite.inviteeUserId !== user.id : invite.email !== user.email.toLowerCase()) && (
+            <p className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-3 text-left text-sm">
+              {invite.inviteeUserId ? 'This invite is for another account.' : `This invite is for ${invite.email}.`} You&apos;re signed in as {user.email}.
+            </p>
           )}
           <div className="mt-6 [&>button]:w-full"><AcceptInvite token={token} /></div>
           <p className="meta mt-3">Invite valid until {invite.expiresAt.toISOString().slice(0, 10)}</p>
