@@ -70,7 +70,7 @@ export const previewAssignment = action({ schema: z.object({ hackathonId: id, st
 
 /** Apply a (previewed) draw: keeps reviewed assignments, replaces the rest. */
 export const applyAssignment = action({ schema: z.object({ hackathonId: id, stageId: id, seed: z.string().min(1).max(40) }), permission: 'user' }, async ({ hackathonId, stageId, seed }, user) => {
-  const h = await assertManage(hackathonId, user)
+  await assertManage(hackathonId, user)
   const stage = await loadStage(stageId)
   if (stage.hackathonId !== hackathonId) throw new ActionError('Stage not found')
   const { pairs, keep } = await computePairs(stage, seed)
@@ -82,16 +82,6 @@ export const applyAssignment = action({ schema: z.object({ hackathonId: id, stag
     return fresh.length
   })
   await recordAudit({ actorId: user.id, action: 'hackathon.judging.assign', entityType: 'HackathonStage', entityId: stageId, after: { seed, perEntry: stage.judgesPerSubmission, assignments: pairs.length } })
-  // Tell judges they have work (one mail per judge with new assignments).
-  const judgeIds = new Set(pairs.filter(([j, e]) => !keepSet.has(`${j}:${e}`)).map(([j]) => j))
-  for (const j of stage.hackathon.judges.filter((x) => judgeIds.has(x.id))) {
-    await sendMail({
-      to: j.email,
-      subject: `Submissions are ready for you to judge - ${h.event.name}`,
-      text: `You have submissions to review for "${h.event.name}" (${stage.name}).\n\n${siteUrl()}/judge`,
-      html: brandedShell({ preheader: `Submissions to review for ${h.event.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">You have submissions to review for <strong>${esc(h.event.name)}</strong> (${esc(stage.name)}).</p>${button(`${siteUrl()}/judge`, 'Start judging')}</td></tr>` }),
-    }).catch((err) => logger.error({ err }, '[judging] mail failed'))
-  }
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   return { assigned: pairs.length, added }
 })
