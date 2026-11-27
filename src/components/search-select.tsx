@@ -35,8 +35,12 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Sele
   const selected = options.find((o) => o.value === value)
   const typed = search.trim()
   const canCreate = !!onCreate && typed.length > 0 && !options.some((o) => [o.label, ...(o.keywords ?? [])].some((t) => t.toLowerCase() === typed.toLowerCase()))
+  function changeOpen(next: boolean) {
+    setOpen(next)
+    if (!next) setSearch('')
+  }
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch('') }}>
+    <Popover open={open} onOpenChange={changeOpen}>
       <PopoverTrigger asChild>
         <button
           id={id}
@@ -63,14 +67,14 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Sele
             {!canCreate && !options.some((o) => o.matched) && <CommandEmpty className="py-6 text-center text-sm text-fg-muted">{emptyText}</CommandEmpty>}
             {options.map((o) => (
               // cmdk searches `value`; include the key so "DE" or "Europe/" match too.
-              <CommandItem key={o.value} value={`${o.label} ${o.value}`} keywords={o.keywords} forceMount={o.matched} onSelect={() => { onChange(o.value); setOpen(false) }} className="min-h-10 rounded-md px-3 text-fg-body data-[selected=true]:bg-surface-hover data-[selected=true]:text-fg-heading">
+              <CommandItem key={o.value} value={`${o.label} ${o.value}`} keywords={o.keywords} forceMount={o.matched} onSelect={() => { onChange(o.value); changeOpen(false) }} className="min-h-10 rounded-md px-3 text-fg-body data-[selected=true]:bg-surface-hover data-[selected=true]:text-fg-heading">
                 {o.icon}
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {o.value === value && <Check className="size-4 text-brand" aria-hidden />}
               </CommandItem>
             ))}
             {canCreate && (
-              <CommandItem forceMount value={`__create ${typed}`} onSelect={() => { onCreate(typed); setOpen(false); setSearch('') }} className="min-h-10 rounded-md px-3 text-fg-body data-[selected=true]:bg-surface-hover data-[selected=true]:text-fg-heading">
+              <CommandItem forceMount value={`__create ${typed}`} onSelect={() => { onCreate(typed); changeOpen(false) }} className="min-h-10 rounded-md px-3 text-fg-body data-[selected=true]:bg-surface-hover data-[selected=true]:text-fg-heading">
                 <Plus className="size-4 text-brand" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">Add “{typed}”</span>
               </CommandItem>
