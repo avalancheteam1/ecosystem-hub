@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ClipboardCheck, FolderGit2, LayoutDashboard, LogOut, Shield, Trophy, UserRound } from 'lucide-react'
-import { authClient } from '@/lib/auth-client'
 import { initials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -60,6 +59,8 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={async () => {
+            // Lazy: the auth client is only needed here, keep it out of every signed-in page's bundle.
+            const { authClient } = await import('@/lib/auth-client')
             await authClient.signOut()
             router.push('/')
             router.refresh()

@@ -43,8 +43,13 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = await requireUser()
   const nextParam = (await searchParams).next
   await reportRejectedNext(nextParam)
-  const [u, profile, { groups }] = await Promise.all([prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: { universityMemberships: { orderBy: { createdAt: 'asc' } }, campusProfile: true } }), getPortalProfile(user.id), getUserGroups(user.id)])
-  const orgs = await getOrgOptions(u.universityMemberships.flatMap((m) => [m.universityId, ...(m.clubId ? [m.clubId] : [])]))
+  const userP = prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: { universityMemberships: { orderBy: { createdAt: 'asc' } }, campusProfile: true } })
+  const [u, orgs, profile, { groups }] = await Promise.all([
+    userP,
+    userP.then((x) => getOrgOptions(x.universityMemberships.flatMap((m) => [m.universityId, ...(m.clubId ? [m.clubId] : [])]))),
+    getPortalProfile(user.id),
+    getUserGroups(user.id),
+  ])
   const legacyInstitution = u.universityMemberships.length ? null : u.institution?.trim() || null
   const leadGroups = groups.filter((g) => g.lead)
   const next = nextParam ? safeNext(nextParam) : null

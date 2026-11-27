@@ -12,3 +12,5 @@ allowBuilds:
 # it), but pin it past known advisories so `pnpm audit` stays clean.
 overrides:
   mysql2: '>=3.23.1'
+  # effect comes only via @prisma/config (pins 3.20.0, CLI-time config parsing); past GHSA-7589-6fvf-x4pw. Drop once Prisma bumps it.
+  effect: '^3.22.1'

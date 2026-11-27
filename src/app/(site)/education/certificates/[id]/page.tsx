@@ -32,9 +32,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function CertificatePage({ params }: Props) {
-  const cert = await load(params)
+  const [cert, user] = await Promise.all([load(params), getCurrentUser()])
   if (!cert) notFound()
-  const user = await getCurrentUser()
   const academy = getAcademy(cert.academy)
   const course = academy?.courses.find((c) => c.slug === cert.course)
   const issued = formatIssued(cert.issuedAt)

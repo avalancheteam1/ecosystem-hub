@@ -30,7 +30,7 @@ export const metadata: Metadata = { title: 'Dashboard', robots: { index: false }
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const user = await requireUser()
   const welcome = (await searchParams).welcome === '1'
-  const roles = await getHackathonRoles(user.id)
+  const rolesP = getHackathonRoles(user.id)
   const [u, allProjects, hackathons, onboardings, { groups }, invites, judging, organising, certificates] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true, image: true } }),
     prisma.project.findMany({
@@ -61,8 +61,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     prisma.referral.count({ where: { referrerId: user.id } }),
     getUserGroups(user.id),
     listMyInvites(user.id),
-    roles.judge ? listJudgeHackathons(user.id) : [],
-    roles.organizer ? listManagedHackathons(user, false) : [],
+    rolesP.then((r) => (r.judge ? listJudgeHackathons(user.id) : [])),
+    rolesP.then((r) => (r.organizer ? listManagedHackathons(user, false) : [])),
     listMyCertificates(user.id),
   ])
   // ponytail: sorts all of the user's projects in memory - fine for a handful, paginate if builders get dozens

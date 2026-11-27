@@ -44,23 +44,28 @@ async function requestIp(): Promise<string | null> {
 
 const json = (v: unknown) => (v === undefined ? undefined : (v as Prisma.InputJsonValue))
 
-/** Persist an audit entry. Never throws - an audit failure must not break the action. */
-export async function recordAudit(args: AuditArgs): Promise<void> {
+function auditRow(args: AuditArgs, ip: string | null) {
   let { before, after } = args
   if (isPlainObject(before) && isPlainObject(after)) ({ before, after } = diffObjects(before, after))
+  return { actorId: args.actorId, action: args.action, entityType: args.entityType, entityId: args.entityId ?? null, before: json(before), after: json(after), ip }
+}
+
+/** Persist an audit entry. Never throws - an audit failure must not break the action. */
+export async function recordAudit(args: AuditArgs): Promise<void> {
   try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: args.actorId,
-        action: args.action,
-        entityType: args.entityType,
-        entityId: args.entityId ?? null,
-        before: json(before),
-        after: json(after),
-        ip: await requestIp(),
-      },
-    })
+    await prisma.auditLog.create({ data: auditRow(args, await requestIp()) })
   } catch (err) {
     logger.error({ err }, '[audit] failed to write entry')
+  }
+}
+
+/** Several audit entries in one insert (bulk actions). Never throws, like recordAudit. */
+export async function recordAudits(entries: AuditArgs[]): Promise<void> {
+  if (!entries.length) return
+  try {
+    const ip = await requestIp()
+    await prisma.auditLog.createMany({ data: entries.map((e) => auditRow(e, ip)) })
+  } catch (err) {
+    logger.error({ err }, '[audit] failed to write entries')
   }
 }

@@ -38,13 +38,15 @@ export default async function LessonPage({ params }: Props) {
   if (!found) notFound()
   const { academy, course, module, lesson, prev, next } = found
   const [body, user] = await Promise.all([readLesson(academy.slug, course.slug, module.slug, lesson.slug), getCurrentUser()])
-  const [progress, attempts] = user ? await Promise.all([getProgress(user.id, academy.slug), getQuizAttempts(user.id, academy.slug)]) : [null, null]
-  const counts = lessonCounts(academy)
   const courseLessons = progressLessons(academy).filter((l) => l.course === course)
+  const lastOfCourse = courseLessons.at(-1)!.lesson === lesson
+  const [progress, attempts, certIds] = user
+    ? await Promise.all([getProgress(user.id, academy.slug), getQuizAttempts(user.id, academy.slug), lastOfCourse ? getCertificateIds(user.id, academy.slug) : null])
+    : [null, null, null]
+  const counts = lessonCounts(academy)
   const byHref = new Map(courseLessons.map((l) => [l.href, l]))
   const courseProgress = progress && progressOf(progress, courseLessons)
-  const lastOfCourse = courseLessons.at(-1)!.lesson === lesson
-  const certId = lastOfCourse && user ? (await getCertificateIds(user.id, academy.slug)).get(course.slug) : undefined
+  const certId = certIds?.get(course.slug)
   const base = courseHref(academy, course)
   const position = module.lessons.indexOf(lesson) + 1
   return (

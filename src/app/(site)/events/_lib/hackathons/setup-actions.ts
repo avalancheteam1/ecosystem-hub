@@ -3,10 +3,11 @@
 import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { action, ActionError } from '@/lib/action'
-import { recordAudit } from '@/lib/audit'
+import { recordAudit, recordAudits } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { brandedShell, button, CELL, esc, PARA } from '@/lib/email-template'
 import { IMAGE_KINDS } from '@/lib/image-kinds'
@@ -425,20 +426,18 @@ export const reviewRegistration = action(
     }
     const status = approve ? 'active' : 'rejected'
     await prisma.participant.updateMany({ where: { id: { in: ps.map((p) => p.id) }, status: { in: from } }, data: { status } })
-    for (const p of ps) {
-      await recordAudit({ actorId: user.id, action: approve ? 'hackathon.registration.approve' : 'hackathon.registration.reject', entityType: 'Participant', entityId: p.id, before: { status: p.status }, after: { status } })
-    }
+    await recordAudits(ps.map((p) => ({ actorId: user.id, action: approve ? 'hackathon.registration.approve' : 'hackathon.registration.reject', entityType: 'Participant', entityId: p.id, before: { status: p.status }, after: { status } })))
     if (approve) {
       const url = `${siteUrl()}/events/${h.event.slug}`
-      // ponytail: sequential mails, up to 100 per call - a job if SMTP gets slow
-      for (const p of ps) {
-        await sendMail({
+      // ponytail: up to 100 mails after the response, through the mailer's connection pool - a pg-boss job if delivery must survive a deploy
+      after(() => Promise.allSettled(ps.map((p) =>
+        sendMail({
           to: p.user.email,
           subject: `You're in - ${h.event.name}`,
           text: `Your registration for "${h.event.name}" was approved.\n\n${url}`,
           html: brandedShell({ preheader: `Your registration for ${h.event.name} was approved`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Your registration for <strong>${esc(h.event.name)}</strong> was approved. Teams form around projects - create one or get invited to one, then submit.</p>${button(url, 'Go to the hackathon')}</td></tr>` }),
-        }).catch((err) => logger.error({ err }, '[hackathons] mail failed'))
-      }
+        }).catch((err) => logger.error({ err }, '[hackathons] mail failed')),
+      )))
     }
     revalidate(h)
     return { count: ps.length }
@@ -449,10 +448,11 @@ export const reviewRegistration = action(
 
 const email = z.string().trim().toLowerCase().email('Enter a valid email')
 
-async function sendRoleInvite(to: string, role: 'organiser' | 'judge', h: { id: string; event: { name: string; slug: string } }, inviter: string) {
+/** Sent after the response - errors are only logged, so the organiser doesn't wait on SMTP. */
+function sendRoleInvite(to: string, role: 'organiser' | 'judge', h: { id: string; event: { name: string; slug: string } }, inviter: string) {
   const url = role === 'judge' ? `${siteUrl()}/judge` : `${siteUrl()}/manage/hackathons/${h.id}`
   const what = role === 'judge' ? 'judge' : 'help organise'
-  await sendMail({
+  after(() => sendMail({
     to,
     subject: `${inviter} invited you to ${what} ${h.event.name}`,
     text: `${inviter} invited you to ${what} "${h.event.name}" on the team1 Ecosystem Hub.\n\nSign in with ${to} to get started:\n${url}`,
@@ -464,7 +464,7 @@ async function sendRoleInvite(to: string, role: 'organiser' | 'judge', h: { id: 
         ${button(url, role === 'judge' ? 'Open judging' : 'Open the hackathon')}
       </td></tr>`,
     }),
-  }).catch((err) => logger.error({ err }, '[hackathons] invite mail failed'))
+  }).catch((err) => logger.error({ err }, '[hackathons] invite mail failed')))
 }
 
 export const inviteOrganizer = action({ schema: z.object({ hackathonId: id, email }), permission: 'user' }, async ({ hackathonId, email }, user) => {
@@ -472,7 +472,7 @@ export const inviteOrganizer = action({ schema: z.object({ hackathonId: id, emai
   const exists = await prisma.hackathonOrganizer.findUnique({ where: { hackathonId_email: { hackathonId, email } } })
   if (exists) throw new ActionError('Already an organiser')
   await prisma.hackathonOrganizer.create({ data: { hackathonId, email, userId: await verifiedUserIdByEmail(email), invitedById: user.id } })
-  await sendRoleInvite(email, 'organiser', h, user.name)
+  sendRoleInvite(email, 'organiser', h, user.name)
   await recordAudit({ actorId: user.id, action: 'hackathon.organizer.add', entityType: 'Hackathon', entityId: hackathonId, after: { email } })
   revalidate(h)
   return null
@@ -510,7 +510,7 @@ export const saveJudge = action(
       if (!email) throw new ActionError('Enter the judge’s email')
       if (await prisma.hackathonJudge.findUnique({ where: { hackathonId_email: { hackathonId, email } } })) throw new ActionError('Already a judge')
       await prisma.hackathonJudge.create({ data: { hackathonId, email, trackIds, userId: await verifiedUserIdByEmail(email), invitedById: user.id } })
-      await sendRoleInvite(email, 'judge', h, user.name)
+      sendRoleInvite(email, 'judge', h, user.name)
       await recordAudit({ actorId: user.id, action: 'hackathon.judge.add', entityType: 'Hackathon', entityId: hackathonId, after: { email, trackIds } })
     }
     revalidate(h)

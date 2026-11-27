@@ -1,12 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Download, QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { buildQrSvg, downloadQrPng, downloadQrSvg } from '@/lib/qr'
 
 const SIZE = 2000
 
@@ -33,7 +32,10 @@ export function QrCodeDialog({ value, filename, title = 'QR code', label = 'QR c
 export function QrCodePanel({ value, filename }: { value: string; filename: string }) {
   const [mode, setMode] = useState<'light' | 'dark'>('light')
   const [transparent, setTransparent] = useState(false)
-  const svg = useMemo(() => buildQrSvg(value, { size: SIZE, mode, transparent }), [value, mode, transparent])
+  // qrcode loads only once a panel is shown, not with every page that has a QR button.
+  const [qr, setQr] = useState<typeof import('@/lib/qr') | null>(null)
+  useEffect(() => void import('@/lib/qr').then(setQr), [])
+  const svg = useMemo(() => qr?.buildQrSvg(value, { size: SIZE, mode, transparent }) ?? '', [qr, value, mode, transparent])
   const name = `${filename}-${mode}${transparent ? '-transparent' : ''}`
 
   return (
@@ -44,21 +46,25 @@ export function QrCodePanel({ value, filename }: { value: string; filename: stri
           <TabsTrigger value="dark">Dark</TabsTrigger>
         </TabsList>
       </Tabs>
-      {/* eslint-disable-next-line @next/next/no-img-element -- generated data URI, not an asset */}
-      <img
-        src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
-        alt={`QR code for ${value}`}
-        className="mx-auto aspect-square w-full max-w-96 rounded-lg border border-line"
-        // Checkerboard so a transparent code stays visible in both themes.
-        style={transparent ? { background: 'repeating-conic-gradient(#888 0 25%, #ccc 0 50%) 0 0 / 20px 20px' } : undefined}
-      />
+      {svg ? (
+        // eslint-disable-next-line @next/next/no-img-element -- generated data URI, not an asset
+        <img
+          src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`}
+          alt={`QR code for ${value}`}
+          className="mx-auto aspect-square w-full max-w-96 rounded-lg border border-line"
+          // Checkerboard so a transparent code stays visible in both themes.
+          style={transparent ? { background: 'repeating-conic-gradient(#888 0 25%, #ccc 0 50%) 0 0 / 20px 20px' } : undefined}
+        />
+      ) : (
+        <div aria-hidden className="mx-auto aspect-square w-full max-w-96 rounded-lg border border-line" />
+      )}
       <p className="break-all text-center text-xs text-fg-muted">{value}</p>
       <label className="flex min-h-11 items-center justify-center gap-3 text-sm">
         <Checkbox checked={transparent} onCheckedChange={(c) => setTransparent(c === true)} /> Transparent background
       </label>
       <div className="flex justify-center gap-2">
-        <Button variant="outline" onClick={() => downloadQrSvg(svg, `${name}.svg`)}><Download aria-hidden /> SVG</Button>
-        <Button variant="outline" onClick={() => downloadQrPng(svg, SIZE, `${name}.png`)}><Download aria-hidden /> PNG</Button>
+        <Button variant="outline" disabled={!qr} onClick={() => qr?.downloadQrSvg(svg, `${name}.svg`)}><Download aria-hidden /> SVG</Button>
+        <Button variant="outline" disabled={!qr} onClick={() => qr?.downloadQrPng(svg, SIZE, `${name}.png`)}><Download aria-hidden /> PNG</Button>
       </div>
     </div>
   )

@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import { Pencil, Plus } from 'lucide-react'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Field } from '@/components/field'
 import { FormDialog } from '@/components/form-dialog'
-import { Markdown } from '@/components/markdown'
 import { MarkdownField } from '@/components/markdown-field'
 import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
@@ -15,8 +15,12 @@ import { useActionToast } from '@/hooks/use-action-toast'
 import { addMilestone, deleteMilestone, updateMilestone } from '../_lib/actions'
 import { MAX_MILESTONES, MILESTONE_STATUS, type MilestoneStatus } from '../_lib/rules'
 
-export type Milestone = { id: string; title: string; description: string | null; targetDate: string; status: MilestoneStatus; doneAt?: Date | null }
-type Draft = Omit<Milestone, 'id' | 'doneAt'>
+// Only for milestones without a server-rendered description (the unsaved list in the new-project form).
+const Markdown = dynamic(() => import('@/components/markdown').then((m) => m.Markdown))
+
+/** `rendered`: the description as Markdown rendered on the server (keeps the parser out of the browser). */
+export type Milestone = { id: string; title: string; description: string | null; targetDate: string; status: MilestoneStatus; doneAt?: Date | null; rendered?: ReactNode }
+type Draft = Omit<Milestone, 'id' | 'doneAt' | 'rendered'>
 
 const EMPTY: Draft = { title: '', description: '', targetDate: '', status: 'planned' }
 // Calendar days (YYYY-MM-DD) are zone-less: format them in UTC so every viewer sees the same day.
@@ -66,7 +70,7 @@ export function MilestoneList({ items, pending, readOnly, onSave, onDelete }: { 
                 <h3 className={`min-w-0 text-base leading-tight ${m.status === 'dropped' ? 'text-fg-muted line-through' : ''}`}>{m.title}</h3>
                 <StatusPill tone={MILESTONE_STATUS[m.status]?.tone ?? 'neutral'} className="shrink-0">{MILESTONE_STATUS[m.status]?.label ?? m.status}</StatusPill>
               </div>
-              {m.description && <Markdown className="mt-1.5 text-sm text-fg-muted">{m.description}</Markdown>}
+              {m.description && (m.rendered ?? <Markdown className="mt-1.5 text-sm text-fg-muted">{m.description}</Markdown>)}
               {!readOnly && <div className="mt-1 flex gap-1 -ml-3">
                 <MilestoneDialog
                   title="Edit milestone"

@@ -1,13 +1,16 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { ImagePlus, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { ImageCropModal } from '@/components/image-crop-modal'
 import { Button } from '@/components/ui/button'
 import { IMAGE_KINDS, type ImageKind } from '@/lib/image-kinds'
 import { uploadImage } from '@/lib/upload-actions'
 import { cn } from '@/lib/utils'
+
+// react-easy-crop + its CSS load only once a file is picked.
+const ImageCropModal = dynamic(() => import('@/components/image-crop-modal').then((m) => m.ImageCropModal), { ssr: false })
 
 const MAX_SOURCE_BYTES = 15_000_000
 
@@ -19,6 +22,7 @@ export function ImageUploadField({ kind, ownerId, value, onChange, label, classN
   const rules = IMAGE_KINDS[kind]
   const input = useRef<HTMLInputElement>(null)
   const [picked, setPicked] = useState<File | null>(null)
+  const [cropper, setCropper] = useState(false) // stays mounted after the first pick, so closing still animates
   const square = rules.aspect === 1
   return (
     <div className={cn('flex items-center gap-4', className)}>
@@ -59,9 +63,10 @@ export function ImageUploadField({ kind, ownerId, value, onChange, label, classN
           if (!f) return
           if (f.size > MAX_SOURCE_BYTES) return void toast.error('That file is too large (max 15 MB)')
           setPicked(f)
+          setCropper(true)
         }}
       />
-      <ImageCropModal
+      {cropper && <ImageCropModal
         file={picked}
         aspect={rules.aspect}
         shape={rules.shape}
@@ -82,7 +87,7 @@ export function ImageUploadField({ kind, ownerId, value, onChange, label, classN
           onChange(res.data.url)
           return true
         }}
-      />
+      />}
     </div>
   )
 }

@@ -29,3 +29,27 @@ test('selecting a filtered option starts the next picker session with all option
     vi.unstubAllGlobals()
   }
 })
+
+test('onSearchChange gets the typed text and the reset on close', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+  const host = document.body.appendChild(document.createElement('div'))
+  const root = createRoot(host)
+  try {
+    const seen: string[] = []
+    const options = [{ value: 'DE', label: 'Germany' }]
+    await act(() => root.render(createElement(SearchSelect, { value: null, options, onChange: () => {}, onSearchChange: t => { seen.push(t) } })))
+    const trigger = host.querySelector('button')!
+    await act(() => { trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', bubbles: true })) })
+    await act(() => { trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', bubbles: true })) })
+    assert.deepEqual(seen, ['g', 'ge'])
+    await act(() => document.querySelector<HTMLElement>('[role="option"]')!.click())
+    assert.equal(seen.at(-1), '')
+  } finally {
+    await act(() => root.unmount())
+    host.remove()
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    vi.unstubAllGlobals()
+  }
+})

@@ -20,23 +20,26 @@ export default async function AdminGroupPage({ params }: { params: Promise<{ id:
   const user = await requireUser()
   if (!canSeeGroupsAdmin(user)) notFound()
   const { id } = await params
-  const group = await prisma.group.findUnique({
-    where: { id },
-    include: { members: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] } },
-  })
+  // canSeeGroupsAdmin already passed above; stats are only rendered once the group exists
+  const [group, stats] = await Promise.all([
+    prisma.group.findUnique({
+      where: { id },
+      include: { members: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }] } },
+    }),
+    getGroupStats(id),
+  ])
   if (!group) notFound()
   const manage = can(user, 'groups.manage')
   const chapter = group.portalChapterSlug
-  const [stats, chapterMembers] = await Promise.all([
-    getGroupStats(group.id),
+  const chapterMembers = await (
     chapter
       ? prisma.portalChapterMembership.findMany({
           where: { chapterSlug: chapter },
           include: { profile: { include: { user: { select: { id: true, name: true, email: true } } } } },
           orderBy: [{ lead: 'desc' }, { profile: { user: { name: 'asc' } } }],
         })
-      : Promise.resolve([]),
-  ])
+      : Promise.resolve([])
+  )
   return (
     <>
       <BackLink href="/admin/groups">Groups</BackLink>

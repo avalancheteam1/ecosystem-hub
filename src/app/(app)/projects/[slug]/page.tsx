@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Flag, Pencil } from 'lucide-react'
+import { Markdown } from '@/components/markdown'
 import { ProjectVersionView } from '@/components/project-version-view'
 import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
@@ -84,7 +85,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="mb-1 text-lg">Milestones</h2>
           <p className="mb-4 text-sm text-fg-muted">{canEdit ? 'Your roadmap - changes save right away.' : 'The team’s roadmap.'}</p>
-          <MilestonesPanel projectId={project.id} readOnly={!canEdit} milestones={project.milestones.map((m) => ({ ...m, status: m.status as MilestoneStatus }))} />
+          <MilestonesPanel projectId={project.id} readOnly={!canEdit} milestones={project.milestones.map((m) => ({ ...m, status: m.status as MilestoneStatus, rendered: m.description && <Markdown className="mt-1.5 text-sm text-fg-muted">{m.description}</Markdown> }))} />
         </section>
         <section className="rounded-xl border border-line bg-surface-2 p-6">
           <h2 className="mb-1 text-lg">Versions</h2>

@@ -24,11 +24,13 @@ export default async function ReviewPage({ params }: { params: Promise<{ hackath
   // Only the assigned judge - never other judges or organisers through this page.
   if (!a || a.judge.userId !== user.id || a.judge.hackathonId !== hackathonId || a.entry.submission.status !== 'active') notFound()
   if (!a.judge.termsAcceptedAt) redirect(`/judge/${hackathonId}`)
-  const next = await prisma.judgeAssignment.findFirst({
-    where: { judgeId: a.judgeId, id: { not: a.id }, OR: [{ review: null }, { review: { submittedAt: null } }], entry: { stageId: a.entry.stageId, submission: { status: 'active' } } },
-    select: { id: true },
-  })
-  const tracks = await prisma.hackathonTrack.findMany({ where: { id: { in: a.entry.submission.trackIds } }, select: { name: true } })
+  const [next, tracks] = await Promise.all([
+    prisma.judgeAssignment.findFirst({
+      where: { judgeId: a.judgeId, id: { not: a.id }, OR: [{ review: null }, { review: { submittedAt: null } }], entry: { stageId: a.entry.stageId, submission: { status: 'active' } } },
+      select: { id: true },
+    }),
+    prisma.hackathonTrack.findMany({ where: { id: { in: a.entry.submission.trackIds } }, select: { name: true } }),
+  ])
   const stage = a.entry.stage
   return (
     <>

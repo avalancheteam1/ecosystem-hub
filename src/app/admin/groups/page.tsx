@@ -21,9 +21,11 @@ export default async function AdminGroupsPage() {
   const user = await requireUser()
   if (!canSeeGroupsAdmin(user)) notFound()
   const manage = can(user, 'groups.manage')
-  const syncError = await syncChapterGroups()
-  const [rows, total, chapterCounts] = await Promise.all([
-    prisma.group.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { members: true, referrals: true } } } }),
+  const syncP = syncChapterGroups()
+  const [syncError, rows, total, chapterCounts] = await Promise.all([
+    syncP,
+    // the list includes the chapter groups the sync may have just created
+    syncP.then(() => prisma.group.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { members: true, referrals: true } } } })),
     can(user, 'referrals.view') ? prisma.referral.count() : Promise.resolve(null),
     prisma.portalChapterMembership.groupBy({ by: ['chapterSlug'], _count: { _all: true } }),
   ])

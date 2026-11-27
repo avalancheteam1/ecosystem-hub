@@ -15,7 +15,13 @@ export default async function ManageOverviewPage({ params }: { params: Promise<{
   return (
     <div className="grid gap-8 xl:grid-cols-[1fr_320px]">
       <section className="rounded-xl border border-line bg-surface-2 p-6 sm:p-8">
-        <OverviewForm hackathonId={h.id} initial={{ ...h, resourceLinks: readLinks(h.resourceLinks) }} />
+        <OverviewForm hackathonId={h.id} initial={{
+            timezone: h.timezone, tagline: h.tagline, aboutMd: h.aboutMd, rulesMd: h.rulesMd, termsUrl: h.termsUrl,
+            registrationOpensAt: h.registrationOpensAt, registrationClosesAt: h.registrationClosesAt,
+            teamSizeMin: h.teamSizeMin, teamSizeMax: h.teamSizeMax, maxParticipants: h.maxParticipants,
+            allowMultipleSubmissions: h.allowMultipleSubmissions,
+            resourceLinks: readLinks(h.resourceLinks), showBuilderHubLinks: h.showBuilderHubLinks,
+          }} />
       </section>
       <aside className="space-y-4 xl:order-last">
         <section className="rounded-xl border border-line bg-surface-2 p-6">
