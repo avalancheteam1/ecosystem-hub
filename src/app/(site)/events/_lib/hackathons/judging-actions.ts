@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { z } from 'zod'
 import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
@@ -177,18 +178,20 @@ export const setAdvanced = action({ schema: z.object({ hackathonId: id, stageId:
     return res
   })
   await recordAudit({ actorId: user.id, action: advanced ? 'hackathon.entry.advance' : 'hackathon.entry.unadvance', entityType: 'HackathonStage', entityId: stageId, after: { entryIds } })
-  if (advanced) {
-    const entries = await prisma.stageEntry.findMany({ where: { id: { in: toMail }, stageId }, include: { submission: { include: { project: { include: { members: { include: { user: { select: { email: true } } } }, currentVersion: { select: { name: true } } } } } } } })
-    for (const e of entries) {
-      for (const m of e.submission.project.members) {
-        await sendMail({
+  if (toMail.length) {
+    // After the response: the organiser doesn't wait on SMTP, errors are only logged.
+    after(async () => {
+      const entries = await prisma.stageEntry.findMany({ where: { id: { in: toMail }, stageId }, include: { submission: { include: { project: { include: { members: { include: { user: { select: { email: true } } } }, currentVersion: { select: { name: true } } } } } } } })
+        .catch((err) => { logger.error({ err }, '[judging] loading advance mails failed'); return [] })
+      await Promise.allSettled(entries.flatMap((e) => e.submission.project.members.map((m) =>
+        sendMail({
           to: m.user.email,
           subject: `${e.submission.project.currentVersion?.name} advanced to ${next.name}`,
           text: `Congrats - your team advanced to "${next.name}" in ${h.event.name}.\n\n${siteUrl()}/events/${h.event.slug}`,
           html: brandedShell({ preheader: `You advanced to ${next.name}`, body: `<tr><td class="m-px" style="${CELL}"><p style="${PARA}">Congrats - <strong>${esc(e.submission.project.currentVersion?.name ?? 'your project')}</strong> advanced to <strong>${esc(next.name)}</strong> in ${esc(h.event.name)}.</p>${button(`${siteUrl()}/events/${h.event.slug}`, 'See what’s next')}</td></tr>` }),
-        }).catch((err) => logger.error({ err }, '[judging] mail failed'))
-      }
-    }
+        }).catch((err) => logger.error({ err }, '[judging] mail failed')),
+      )))
+    })
   }
   revalidatePath(`/manage/hackathons/${hackathonId}`, 'layout')
   revalidatePath(`/events/${h.event.slug}`, 'layout')

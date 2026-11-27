@@ -1,8 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { authClient } from '@/lib/auth-client'
-import { buildQrSvg } from '@/lib/qr'
 import { ConfirmButton } from '@/components/confirm-button'
 import { CopyButton } from '@/components/copy-button'
 import { Field } from '@/components/field'
@@ -28,10 +27,10 @@ function BackupCodes({ codes, onDone }: { codes: string[]; onDone: () => void })
 /** Authenticator app (TOTP): set up with QR + first code, new backup codes, turn off. */
 export function TotpCard({ enabled }: { enabled: boolean }) {
   const { pending, call } = useAuthCall()
-  const [setup, setSetup] = useState<{ totpURI: string; backupCodes: string[] } | null>(null)
+  // `qr` (data URI) is built with the setup, so qrcode only loads when someone sets up an app.
+  const [setup, setSetup] = useState<{ totpURI: string; backupCodes: string[]; qr: string } | null>(null)
   const [codes, setCodes] = useState<string[] | null>(null)
   const [code, setCode] = useState('')
-  const qr = useMemo(() => (setup ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(buildQrSvg(setup.totpURI, { size: 200, logo: false }))}` : null), [setup])
   const secret = setup ? new URL(setup.totpURI).searchParams.get('secret') : null
 
   if (enabled) {
@@ -48,14 +47,14 @@ export function TotpCard({ enabled }: { enabled: boolean }) {
   }
 
   if (!setup) {
-    return <Button variant="outline" disabled={pending} onClick={async () => { const d = await call(() => authClient.twoFactor.enable({})); if (d && 'totpURI' in d && d.totpURI) setSetup({ totpURI: d.totpURI, backupCodes: d.backupCodes ?? [] }) }}>Set up authenticator app</Button>
+    return <Button variant="outline" disabled={pending} onClick={async () => { const d = await call(() => authClient.twoFactor.enable({})); if (d && 'totpURI' in d && d.totpURI) { const { buildQrSvg } = await import('@/lib/qr'); setSetup({ totpURI: d.totpURI, backupCodes: d.backupCodes ?? [], qr: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(buildQrSvg(d.totpURI, { size: 200, logo: false }))}` }) } }}>Set up authenticator app</Button>
   }
 
   return (
     <div className="grid items-start gap-6 sm:grid-cols-[auto_1fr]">
       <div className="w-[200px] space-y-2">
         {/* eslint-disable-next-line @next/next/no-img-element -- generated data URI, not an asset */}
-        {qr && <img src={qr} alt="QR code for your authenticator app" width={200} height={200} className="rounded-lg bg-white p-2" />}
+        <img src={setup.qr} alt="QR code for your authenticator app" width={200} height={200} className="rounded-lg bg-white p-2" />
         {secret && (
           <div>
             <p className="text-xs text-fg-muted">Can&apos;t scan? Enter this key:</p>

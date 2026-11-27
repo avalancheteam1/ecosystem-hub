@@ -30,7 +30,6 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
   const page = pageParam(sp.page)
   const sort = sortParams(sp, SORTS, { key: 'startAt', dir: 'desc' })
   // team1 events (the portal tab) are for team1 members only - importEvent re-checks
-  const isMember = !!(await getPortalProfile(user.id))?.tier
   const [rows, imported, portal] = await Promise.all([
     prisma.event.findMany({
       where: q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { city: { contains: q, mode: 'insensitive' } }] } : undefined,
@@ -40,11 +39,13 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
     }),
     // the import dialog marks every already-imported event, not just this page's
     prisma.event.findMany({ select: { lumaEventId: true } }),
-    isMember
-      ? listPortalEvents({ includePrivate: true })
-          .then((r) => ({ data: r.data as PortalEvent[] | null, error: null as string | null }))
-          .catch((err: Error) => ({ data: [] as PortalEvent[] | null, error: err.message }))
-      : { data: null, error: null },
+    getPortalProfile(user.id).then((p) =>
+      p?.tier
+        ? listPortalEvents({ includePrivate: true })
+            .then((r) => ({ data: r.data as PortalEvent[] | null, error: null as string | null }))
+            .catch((err: Error) => ({ data: [] as PortalEvent[] | null, error: err.message }))
+        : { data: null, error: null },
+    ),
   ])
   const events = rows.slice(0, PAGE_SIZE)
   return (

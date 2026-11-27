@@ -20,7 +20,6 @@ import type { ProfileFormValues } from '@/lib/profile'
 type CampusValues = Pick<ProfileFormValues, 'universities' | 'trackInterests' | 'campusCoordinatorInterest' | 'adultConfirmed'>
 
 const OTHER = '__other'
-const years = graduationYearRange(new Date())
 
 /** The University role's part of the profile: one row per university, then the student-only questions. */
 export function UniversityFields({ p, set, orgs, legacyInstitution, countries, defaultCountry, gaps, showErrors, children }: {
@@ -36,6 +35,8 @@ export function UniversityFields({ p, set, orgs, legacyInstitution, countries, d
   /** Extra student-only fields (the onboarding step asks for Telegram here). */
   children?: React.ReactNode
 }) {
+  // Per render, not per module: a long-lived server would keep last year's range.
+  const years = graduationYearRange(new Date())
   const entries = p.universities
   const update = (i: number, patch: Partial<UniversityEntry>) => set('universities', entries.map((e, j) => (j === i ? updateUniversityEntry(e, patch) : e)))
   const error = (show: boolean, message: string) => showErrors && show && <p role="alert" className="text-xs text-destructive">{message}</p>

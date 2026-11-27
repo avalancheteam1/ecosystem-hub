@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { getCurrentUser, type CurrentUser } from '@/lib/session'
 import { getHackathonRoles } from '@/app/(site)/events/_lib/hackathons/queries'
@@ -14,9 +15,38 @@ async function userMenuUser(user: CurrentUser): Promise<UserMenuUser> {
   return { name: user.name, email: user.email, image: user.image, showAdmin: holdsAny(user), showJudging: !!roles.judge, showManage: !!roles.organizer || can(user, 'hackathons.manage') }
 }
 
-export async function SiteHeader() {
+/** Signed-in-only desktop links. */
+async function SignedInLinks() {
+  if (!(await getCurrentUser())) return null
+  return (
+    <>
+      <span aria-hidden className="h-4 w-px bg-line" />
+      <Link href="/dashboard" className="text-fg-muted transition-colors hover:text-fg-heading">Dashboard</Link>
+      <Link href="/projects" className="text-fg-muted transition-colors hover:text-fg-heading">My Projects</Link>
+    </>
+  )
+}
+
+async function AccountMobileNav() {
+  return <MobileNav signedIn={!!(await getCurrentUser())} />
+}
+
+/** Account menu, or sign-in links for guests. */
+async function Account() {
   const user = await getCurrentUser()
-  const menu = user ? await userMenuUser(user) : null
+  if (user) return <UserMenu user={await userMenuUser(user)} />
+  return (
+    <>
+      <Link href="/sign-in" className="hidden h-10 items-center px-2 text-sm text-fg-muted transition-colors hover:text-fg-heading sm:flex">Sign in</Link>
+      <Button asChild size="sm" className="h-10 px-4">
+        <Link href="/sign-in">Join</Link>
+      </Button>
+    </>
+  )
+}
+
+/** Static shell renders at once; the user-dependent parts stream in (getCurrentUser is cached per request, so they share one lookup). */
+export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 h-16 border-b border-line bg-surface-0/80 backdrop-blur-md">
       <div className="container-page flex h-full items-center justify-between gap-4 md:grid md:grid-cols-[1fr_auto_1fr]">
@@ -27,27 +57,13 @@ export async function SiteHeader() {
           <Link href="/ecosystem" className="text-fg-muted transition-colors hover:text-fg-heading">Ecosystem</Link>
           {/* ponytail: external until grants live in the hub */}
           <a href="https://build.avax.network/grants" target="_blank" rel="noopener noreferrer" className="text-fg-muted transition-colors hover:text-fg-heading">Grants</a>
-          {user && (
-            <>
-              <span aria-hidden className="h-4 w-px bg-line" />
-              <Link href="/dashboard" className="text-fg-muted transition-colors hover:text-fg-heading">Dashboard</Link>
-              <Link href="/projects" className="text-fg-muted transition-colors hover:text-fg-heading">My Projects</Link>
-            </>
-          )}
+          <Suspense fallback={null}><SignedInLinks /></Suspense>
         </nav>
         <div className="flex items-center gap-1 justify-self-end sm:gap-2">
-          <MobileNav signedIn={!!user} />
+          <Suspense fallback={<MobileNav signedIn={false} />}><AccountMobileNav /></Suspense>
           <ThemeToggle />
-          {menu ? (
-            <UserMenu user={menu} />
-          ) : (
-            <>
-              <Link href="/sign-in" className="hidden h-10 items-center px-2 text-sm text-fg-muted transition-colors hover:text-fg-heading sm:flex">Sign in</Link>
-              <Button asChild size="sm" className="h-10 px-4">
-                <Link href="/sign-in">Join</Link>
-              </Button>
-            </>
-          )}
+          {/* ponytail: avatar-sized placeholder; guests see the wider Join link once it streams in */}
+          <Suspense fallback={<div aria-hidden className="size-9 rounded-full bg-surface-hover" />}><Account /></Suspense>
         </div>
       </div>
     </header>

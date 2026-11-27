@@ -45,11 +45,12 @@ export type MatrixCell =
   | { kind: 'open' }
   | { kind: 'blocked'; reason: string }
 
+type MatrixRow = { entryId: string; name: string; cells: MatrixCell[] }
+const TONE = { pending: 'text-fg-muted', draft: 'text-info', done: 'text-success', conflict: 'text-warning' } as const
+const STATE_LABEL = { pending: 'Assigned', draft: 'Draft', done: 'Reviewed', conflict: 'Conflict' } as const
+
 /** Submissions × judges: who reviews what, why not, and (random stages) manual changes. */
-export function AssignmentMatrix({ hackathonId, judges, rows, manual }: { hackathonId: string; judges: { id: string; label: string }[]; rows: { entryId: string; name: string; cells: MatrixCell[] }[]; manual: boolean }) {
-  const { pending, run } = useActionToast()
-  const tone = { pending: 'text-fg-muted', draft: 'text-info', done: 'text-success', conflict: 'text-warning' } as const
-  const label = { pending: 'Assigned', draft: 'Draft', done: 'Reviewed', conflict: 'Conflict' } as const
+export function AssignmentMatrix({ hackathonId, judges, rows, manual }: { hackathonId: string; judges: { id: string; label: string }[]; rows: MatrixRow[]; manual: boolean }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line">
       <table className="w-full min-w-max text-sm">
@@ -61,36 +62,43 @@ export function AssignmentMatrix({ hackathonId, judges, rows, manual }: { hackat
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.entryId} className="border-b border-line last:border-0">
-              <td className="sticky left-0 z-10 max-w-56 truncate bg-surface-2 p-3 text-fg-heading">{r.name}</td>
-              {r.cells.map((c, i) => (
-                <td key={judges[i]!.id} className="p-2 align-middle">
-                  {c.kind === 'assigned' ? (
-                    <span className="inline-flex items-center gap-1">
-                      <span className={`text-xs ${tone[c.state]}`}>{label[c.state]}</span>
-                      {manual && (c.state === 'pending' || c.state === 'draft') && (
-                        <button type="button" disabled={pending} aria-label={`Unassign ${judges[i]!.label} from ${r.name}`} onClick={() => run(() => unassignJudge({ hackathonId, assignmentId: c.assignmentId }), 'Unassigned')} className="grid size-7 place-items-center rounded text-fg-faint hover:bg-surface-hover hover:text-destructive"><X className="size-3.5" aria-hidden /></button>
-                      )}
-                    </span>
-                  ) : c.kind === 'open' ? (
-                    !manual ? <span className="text-xs text-fg-faint">When submissions close</span> :
-                    <Button size="xs" variant="ghost" disabled={pending} onClick={() => run(() => assignJudge({ hackathonId, entryId: r.entryId, judgeId: judges[i]!.id }), 'Assigned')}><Plus aria-hidden /> Assign</Button>
-                  ) : (
-                    <span className="text-xs text-fg-faint" title={c.reason}>{c.reason}</span>
-                  )}
-                </td>
-              ))}
-              <td className="p-2 text-right">
-                {manual && r.cells.some((c) => c.kind === 'open') && (
-                  <Button size="xs" variant="outline" disabled={pending} onClick={() => run(() => assignAllToEntry({ hackathonId, entryId: r.entryId }), 'All eligible judges assigned')}>Assign everyone</Button>
-                )}
-              </td>
-            </tr>
-          ))}
+          {rows.map((r) => <MatrixRowView key={r.entryId} hackathonId={hackathonId} judges={judges} row={r} manual={manual} />)}
         </tbody>
       </table>
     </div>
+  )
+}
+
+// Pending state per row: a click re-renders only its own row, not every cell of the matrix.
+// ponytail: no React.memo - the parent never re-renders on a click now, and after router.refresh every prop is a new object anyway.
+function MatrixRowView({ hackathonId, judges, row: r, manual }: { hackathonId: string; judges: { id: string; label: string }[]; row: MatrixRow; manual: boolean }) {
+  const { pending, run } = useActionToast()
+  return (
+    <tr className="border-b border-line last:border-0">
+      <td className="sticky left-0 z-10 max-w-56 truncate bg-surface-2 p-3 text-fg-heading">{r.name}</td>
+      {r.cells.map((c, i) => (
+        <td key={judges[i]!.id} className="p-2 align-middle">
+          {c.kind === 'assigned' ? (
+            <span className="inline-flex items-center gap-1">
+              <span className={`text-xs ${TONE[c.state]}`}>{STATE_LABEL[c.state]}</span>
+              {manual && (c.state === 'pending' || c.state === 'draft') && (
+                <button type="button" disabled={pending} aria-label={`Unassign ${judges[i]!.label} from ${r.name}`} onClick={() => run(() => unassignJudge({ hackathonId, assignmentId: c.assignmentId }), 'Unassigned')} className="grid size-7 place-items-center rounded text-fg-faint hover:bg-surface-hover hover:text-destructive"><X className="size-3.5" aria-hidden /></button>
+              )}
+            </span>
+          ) : c.kind === 'open' ? (
+            !manual ? <span className="text-xs text-fg-faint">When submissions close</span> :
+            <Button size="xs" variant="ghost" disabled={pending} onClick={() => run(() => assignJudge({ hackathonId, entryId: r.entryId, judgeId: judges[i]!.id }), 'Assigned')}><Plus aria-hidden /> Assign</Button>
+          ) : (
+            <span className="text-xs text-fg-faint" title={c.reason}>{c.reason}</span>
+          )}
+        </td>
+      ))}
+      <td className="p-2 text-right">
+        {manual && r.cells.some((c) => c.kind === 'open') && (
+          <Button size="xs" variant="outline" disabled={pending} onClick={() => run(() => assignAllToEntry({ hackathonId, entryId: r.entryId }), 'All eligible judges assigned')}>Assign everyone</Button>
+        )}
+      </td>
+    </tr>
   )
 }
 

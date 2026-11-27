@@ -1,4 +1,4 @@
-import { getManagedHackathon, getStageJudging, listSubmissions } from '@/app/(site)/events/_lib/hackathons/queries'
+import { getManagedHackathon, getStagesJudging, listSubmissions } from '@/app/(site)/events/_lib/hackathons/queries'
 import { rankEntries } from '@/app/(site)/events/_lib/hackathons/judging'
 import { placeTitle } from '@/app/(site)/events/_lib/hackathons/rules'
 import { getCurrentUser } from '@/lib/session'
@@ -18,16 +18,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!user) return new Response('Unauthorized', { status: 401 })
   const h = await getManagedHackathon((await params).id, user)
   if (!h) return new Response('Not found', { status: 404 })
-  const subs = await listSubmissions(h.id)
-  const perStage = await Promise.all(
-    h.stages.map(async (s) => {
-      const entries = await getStageJudging(s.id)
-      const ranked = s.judgingClosedAt
-        ? rankEntries(entries.filter((e) => e.submission.status === 'active').map((e) => ({ entryId: e.id, submittedAt: e.submittedAt, totals: e.assignments.flatMap((a) => (a.review?.submittedAt && !a.review.conflictDeclared && a.review.total != null ? [a.review.total] : [])) })))
-        : []
-      return { s, entries, ranked }
-    }),
-  )
+  const [subs, byStage] = await Promise.all([listSubmissions(h.id), getStagesJudging(h.stages.map((s) => s.id))])
+  const perStage = h.stages.map((s) => {
+    const entries = byStage.get(s.id) ?? []
+    const ranked = s.judgingClosedAt
+      ? rankEntries(entries.filter((e) => e.submission.status === 'active').map((e) => ({ entryId: e.id, submittedAt: e.submittedAt, totals: e.assignments.flatMap((a) => (a.review?.submittedAt && !a.review.conflictDeclared && a.review.total != null ? [a.review.total] : [])) })))
+      : []
+    return { s, entries, ranked }
+  })
   const header = ['Project', 'Status', 'Tracks', 'Team', 'Emails', ...h.stages.flatMap((s) => [`${s.name} version`, `${s.name} score`, `${s.name} rank`, `${s.name} advanced`]), 'Awards']
   const rows = subs.map((sub) => {
     const stageCols = perStage.flatMap(({ entries, ranked }) => {

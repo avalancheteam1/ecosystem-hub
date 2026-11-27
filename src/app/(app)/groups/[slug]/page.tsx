@@ -15,9 +15,8 @@ export const metadata: Metadata = { title: 'Group', robots: { index: false } }
 export default async function GroupPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await requireUser()
   const { slug } = await params
-  const group = await prisma.group.findUnique({ where: { slug }, select: { id: true, name: true } })
+  const [group, { groups }] = await Promise.all([prisma.group.findUnique({ where: { slug }, select: { id: true, name: true } }), getUserGroups(user.id)])
   if (!group) notFound()
-  const { groups } = await getUserGroups(user.id)
   if (!canViewGroup(user, group.id, groups)) notFound()
   const stats = await getGroupStats(group.id)
   return (

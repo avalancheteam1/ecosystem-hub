@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getManagedHackathon, getStageJudging } from '@/app/(site)/events/_lib/hackathons/queries'
+import { getManagedHackathon, getStagesJudging } from '@/app/(site)/events/_lib/hackathons/queries'
 import { criterionMeans, entryTracks, judgeEligibility, rankEntries, type Pair } from '@/app/(site)/events/_lib/hackathons/judging'
 import { judgingOpen, stageState } from '@/app/(site)/events/_lib/hackathons/rules'
 import { SectionCard } from '@/components/section-card'
@@ -14,7 +14,8 @@ export default async function JudgingPage({ params }: { params: Promise<{ id: st
   const h = await getManagedHackathon((await params).id, user)
   if (!h) notFound()
   const now = new Date()
-  const stages = await Promise.all(h.stages.map(async (s) => ({ s, entries: await getStageJudging(s.id) })))
+  const byStage = await getStagesJudging(h.stages.map((s) => s.id))
+  const stages = h.stages.map((s) => ({ s, entries: byStage.get(s.id) ?? [] }))
   return (
     <div className="space-y-8">
       {h.judges.length === 0 && <p className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">No judges yet - invite them under People.</p>}

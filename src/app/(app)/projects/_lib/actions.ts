@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { z } from 'zod'
 import { action, ActionError, ForbiddenError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
@@ -191,7 +192,8 @@ export const inviteMember = action(
       prisma.projectInvite.create({ data: { projectId, email, role, tokenHash: hashToken(token), invitedById: user.id, expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000) } }),
     ])
     const name = project.currentVersion?.name ?? 'a project'
-    await sendMail({
+    // After the response: errors are only logged, the owner doesn't wait on SMTP.
+    after(() => sendMail({
       to: email,
       subject: `${user.name} invited you to ${name} on the team1 Ecosystem Hub`,
       text: `${user.name} invited you to join the team of "${name}" on the team1 Ecosystem Hub.\n\nAccept the invite (sign in with ${email}):\n${siteUrl()}/projects/invite/${token}\n\nThe link expires in ${INVITE_DAYS} days.`,
@@ -205,7 +207,7 @@ export const inviteMember = action(
           <p style="${SMALL}">Or copy this link:<br/>${esc(`${siteUrl()}/projects/invite/${token}`)}</p>
         </td></tr>`,
       }),
-    }).catch((err) => logger.error({ err }, '[projects] invite mail failed'))
+    }).catch((err) => logger.error({ err }, '[projects] invite mail failed')))
     await recordAudit({ actorId: user.id, action: 'project.invite.create', entityType: 'Project', entityId: projectId, after: { email, role } })
     revalidatePath(`/projects/${project.slug}`)
     return null

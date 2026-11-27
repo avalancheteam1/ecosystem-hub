@@ -32,9 +32,11 @@ export default async function JoinPage({ params, searchParams }: { params: Promi
   const h = await getPublicHackathon(event.id, user.id)
   if (!h) notFound()
   // Only to pick the copy - joinHackathon re-checks the invite.
-  const invited = typeof invite === 'string' && (await prisma.hackathon.count({ where: { id: h.id, inviteToken: invite } })) > 0
+  const [invited, profile] = await Promise.all([
+    typeof invite === 'string' ? prisma.hackathon.count({ where: { id: h.id, inviteToken: invite } }).then((n) => n > 0) : false,
+    prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true } }),
+  ])
   if (h.joined || h.registration === 'pending' || (h.registration === 'rejected' && !invited)) redirect(`/events/${slug}`)
-  const profile = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true } })
   if (!hasCompleteBasicProfile(profile)) {
     return (
       <div className="container-page max-w-xl py-20 text-center">

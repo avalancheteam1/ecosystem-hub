@@ -14,8 +14,9 @@ export const metadata: Metadata = { title: 'Referrals', robots: { index: false }
 
 export default async function ReferralsPage() {
   const user = await requireUser()
-  await ensureReferralCode(user.id)
-  const [{ codes, stats }, { counting }] = await Promise.all([getMyReferrals(user.id), getUserGroups(user.id)])
+  const groupsP = getUserGroups(user.id)
+  await ensureReferralCode(user.id) // getMyReferrals must see the code it may create
+  const [{ codes, stats }, { counting }] = await Promise.all([getMyReferrals(user.id), groupsP])
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
   return (
     <>

@@ -16,7 +16,10 @@ export async function sendMail(mail: { to: string; subject: string; text: string
     console.info(`[mailer] (dev, not sent) to=${mail.to} subject="${mail.subject}"\n${mail.text}`)
     return
   }
+  // Pooled: bulk sends (registration approvals, stage advances) share a few connections instead of one each.
   transporter ??= nodemailer.createTransport({
+    pool: true,
+    maxConnections: 5,
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === 'true',

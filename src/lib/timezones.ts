@@ -2,22 +2,29 @@
 // convert between a UTC instant and the wall-clock time in an IANA zone.
 // Pure and isomorphic.
 
-export function isTimeZone(tz: string): boolean {
+// Building an Intl.DateTimeFormat is expensive (these run per keystroke and per request), so one per zone.
+// Invalid zones are cached as null. ponytail: the size cap only bounds odd input (case variants), no LRU needed.
+const formatters = new Map<string, Intl.DateTimeFormat | null>()
+function formatter(tz: string): Intl.DateTimeFormat | null {
+  let f = formatters.get(tz)
+  if (f !== undefined) return f
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz })
-    return true
+    f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
   } catch {
-    return false
+    f = null
   }
+  if (formatters.size >= 2000) formatters.clear()
+  formatters.set(tz, f)
+  return f
 }
 
-/** Offset of `tz` at instant `d`, in minutes (e.g. +330 for Asia/Kolkata). */
+export function isTimeZone(tz: string): boolean {
+  return formatter(tz) !== null
+}
+
+/** Offset of `tz` at instant `d`, in minutes (e.g. +330 for Asia/Kolkata). `tz` must be valid. */
 function offsetMinutes(d: Date, tz: string): number {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      .formatToParts(d)
-      .map((p) => [p.type, p.value]),
-  )
+  const parts = Object.fromEntries(formatter(tz)!.formatToParts(d).map((p) => [p.type, p.value]))
   const asUtc = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!)
   return Math.round((asUtc - Math.floor(d.getTime() / 1000) * 1000) / 60_000)
 }

@@ -67,6 +67,7 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
   const [drag, setDrag] = useState<Record<string, number> | null>(null)
   const widths = drag ?? layout.widths
   const ths = useRef(new Map<string, HTMLTableCellElement>())
+  const tableRef = useRef<HTMLTableElement>(null)
   const [local, setLocal] = useState<{ key: string | null; dir: Dir }>({ key: null, dir: 'asc' })
   const sort = serverSort ?? local
   const pathname = usePathname()
@@ -88,7 +89,9 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
     ? [...rows].sort((a, b) => compareSortValues(value(a, sort.key!), value(b, sort.key!), sort.dir))
     : rows
   // Rows that disappeared after a refresh drop out of the selection.
-  const selected = picked.filter((x) => rows.some((r) => r.id === x))
+  const rowIds = new Set(rows.map((r) => r.id))
+  const selected = picked.filter((x) => rowIds.has(x))
+  const selectedSet = new Set(selected)
   const allSelected = rows.length > 0 && selected.length === rows.length
   const clear = () => { setPicked([]); setAnchor(null) }
   function pick(e: React.MouseEvent, rowId: string) {
@@ -113,9 +116,15 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
     for (const c of visible) base[c.key] = widths?.[c.key] ?? ths.current.get(c.key)?.offsetWidth ?? MIN_WIDTH * 2
     const startX = e.clientX
     let latest = base
+    // One render to freeze the layout; while dragging, only the <th> and the table width are written to the DOM
+    // (re-rendering every row per pointermove is what made resizing janky). State + storage follow on release.
+    setDrag(base)
     const onMove = (ev: PointerEvent) => {
-      latest = { ...base, [key]: Math.max(MIN_WIDTH, Math.round(base[key] + ev.clientX - startX)) }
-      setDrag(latest)
+      const w = Math.max(MIN_WIDTH, Math.round(base[key] + ev.clientX - startX))
+      latest = { ...base, [key]: w }
+      const th = ths.current.get(key)
+      if (th) th.style.width = `${w}px`
+      if (tableRef.current) tableRef.current.style.width = `${totalWidth(latest)}px`
     }
     // lostpointercapture fires after pointerup and pointercancel.
     const onEnd = () => {
@@ -135,7 +144,8 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
     write(storageKey, { ...layout, visible: Object.keys(visibleMap).length ? visibleMap : undefined })
   }
 
-  const tableWidth = widths ? visible.reduce((sum, c) => sum + (widths[c.key] ?? MIN_WIDTH * 2), 0) + 44 + (selection ? 44 : 0) : undefined
+  const totalWidth = (w: Record<string, number>) => visible.reduce((sum, c) => sum + (w[c.key] ?? MIN_WIDTH * 2), 0) + 44 + (selection ? 44 : 0)
+  const tableWidth = widths ? totalWidth(widths) : undefined
   const SortIcon = sort.dir === 'asc' ? ChevronUp : ChevronDown
 
   return (
@@ -148,7 +158,7 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
         </div>
       )}
       <div className="overflow-x-auto rounded-xl border border-line bg-surface-2">
-        <table className={cn('w-full caption-bottom text-sm', widths && 'table-fixed')} style={tableWidth ? { width: tableWidth, minWidth: '100%' } : undefined}>
+        <table ref={tableRef} className={cn('w-full caption-bottom text-sm', widths && 'table-fixed')} style={tableWidth ? { width: tableWidth, minWidth: '100%' } : undefined}>
           <thead>
             <tr className="border-b border-line">
               {selection && (
@@ -223,7 +233,7 @@ export function DataTable({ id, columns, rows, empty = 'Nothing here yet.', sort
                 {selection && (
                   <td className="px-3 py-2.5 align-middle">
                     {/* onClick (not onCheckedChange) to see shiftKey; preventDefault on mousedown stops shift from selecting text. */}
-                    <Checkbox aria-label="Select row" checked={selected.includes(r.id)} onMouseDown={(e) => e.shiftKey && e.preventDefault()} onClick={(e) => pick(e, r.id)} />
+                    <Checkbox aria-label="Select row" checked={selectedSet.has(r.id)} onMouseDown={(e) => e.shiftKey && e.preventDefault()} onClick={(e) => pick(e, r.id)} />
                   </td>
                 )}
                 {visible.map((c) => (

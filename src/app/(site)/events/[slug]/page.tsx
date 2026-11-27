@@ -29,11 +29,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function EventPage({ params }: Props) {
-  const found = await getPublicEvent((await params).slug)
+  const [found, user] = await Promise.all([params.then((p) => getPublicEvent(p.slug)), getCurrentUser()])
   if (!found) notFound()
   // private portal event: never its address, description or (private) Luma link - city + date only
   const event = blocksPublish(found) ? { ...found, fullAddress: null, descriptionMd: null, lumaUrl: null } : found
-  const user = await getCurrentUser()
   const [hackathon, refCode] = await Promise.all([getPublicHackathon(event.id, user?.id ?? null), user ? ensureReferralCode(user.id) : null])
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://hub.team1.network'
   const share = (

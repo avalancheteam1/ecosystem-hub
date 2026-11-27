@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import entrepreneur from '@/app/(site)/education/_content/entrepreneur/academy.json'
 import { allLessons, countDirectives, findLesson, formatWait, isCorrect, linkedInAddUrl, lessonKey, lessonKind, optionOrder, publicVariants, QUIZ_LOCK_MS, QUIZ_TRIES, quizLock, printableName, progressOf, quizVariant, splitLesson, visitsToSync, type Academy, type Quiz } from '@/app/(site)/education/_lib/rules'
-import { lessonRefSchema, quizAnswerSchema } from '@/app/(site)/education/_lib/schemas'
+import { parseLocalProgress } from '@/app/(site)/education/_lib/local-progress'
+import { lessonRefSchema, localProgressSchema, quizAnswerSchema } from '@/app/(site)/education/_lib/schemas'
 
 const DIR = 'src/app/(site)/education/_content'
 const json = (file: string) => JSON.parse(readFileSync(file, 'utf8'))
@@ -223,4 +224,27 @@ test('formatWait rounds up to the minute', () => {
   assert.equal(formatWait(QUIZ_LOCK_MS), '24 h 0 min')
   assert.equal(formatWait(61 * 60_000 + 1), '1 h 2 min')
   assert.equal(formatWait(1), '1 min')
+})
+
+test('parseLocalProgress matches localProgressSchema', () => {
+  const many = Object.fromEntries(Array.from({ length: 1001 }, (_, i) => [`k${i}`, i]))
+  const cases: [unknown, boolean][] = [
+    [{ visits: {} }, true],
+    [{ visits: { 'a/b/c/d': 1700000000000, x: 0 } }, true],
+    [{ visits: { a: 1 }, extra: true }, true],
+    [null, false],
+    ['x', false],
+    [{}, false],
+    [{ visits: [] }, false],
+    [{ visits: { a: '1' } }, false],
+    [{ visits: { a: 1.5 } }, false],
+    [{ visits: { a: -1 } }, false],
+    [{ visits: { ['k'.repeat(401)]: 1 } }, false],
+    [{ visits: many }, false],
+  ]
+  for (const [input, ok] of cases) {
+    assert.equal(parseLocalProgress(input) !== null, ok, JSON.stringify(input).slice(0, 60))
+    assert.equal(localProgressSchema.safeParse(input).success, ok, `schema: ${JSON.stringify(input).slice(0, 60)}`)
+  }
+  assert.deepEqual(parseLocalProgress({ visits: { a: 1 }, extra: true }), { visits: { a: 1 } })
 })

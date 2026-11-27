@@ -89,7 +89,8 @@ export async function getEventHackathonRoles(eventId: string, userId: string) {
 
 /** Public hackathon for an event page (published only), plus the viewer's participation. */
 export const getPublicHackathon = cache(async (eventId: string, userId: string | null) => {
-  const h = await prisma.hackathon.findUnique({
+  // Participant looked up by event in parallel (Hackathon.eventId is unique), not after the hackathon.
+  const [h, participant] = await Promise.all([prisma.hackathon.findUnique({
     where: { eventId },
     omit: { inviteToken: true },
     include: {
@@ -99,9 +100,8 @@ export const getPublicHackathon = cache(async (eventId: string, userId: string |
       fields: { where: { stageId: null }, orderBy: { order: 'asc' } },
       _count: { select: { participants: { where: { status: 'active' } }, submissions: { where: { status: 'active' } } } },
     },
-  })
+  }), userId ? prisma.participant.findFirst({ where: { userId, hackathon: { eventId } }, select: { status: true } }) : null])
   if (!h || h.status !== 'published') return null
-  const participant = userId ? await prisma.participant.findUnique({ where: { hackathonId_userId: { hackathonId: h.id, userId } } }) : null
   // registration: null | active | pending | rejected | withdrawn
   return { ...h, joined: participant?.status === 'active', registration: participant?.status ?? null }
 })
@@ -145,9 +145,14 @@ async function ensureAllJudgesAssigned(where: Prisma.HackathonStageWhereInput) {
 
 /** Organiser judging data for one stage: entries, assignment progress and (after close) the ranking inputs. */
 export async function getStageJudging(stageId: string) {
-  await ensureAllJudgesAssigned({ id: stageId })
-  return prisma.stageEntry.findMany({
-    where: { stageId },
+  return (await getStagesJudging([stageId])).get(stageId) ?? []
+}
+
+/** `getStageJudging` for several stages in two queries, entries grouped by stage id (a stage without entries has no key). */
+export async function getStagesJudging(stageIds: string[]) {
+  await ensureAllJudgesAssigned({ id: { in: stageIds } })
+  const entries = await prisma.stageEntry.findMany({
+    where: { stageId: { in: stageIds } },
     orderBy: { submittedAt: 'asc' },
     include: {
       projectVersion: { select: { name: true, shortDescription: true, number: true } },
@@ -155,6 +160,7 @@ export async function getStageJudging(stageId: string) {
       assignments: { include: { judge: { select: { email: true, user: { select: { name: true } } } }, review: { select: { total: true, scores: true, submittedAt: true, conflictDeclared: true } } } },
     },
   })
+  return Map.groupBy(entries, (e) => e.stageId)
 }
 
 /** Active submissions with their latest entry - track prizes may go to teams that didn't reach the last stage. */

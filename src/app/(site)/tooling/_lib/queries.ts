@@ -119,18 +119,21 @@ export async function listListingsForReview({ q, filter, page, sort }: { q?: str
 
 /** One listing with the full versions a reviewer looks at, the names behind it (no emails) and its history (the listing's rows of the project activity log). */
 export async function getListingForReview(id: string) {
-  const r = await prisma.toolingListing.findUnique({
-    where: { id },
-    include: { project: { select: { slug: true, archivedAt: true, currentVersion: { select: { name: true } }, versions: latestSealed } }, approvedVersion: true, pendingVersion: true },
-  })
-  if (!r) return null
   // The listing's history: its rows of the project's activity log (src/lib/project-activity.ts), newest first.
-  const activity = await prisma.projectActivity.findMany({
-    where: { projectId: r.projectId, program: 'tooling', targetId: r.id },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-    select: { id: true, event: true, reason: true, reasonInternal: true, actorId: true, createdAt: true, version: { select: { number: true } } },
-  })
+  // targetId is the listing's own id, so it runs alongside the listing ([program, targetId] index).
+  const [r, activity] = await Promise.all([
+    prisma.toolingListing.findUnique({
+      where: { id },
+      include: { project: { select: { slug: true, archivedAt: true, currentVersion: { select: { name: true } }, versions: latestSealed } }, approvedVersion: true, pendingVersion: true },
+    }),
+    prisma.projectActivity.findMany({
+      where: { program: 'tooling', targetId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: { id: true, event: true, reason: true, reasonInternal: true, actorId: true, createdAt: true, version: { select: { number: true } } },
+    }),
+  ])
+  if (!r) return null
   const userIds = [...new Set([r.submittedById, r.closedById, ...activity.map((a) => a.actorId)].filter((x): x is string => !!x))]
   const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
   const name = (uid: string | null) => (uid ? users.find((u) => u.id === uid)?.name ?? 'a deleted user' : null)
