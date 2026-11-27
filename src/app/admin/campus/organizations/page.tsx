@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Pager } from '@/components/layout/pager'
 import { SearchForm } from '@/components/layout/search-form'
 import { StatusPill } from '@/components/status-pill'
-import { normalizeOrgName } from '@/lib/campus'
+import { CAMPUS_ORG_TYPES, normalizeOrgName } from '@/lib/campus'
 import { countryName } from '@/lib/countries'
 import { prisma } from '@/lib/db'
 import { requirePermission } from '@/lib/guards'
@@ -27,7 +27,8 @@ export default async function CampusOrganizationsPage({ searchParams }: { search
   const v = textParam(sp.view)
   const view: View = v && v in VIEWS ? (v as View) : 'review'
   const where: Prisma.OrganizationWhereInput = {
-    ...(view === 'review' ? { verified: false, hidden: false } : view === 'hidden' ? { hidden: true } : { type: view, hidden: false }),
+    type: view === 'review' || view === 'hidden' ? { in: [...CAMPUS_ORG_TYPES] } : view,
+    ...(view === 'review' ? { verified: false, hidden: false } : { hidden: view === 'hidden' }),
     ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { normalizedAliases: { has: normalizeOrgName(q) } }] } : {}),
   }
   const rows = await prisma.organization.findMany({

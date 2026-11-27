@@ -2,12 +2,11 @@
 // Server logic in src/lib/organizations.ts, rules (ORG_TYPES, name matching) in src/lib/campus.ts,
 // admin at /admin/campus/organizations.
 
-/// A university or blockchain club (more types later - ORG_TYPES, only add). Exists only once someone
-/// uses it: universities picked from UniversityCatalog (rorId set, verified) or typed in by a user
-/// (unverified), clubs typed in.
+/// A shared Campus organization or Earn issuer (ORG_TYPES, only add).
+/// Campus universities come from UniversityCatalog or a user's entry, and clubs are typed in.
 model Organization {
   id                String         @id @default(cuid())
-  /// university | blockchain_club (ORG_TYPES - persisted, only add)
+  /// university | blockchain_club | team1 | chapter | partner (ORG_TYPES - persisted, only add)
   type              String
   name              String
   /// normalizeOrgName(name) - finds duplicates
@@ -37,6 +36,7 @@ model Organization {
 
   members     UniversityMembership[] @relation("MembershipUniversity")
   clubMembers UniversityMembership[] @relation("MembershipClub")
+  earnBounties EarnBounty[]
 
   @@index([type, normalizedName])
   @@index([normalizedAliases], type: Gin)

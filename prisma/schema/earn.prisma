@@ -1,0 +1,154 @@
+// Public team1 listings. A null publication timestamp keeps the listing private.
+model EarnBounty {
+  id                String    @id @db.Uuid
+  title             String
+  description       String
+  deliverables      String
+  participation     String
+  participationUrl  String?
+  category          String
+  reward            String
+  organizationId    String    @default("team1-central")
+  logoUrl           String?
+  deadline          DateTime
+  hubModule         String?
+  githubIssueUrl    String?
+  publishedAt       DateTime?
+  revision          Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  terms              String?
+  termsVersion       Int       @default(1)
+  resultsAnnouncedAt DateTime?
+  resultsNote        String?
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  stages       EarnStage[]
+  awards       EarnAward[]
+
+  @@index([organizationId])
+  @@index([publishedAt, deadline, id])
+  @@index([deadline, id])
+  @@index([updatedAt, id])
+  @@map("earn_bounties")
+}
+
+enum EarnSubmissionPolicy {
+  single
+  resubmit
+  multiple
+}
+
+enum EarnSubmissionStatus {
+  pending
+  needs_review
+  changes_requested
+  rejected
+  approved
+  withdrawn
+}
+
+enum EarnReviewDecision {
+  needs_review
+  changes_requested
+  rejected
+  approved
+}
+
+model EarnStage {
+  id                   String               @id @default(uuid()) @db.Uuid
+  bountyId             String               @db.Uuid
+  position             Int
+  title                String
+  deliverables         String
+  requiresPrevApproval Boolean              @default(true)
+  requiresPullRequest  Boolean              @default(false)
+  submissionPolicy     EarnSubmissionPolicy @default(resubmit)
+  approvalLimit        Int?
+  bounty               EarnBounty           @relation(fields: [bountyId], references: [id], onDelete: Cascade)
+  submissions          EarnSubmission[]
+
+  @@unique([bountyId, position])
+  @@map("earn_stages")
+}
+
+model EarnSubmission {
+  id            String                  @id @db.Uuid
+  stageId       String                  @db.Uuid
+  contributorId String
+  previousSubmissionId String? @db.Uuid
+  status        EarnSubmissionStatus    @default(pending)
+  revision      Int                     @default(1)
+  version       Int                     @default(1)
+  ownerVersion  Int?
+  selectedReviewId String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  stage         EarnStage               @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  contributor   User                    @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  previousSubmission EarnSubmission?     @relation("EarnSubmissionLineage", fields: [previousSubmissionId], references: [id], onDelete: SetNull)
+  continuations EarnSubmission[]         @relation("EarnSubmissionLineage")
+  revisions     EarnSubmissionRevision[]
+  reviews       EarnReview[]
+  selectedReview EarnReview? @relation("EarnSelectedReview", fields: [selectedReviewId], references: [id], onDelete: SetNull)
+  award         EarnAward?
+
+  @@index([stageId, contributorId])
+  @@index([previousSubmissionId])
+  @@index([contributorId, updatedAt, id])
+  @@index([stageId, status])
+  @@index([status, updatedAt, id])
+  @@map("earn_submissions")
+}
+
+model EarnSubmissionRevision {
+  submissionId     String         @db.Uuid
+  number           Int
+  notes            String
+  links            String[]
+  pullRequests     String[]
+  changeNote       String?
+  termsVersion     Int
+  acceptedAt       DateTime       @default(now())
+  withdrawnAt      DateTime?
+  withdrawalReason String?
+  submission       EarnSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@id([submissionId, number])
+  @@map("earn_submission_revisions")
+}
+
+model EarnReview {
+  id           String             @id @default(cuid())
+  submissionId String            @db.Uuid
+  reviewerId   String?
+  revision     Int
+  decision     EarnReviewDecision
+  feedback     String?
+  internalNote String?
+  createdAt    DateTime           @default(now())
+  submission   EarnSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  selectedBy   EarnSubmission[]   @relation("EarnSelectedReview")
+  reviewer     User?              @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([submissionId, revision, createdAt])
+  @@index([reviewerId])
+  @@map("earn_reviews")
+}
+
+model EarnAward {
+  id           String          @id @default(uuid()) @db.Uuid
+  bountyId     String          @db.Uuid
+  submissionId String?        @unique @db.Uuid
+  reward       String
+  rewardedAt   DateTime?
+  rewardNote   String?
+  bounty       EarnBounty      @relation(fields: [bountyId], references: [id], onDelete: Restrict)
+  submission   EarnSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
+  @@index([bountyId, id])
+  @@map("earn_awards")
+}

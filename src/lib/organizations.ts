@@ -1,7 +1,7 @@
 import 'server-only'
 import { Prisma } from '@prisma/client'
 import { ActionError } from '@/lib/action-error'
-import { catalogNames, catalogSearchWords, cleanAliases, mergeUniversityHits, MAX_NEW_ORGS_PER_DAY, normalizeOrgName, orgNameMatch, type OrgType, type UniversityHit } from '@/lib/campus'
+import { CAMPUS_ORG_TYPES, catalogNames, catalogSearchWords, cleanAliases, mergeUniversityHits, MAX_NEW_ORGS_PER_DAY, normalizeOrgName, orgNameMatch, type UniversityHit } from '@/lib/campus'
 import { prisma } from '@/lib/db'
 
 // Universities + blockchain clubs (Organization). Shared by the profile (pickers, typed-in
@@ -20,7 +20,7 @@ export type OrgOptions = {
  * ponytail: all clubs to the client - fine for a few thousand.
  */
 export async function getOrgOptions(ownIds: string[] = []): Promise<OrgOptions> {
-  const rows = await prisma.organization.findMany({ where: { OR: [{ id: { in: ownIds } }, { type: 'blockchain_club', hidden: false }] }, orderBy: { name: 'asc' }, select: { id: true, type: true, name: true, aliases: true, country: true, parentId: true } })
+  const rows = await prisma.organization.findMany({ where: { type: { in: [...CAMPUS_ORG_TYPES] }, OR: [{ id: { in: ownIds } }, { type: 'blockchain_club', hidden: false }] }, orderBy: { name: 'asc' }, select: { id: true, type: true, name: true, aliases: true, country: true, parentId: true } })
   return {
     universities: rows.filter((r) => r.type === 'university').map(({ id, name, aliases, country }) => ({ id, name, aliases, country })),
     clubs: rows.filter((r) => r.type === 'blockchain_club').map(({ id, name, aliases, parentId }) => ({ id, name, aliases, parentId })),
@@ -34,7 +34,7 @@ export async function getOrgOptions(ownIds: string[] = []): Promise<OrgOptions> 
  */
 export async function assertOrgQuota(tx: Prisma.TransactionClient, userId: string): Promise<void> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
-  const count = await tx.organization.count({ where: { createdById: userId, createdAt: { gte: since } } })
+  const count = await tx.organization.count({ where: { type: { in: [...CAMPUS_ORG_TYPES] }, createdById: userId, createdAt: { gte: since } } })
   if (count > MAX_NEW_ORGS_PER_DAY) throw new ActionError('You added a lot of universities and clubs today - pick from the list or try again tomorrow')
 }
 
@@ -44,7 +44,7 @@ export async function assertOrgQuota(tx: Prisma.TransactionClient, userId: strin
  * ponytail: check-then-create without a unique index (NULL parents defeat one) - a concurrent
  * double add makes a duplicate an admin merges.
  */
-export async function findOrCreateOrg(tx: Prisma.TransactionClient, o: { type: OrgType; name: string; country: string | null; parentId: string | null; createdById: string }): Promise<{ id: string; created: boolean }> {
+export async function findOrCreateOrg(tx: Prisma.TransactionClient, o: { type: (typeof CAMPUS_ORG_TYPES)[number]; name: string; country: string | null; parentId: string | null; createdById: string }): Promise<{ id: string; created: boolean }> {
   const normalizedName = normalizeOrgName(o.name)
   const existing = await tx.organization.findFirst({ where: { type: o.type, ...orgNameMatch(normalizedName), country: o.country, parentId: o.parentId }, orderBy: { verified: 'desc' }, select: { id: true } })
   if (existing) return { id: existing.id, created: false }
@@ -69,7 +69,7 @@ export async function searchUniversities(q: string): Promise<UniversityHit[]> {
       WHERE type = 'university' AND hidden = false AND ${orgWords}
       ORDER BY verified DESC, name ASC LIMIT 10`,
   ])
-  const linked = await prisma.organization.findMany({ where: { rorId: { in: catalog.map((r) => r.rorId) } }, select: { id: true, name: true, aliases: true, rorId: true, hidden: true } })
+  const linked = await prisma.organization.findMany({ where: { type: 'university', rorId: { in: catalog.map((r) => r.rorId) } }, select: { id: true, name: true, aliases: true, rorId: true, hidden: true } })
   return mergeUniversityHits(catalog, linked, orgs)
 }
 
@@ -82,7 +82,7 @@ export async function searchUniversities(q: string): Promise<UniversityHit[]> {
  */
 export async function findOrCreateCatalogOrg(tx: Prisma.TransactionClient, rorId: string): Promise<{ id: string; name: string; country: string | null; hidden: boolean; created: boolean; claimed: boolean }> {
   const select = { id: true, name: true, country: true, hidden: true } as const
-  const linked = await tx.organization.findUnique({ where: { rorId }, select })
+  const linked = await tx.organization.findUnique({ where: { rorId, type: 'university' }, select })
   if (linked) return { ...linked, created: false, claimed: false }
   const row = await tx.universityCatalog.findUnique({ where: { rorId } })
   if (!row) throw new ActionError('Pick your university from the list')
@@ -95,6 +95,6 @@ export async function findOrCreateCatalogOrg(tx: Prisma.TransactionClient, rorId
   // ON CONFLICT DO NOTHING: a concurrent first pick of the same university waits, then this reads its row
   // (a plain create would fail on the unique rorId and abort the whole save).
   const { count } = await tx.organization.createMany({ data: [{ type: 'university', name: row.name, normalizedName: normalizeOrgName(row.name), country: row.country, rorId, verified: true, ...cleanAliases(row.name, row.aliases) }], skipDuplicates: true })
-  const org = await tx.organization.findUniqueOrThrow({ where: { rorId }, select })
+  const org = await tx.organization.findUniqueOrThrow({ where: { rorId, type: 'university' }, select })
   return { ...org, created: count === 1, claimed: false }
 }

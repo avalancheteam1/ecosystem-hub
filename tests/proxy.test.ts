@@ -29,12 +29,14 @@ test('a URL under a switched-off flag is rewritten to the 404 page, for everyone
   const rewrite = async (path: string, cookie?: string) => (await proxy(new NextRequest(`https://hub${path}`, { headers: cookie ? { cookie } : {} }))).headers.get('x-middleware-rewrite')
   const session = 'better-auth.session_token=x'
   flags.on = false
-  for (const p of ['/tooling', '/tooling/x', '/tooling/submit', '/Tooling']) {
+  for (const p of ['/tooling', '/tooling/x', '/tooling/submit', '/Tooling', '/earn', '/earn/submissions', '/Earn/bounty']) {
     assert.match((await rewrite(p)) ?? '', /\/_feature-off$/, p)
     assert.match((await rewrite(p, session)) ?? '', /\/_feature-off$/, `${p} signed in`)
   }
   assert.equal(await rewrite('/admin/tooling', session), null)
+  assert.equal(await rewrite('/admin/earn', session), null)
   assert.equal(await rewrite('/events'), null)
   flags.on = true
   assert.equal(await rewrite('/tooling'), null)
+  assert.equal(await rewrite('/earn'), null)
 })

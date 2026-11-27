@@ -1,5 +1,6 @@
 import 'server-only'
 import type { OverviewSource } from '@/app/admin/_lib/overview'
+import { CAMPUS_ORG_TYPES } from '@/lib/campus'
 import { prisma } from '@/lib/db'
 import { can } from '@/lib/permissions'
 
@@ -25,7 +26,7 @@ export const campusOverview: OverviewSource[] = [
     show: (u) => can(u, 'campus.manage'),
     load: async () => {
       const [review, universities] = await Promise.all([
-        prisma.organization.count({ where: { verified: false, hidden: false } }),
+        prisma.organization.count({ where: { type: { in: [...CAMPUS_ORG_TYPES] }, verified: false, hidden: false } }),
         prisma.organization.count({ where: { type: 'university', hidden: false, OR: [{ members: { some: {} } }, { clubMembers: { some: {} } }] } }),
       ])
       return {

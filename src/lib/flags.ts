@@ -16,6 +16,12 @@ export type FlagDef = {
 }
 
 export const FLAGS = {
+  earn: {
+    label: 'Earn',
+    description: 'Public bounties, contributor submissions, navigation and sitemap entries. Staff can manage bounties at /admin/earn.',
+    default: false,
+    paths: ['/earn'],
+  },
   tooling: {
     label: 'Community Tools',
     description: 'The public list on /tooling (incl. tool pages and the submit page), its card and preview on /ecosystem and its sitemap entries. Review stays available at /admin/tooling.',

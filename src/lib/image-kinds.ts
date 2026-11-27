@@ -10,6 +10,7 @@ export const IMAGE_KINDS = {
   'project-cover': { category: 'project-covers', aspect: 16 / 9, maxDimension: 1600, maxBytes: 2_000_000, shape: 'rect' },
   'project-screenshot': { category: 'project-screenshots', aspect: 16 / 9, maxDimension: 1600, maxBytes: 2_000_000, shape: 'rect' },
   'sponsor-logo': { category: 'sponsor-logos', aspect: 1, maxDimension: 600, maxBytes: 1_000_000, shape: 'rect' },
+  'earn-logo': { category: 'earn-logos', aspect: 1, maxDimension: 600, maxBytes: 1_000_000, shape: 'rect' },
 } as const satisfies Record<string, ImageRules & { category: string; shape: 'round' | 'rect' }>
 
 export type ImageKind = keyof typeof IMAGE_KINDS

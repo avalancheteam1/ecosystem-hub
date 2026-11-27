@@ -2,7 +2,9 @@
 // (profile form, its zod schema, admin pages). DB side: src/lib/organizations.ts.
 
 /** Organization.type - persisted, only add. Same ids as the member-portal CRM (for a later join). */
-export const ORG_TYPES = ['university', 'blockchain_club'] as const
+export const CAMPUS_ORG_TYPES = ['university', 'blockchain_club'] as const
+export const EARN_ORG_TYPES = ['team1', 'chapter', 'partner'] as const
+export const ORG_TYPES = [...CAMPUS_ORG_TYPES, ...EARN_ORG_TYPES] as const
 export type OrgType = (typeof ORG_TYPES)[number]
 
 /** UniversityMembership.kind - persisted, only add. */

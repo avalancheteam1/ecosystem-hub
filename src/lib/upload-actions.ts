@@ -7,6 +7,7 @@ import { recordAudit } from '@/lib/audit'
 import { prisma } from '@/lib/db'
 import { IMAGE_KIND_KEYS, IMAGE_KINDS, type ImageKind } from '@/lib/image-kinds'
 import { validateImageBuffer } from '@/lib/image-upload'
+import { can } from '@/lib/permissions'
 import { getStorage, storageKey } from '@/lib/storage'
 import { canManageHackathon } from '@/app/(site)/events/_lib/hackathons/rules'
 import { canEditProject } from '@/app/(app)/projects/_lib/rules'
@@ -21,6 +22,10 @@ async function authorizeOwner(kind: ImageKind, ownerId: string, user: CurrentUse
   switch (kind) {
     case 'avatar':
       return user.id
+    case 'earn-logo':
+      if (!can(user, 'earn.publish')) throw new ForbiddenError('Forbidden')
+      if (!z.uuid().safeParse(ownerId).success) throw new ActionError('Invalid bounty for logo upload')
+      return ownerId
     case 'project-logo':
     case 'project-cover':
     case 'project-screenshot': {
