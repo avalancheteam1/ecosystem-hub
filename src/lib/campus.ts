@@ -84,6 +84,7 @@ export type UniversityEntry = {
 
 export const emptyUniversityEntry = (): UniversityEntry => ({ universityId: null, catalogUniversity: null, newUniversity: null, kind: 'student', fieldOfStudy: null, graduationYear: null, clubId: null, newClubName: null, clubPosition: null })
 
+/** Applies a form patch; a different club resets the position (a position belongs to its club). */
 export function updateUniversityEntry(entry: UniversityEntry, patch: Partial<UniversityEntry>): UniversityEntry {
   const next = { ...entry, ...patch }
   if (next.clubId !== entry.clubId || next.newClubName !== entry.newClubName) next.clubPosition = null

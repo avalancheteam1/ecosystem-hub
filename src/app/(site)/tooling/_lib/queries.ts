@@ -10,7 +10,7 @@ const listed = { approvedVersionId: { not: null }, closedAt: null, project: { ar
 const ref = { select: { id: true, number: true } } as const
 const latestSealed = { where: { sealedAt: { not: null } }, orderBy: { number: 'desc' }, take: 1 } as const
 
-/** Read public cards from the approved version only, newest approval first. */
+/** Public cards: project data from the approved version only, never the team; newest approval first. */
 async function readToolCards(take: number, skip = 0, q?: string): Promise<PublicTool[]> {
   const search = toolSearchWhere(q)
   const rows = await prisma.toolingListing.findMany({
@@ -23,10 +23,12 @@ async function readToolCards(take: number, skip = 0, q?: string): Promise<Public
   return rows.flatMap((r) => (r.approvedVersion ? [{ slug: r.project.slug, ...r.approvedVersion }] : []))
 }
 
+/** The first `limit` cards of `/tooling` for the `/ecosystem` preview (same filter and order, fetches only what is shown). */
 export function listPublicToolPreview(limit: number) {
   return readToolCards(limit)
 }
 
+/** One page of `/tooling`, with a lookahead row for `hasMore`. */
 export async function listPublicTools({ q, page }: { q?: string; page: number }): Promise<{ tools: PublicTool[]; hasMore: boolean }> {
   const tools = await readToolCards(PAGE_SIZE + 1, (page - 1) * PAGE_SIZE, q)
   const hasMore = tools.length > PAGE_SIZE

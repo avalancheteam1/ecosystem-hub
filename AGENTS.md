@@ -15,6 +15,7 @@ Several developers work here in parallel, mostly each on one area. The structure
 - `pnpm dev` - dev server on :3000 · `pnpm worker` - pg-boss worker (watch mode) · `pnpm dev:all` - both
 - `pnpm db:migrate --name <change>` - create + apply a migration · `pnpm db:studio` · `pnpm db:reset`
 - `pnpm typecheck` · `pnpm lint` · `pnpm test` (vitest, `tests/*.test.ts`, DB-less) · `pnpm build` · `pnpm build:worker`
+- Tests run in Node. DOM tests (`// @vitest-environment jsdom` at the top, e.g. `tests/search-select.test.ts`) are the exception: only for regressions in shared components (`src/components`); areas test their pure rules in `_lib`.
 - Verify every change with `pnpm typecheck && pnpm lint && pnpm test`; extend the matching test file when touching pure libs.
 - Shared agent skills live in `.agents/skills/` (`.claude/skills` is a symlink to it) - `team1-hub-review` reviews a branch or PR against this file and CONTRIBUTING.md. Personal skills go in your home folder, not the repo.
 - Local sign-in without SMTP: request an email code, it is printed in the `pnpm dev` console. Put your email in `SUPER_ADMIN_EMAILS` to get admin.
