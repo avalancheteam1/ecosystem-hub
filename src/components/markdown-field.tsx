@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 // The parser only loads when someone opens Preview (preloaded on hover/focus of the tab).
 const loadMarkdown = () => import('@/components/markdown')
-const Markdown = dynamic(() => loadMarkdown().then((m) => m.Markdown))
+const Markdown = dynamic(() => loadMarkdown().then((m) => m.Markdown), { loading: () => <p className="text-sm text-fg-faint">Loading preview…</p> })
 
 /** Markdown textarea with Write / Preview - use for every Markdown field. */
 export function MarkdownField({ id, label, hint, value, onChange, rows = 8, maxLength, placeholder, required }: {

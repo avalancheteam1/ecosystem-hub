@@ -3,15 +3,16 @@
 // Pure and isomorphic.
 
 // Building an Intl.DateTimeFormat is expensive (these run per keystroke and per request), so one per zone.
-// Invalid zones are cached as null. ponytail: the size cap only bounds odd input (case variants), no LRU needed.
-const formatters = new Map<string, Intl.DateTimeFormat | null>()
+// Only valid zones are cached: invalid input is user-controlled (form fields) and must not stay in memory.
+// ponytail: the size cap only bounds case variants of real zones, no LRU needed.
+const formatters = new Map<string, Intl.DateTimeFormat>()
 function formatter(tz: string): Intl.DateTimeFormat | null {
   let f = formatters.get(tz)
-  if (f !== undefined) return f
+  if (f) return f
   try {
     f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
   } catch {
-    f = null
+    return null
   }
   if (formatters.size >= 2000) formatters.clear()
   formatters.set(tz, f)

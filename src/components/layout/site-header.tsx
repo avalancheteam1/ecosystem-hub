@@ -35,6 +35,10 @@ async function AccountMobileNav() {
 async function Account() {
   const user = await getCurrentUser()
   if (user) return <UserMenu user={await userMenuUser(user)} />
+  return <GuestLinks />
+}
+
+function GuestLinks() {
   return (
     <>
       <Link href="/sign-in" className="hidden h-10 items-center px-2 text-sm text-fg-muted transition-colors hover:text-fg-heading sm:flex">Sign in</Link>
@@ -62,8 +66,8 @@ export function SiteHeader() {
         <div className="flex items-center gap-1 justify-self-end sm:gap-2">
           <Suspense fallback={<MobileNav signedIn={false} />}><AccountMobileNav /></Suspense>
           <ThemeToggle />
-          {/* ponytail: avatar-sized placeholder; guests see the wider Join link once it streams in */}
-          <Suspense fallback={<div aria-hidden className="size-9 rounded-full bg-surface-hover" />}><Account /></Suspense>
+          {/* Placeholder = the guest links, invisible (not focusable): guests (most public visitors) get no layout shift. */}
+          <Suspense fallback={<div aria-hidden className="invisible flex items-center gap-1 sm:gap-2"><GuestLinks /></div>}><Account /></Suspense>
         </div>
       </div>
     </header>
