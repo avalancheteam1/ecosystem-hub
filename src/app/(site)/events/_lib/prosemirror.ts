@@ -3,7 +3,7 @@
 // degrade to their text, never throw.
 
 type Mark = { type?: string; attrs?: { href?: unknown } }
-type Node = { type?: string; text?: string; attrs?: { level?: unknown }; marks?: Mark[]; content?: Node[] }
+type Node = { type?: string; text?: string; attrs?: { level?: unknown; src?: unknown }; marks?: Mark[]; content?: Node[] }
 
 const ZERO_WIDTH = /[​-‍﻿]/g
 
@@ -42,6 +42,12 @@ function block(n: Node): string {
       return (n.content ?? []).map((li, i) => `${i + 1}. ${blocks(li.content, '\n')}`).join('\n')
     case 'horizontal_rule':
       return '---'
+    case 'image': {
+      // Only Luma's own CDN (all their uploads; also the only image host the CSP allows). Alt is always
+      // "User Uploaded Image" on Luma, so it's dropped.
+      const src = n.attrs?.src
+      return typeof src === 'string' && src.startsWith('https://images.lumacdn.com/') && !/[\s()]/.test(src) ? `![](${src})` : ''
+    }
     case 'text':
       return inline([n])
     default:

@@ -52,3 +52,10 @@ test('whitespace inside marks moves outside so Markdown still renders it', () =>
   const md = proseMirrorToMarkdown(doc({ type: 'paragraph', content: [t('from '), t('Nashik ', [{ type: 'bold' }]), t('for'), t(' x', [{ type: 'italic' }])] }))
   assert.equal(md, 'from **Nashik** for *x*')
 })
+
+test('Luma CDN images become Markdown images, other hosts are dropped', () => {
+  const img = (src: string) => ({ type: 'image', attrs: { alt: 'User Uploaded Image', src } })
+  const cdn = 'https://images.lumacdn.com/cdn-cgi/image/format=auto,width=800,height=443.3/uploads/v0/a.png'
+  const md = proseMirrorToMarkdown(doc(img(cdn), img('https://evil.example/x.png'), img('https://images.lumacdn.com/a b.png'), { type: 'paragraph', content: [t('after')] }))
+  assert.equal(md, `![](${cdn})\n\nafter`)
+})
